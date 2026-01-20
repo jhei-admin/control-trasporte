@@ -1462,23 +1462,42 @@ def poner_en_cola(request, salida_id):
     return redirect("panel_despachador")
 
 # =================================================
-# 🚦 QUITAR DE COLA (RESTAURADO)
+# 🚦 QUITAR DE COLA (CANCELA SALIDA DEL DÍA)
 # =================================================
 @require_POST
 def quitar_de_cola(request, salida_id):
     salida = get_object_or_404(RegistroSalida, id=salida_id)
 
+    # ------------------------------------------------
+    # VALIDACIÓN
+    # ------------------------------------------------
     if not salida.en_cola:
         messages.info(request, "La unidad no está en la cola.")
         return redirect("panel_despachador")
 
+    # ------------------------------------------------
+    # 🔥 REGLA OPERATIVA DEFINITIVA
+    # Quitar de cola = cancelar salida
+    # ------------------------------------------------
     salida.en_cola = False
     salida.orden_cola = None
-    salida.save(update_fields=["en_cola", "orden_cola"])
+    salida.activo = False   # 👈 CLAVE
 
+    salida.save(update_fields=[
+        "en_cola",
+        "orden_cola",
+        "activo"
+    ])
+
+    # ------------------------------------------------
+    # 🔁 Recalcular cola restante
+    # ------------------------------------------------
     recalcular_cola()
 
-    messages.success(request, "Unidad quitada de la cola.")
+    messages.success(
+        request,
+        "Unidad quitada de la cola y salida cancelada."
+    )
     return redirect("panel_despachador")
 
 # =================================================
