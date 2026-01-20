@@ -90,7 +90,7 @@ urlpatterns = [
     ),
 
     # =========================
-    # 🔎 API BÚSQUEDA (AJAX)
+    # 🔎 API BÚSQUEDA VEHÍCULO
     # =========================
     path(
         "api/despachador/buscar-vehiculo/",
@@ -100,6 +100,20 @@ urlpatterns = [
     path(
         "api/despachador/buscar-vehiculo",
         views.api_buscar_vehiculo_por_codigo
+    ),
+
+    # ======================================================
+    # ➕ API AGREGAR UNIDAD AL PANEL (AJAX – SIN RECARGA)
+    # 🔥 ESTO ES LO NUEVO QUE FALTABA
+    # ======================================================
+    path(
+        "api/despachador/agregar-unidad/",
+        views.api_agregar_unidad_panel,
+        name="api_agregar_unidad_panel"
+    ),
+    path(
+        "api/despachador/agregar-unidad",
+        views.api_agregar_unidad_panel
     ),
 
     # =========================
@@ -150,7 +164,7 @@ urlpatterns = [
     ),
 
     # =========================
-    # 🔍 BUSCADOR REAL (CLAVE)
+    # 🔍 BUSCADOR CLÁSICO (FORM POST)
     # =========================
     path(
         "despachador/buscar-unidad/",
@@ -166,6 +180,7 @@ urlpatterns = [
         views.poner_en_cola,
         name="poner_en_cola"
     ),
+
     path(
         "despachador/quitar-de-cola/<int:salida_id>/",
         views.quitar_de_cola,
@@ -177,6 +192,7 @@ urlpatterns = [
         views.asignar_hora_fija,
         name="asignar_hora_fija"
     ),
+
     path(
         "despachador/desbloquear-hora/<int:salida_id>/",
         views.desbloquear_hora,
@@ -197,6 +213,7 @@ urlpatterns = [
         views.auditoria_horas,
         name="auditoria_horas"
     ),
+
     path(
         "historial-salidas/",
         views.historial_salidas,
@@ -220,11 +237,13 @@ urlpatterns = [
         views.control_ruta,
         name="control_ruta"
     ),
+
     path(
         "control-ruta/<int:salida_id>/marcar/<int:punto_id>/",
         views.marcar_paso,
         name="marcar_paso"
     ),
+
     path(
         "control-ruta/<int:salida_id>/marcar-siguiente/",
         views.marcar_siguiente_punto,

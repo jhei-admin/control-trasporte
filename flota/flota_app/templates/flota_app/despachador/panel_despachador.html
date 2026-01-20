@@ -8,7 +8,7 @@
 <hr>
 
 {# ================================================== #}
-{# 🔔 MENSAJES DEL SISTEMA (CLAVE)                     #}
+{# 🔔 MENSAJES DEL SISTEMA                            #}
 {# ================================================== #}
 {% if messages %}
     {% for message in messages %}
@@ -92,13 +92,16 @@
 {# ============================= #}
 <form method="post"
       action="{% url 'buscar_unidad_panel' %}"
+      id="formAgregarUnidad"
       class="mb-3 d-flex gap-2 align-items-center"
       style="max-width: 420px;"
       autocomplete="off">
+
     {% csrf_token %}
 
     <input type="text"
            name="codigo"
+           id="inputCodigoUnidad"
            class="form-control"
            placeholder="🔍 Buscar unidad por código (ej: 01)"
            autocomplete="off"
@@ -139,27 +142,16 @@
         </tr>
     </thead>
 
-    <tbody>
+    <tbody id="tablaSalidas">
         {% for s in salidas %}
-        <tr class="fila-unidad"
-            data-unidad="{{ s.vehiculo.numero|lower }}">
-
+        <tr class="fila-unidad" data-unidad="{{ s.vehiculo.numero|lower }}">
             <td class="text-center">{{ s.vehiculo.numero }}</td>
             <td>{{ s.ruta.nombre }}</td>
             <td class="text-center">{{ s.hora_llegada|date:"H:i" }}</td>
-
             <td class="text-center">
-                {% if s.hora_salida %}
-                    {{ s.hora_salida|date:"H:i" }}
-                {% else %}
-                    —
-                {% endif %}
+                {% if s.hora_salida %}{{ s.hora_salida|date:"H:i" }}{% else %}—{% endif %}
             </td>
-
-            <td class="text-center">
-                {{ s.intervalo_minutos|default:"—" }}
-            </td>
-
+            <td class="text-center">{{ s.intervalo_minutos|default:"—" }}</td>
             <td class="text-center">
                 {% if s.bloqueado %}
                     <span class="badge bg-warning text-dark">MANUAL</span>
@@ -167,82 +159,71 @@
                     <span class="badge bg-success">AUTO</span>
                 {% endif %}
             </td>
-
-            <td class="text-center d-flex gap-1 justify-content-center flex-wrap">
-
-                <a href="{% url 'control_ruta' s.id %}" class="btn btn-sm btn-outline-primary">
-                    🧭 Ruta
-                </a>
-
-                <a href="{% url 'detalle_salida' s.id %}" class="btn btn-sm btn-primary">
-                    📍 Puntos
-                </a>
-
-                <a href="{% url 'ver_qr_unidad' s.vehiculo.id %}" class="btn btn-sm btn-outline-dark">
-                    📱 QR
-                </a>
-
-                {% if s.en_cola %}
-
-                    {% if s.bloqueado %}
-                        <form method="post" action="{% url 'desbloquear_hora' s.id %}">
-                            {% csrf_token %}
-                            <button class="btn btn-sm btn-warning">
-                                🔓 Auto
-                            </button>
-                        </form>
-                    {% else %}
-                        <form method="post" action="{% url 'asignar_hora_fija' s.id %}">
-                            {% csrf_token %}
-                            <input type="time"
-                                   name="hora_fija"
-                                   class="form-control form-control-sm"
-                                   style="width: 95px;"
-                                   required>
-                            <button class="btn btn-sm btn-warning">
-                                ⏱️ Fijar
-                            </button>
-                        </form>
-
-                        <form method="post" action="{% url 'quitar_de_cola' s.id %}">
-                            {% csrf_token %}
-                            <button class="btn btn-sm btn-danger">
-                                ➖ Quitar
-                            </button>
-                        </form>
-                    {% endif %}
-
-                {% else %}
-                    <form method="post" action="{% url 'poner_en_cola' s.id %}">
-                        {% csrf_token %}
-                        <button class="btn btn-sm btn-success">
-                            ➕ Cola
-                        </button>
-                    </form>
-                {% endif %}
-            </td>
-        </tr>
-
-        {% empty %}
-        <tr>
-            <td colspan="7" class="text-center text-muted">
-                No hay salidas registradas
-            </td>
+            <td class="text-center">—</td>
         </tr>
         {% endfor %}
     </tbody>
 </table>
 
 {# ============================= #}
-{# JS FILTRO LOCAL                #}
+{# JS FILTRO + AJAX AGREGAR       #}
 {# ============================= #}
 <script>
+/* FILTRO LOCAL */
 document.getElementById("busquedaUnidad").addEventListener("keyup", function () {
     const filtro = this.value.toLowerCase().trim();
     document.querySelectorAll(".fila-unidad").forEach(fila => {
         const unidad = fila.dataset.unidad || "";
         fila.style.display = unidad.includes(filtro) ? "" : "none";
     });
+});
+
+/* AJAX AGREGAR UNIDAD */
+document.getElementById("formAgregarUnidad").addEventListener("submit", function (e) {
+    e.preventDefault();
+
+    const input = document.getElementById("inputCodigoUnidad");
+    const codigo = input.value.trim();
+    if (!codigo) return;
+
+    fetch("{% url 'api_agregar_unidad_panel' %}", {
+        method: "POST",
+        headers: {
+            "X-CSRFToken": "{{ csrf_token }}",
+        },
+        body: new URLSearchParams({ codigo })
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (!data.ok) {
+            alert(data.error || "Error al agregar unidad");
+            return;
+        }
+
+        const s = data.salida;
+        const fila = document.createElement("tr");
+        fila.className = "fila-unidad";
+        fila.dataset.unidad = s.vehiculo.toLowerCase();
+
+        fila.innerHTML = `
+            <td class="text-center">${s.vehiculo}</td>
+            <td>${s.ruta}</td>
+            <td class="text-center">${s.hora_llegada}</td>
+            <td class="text-center">—</td>
+            <td class="text-center">—</td>
+            <td class="text-center">
+                <span class="badge bg-success">AUTO</span>
+            </td>
+            <td class="text-center">
+                <small class="text-muted">Recargue para acciones</small>
+            </td>
+        `;
+
+        document.getElementById("tablaSalidas").prepend(fila);
+        input.value = "";
+        input.focus();
+    })
+    .catch(() => alert("Error de conexión"));
 });
 </script>
 

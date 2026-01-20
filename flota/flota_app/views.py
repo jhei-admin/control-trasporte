@@ -411,6 +411,91 @@ def buscar_unidad_panel(request):
     return redirect("panel_despachador")
 
 # =================================================
+# 🔍 AJAX — AGREGAR UNIDAD AL PANEL (SIN REDIRECCIÓN)
+# =================================================
+def api_agregar_unidad_panel(request):
+    """
+    API AJAX:
+    - SOLO POST
+    - Devuelve JSON
+    - NO redirige
+    - Usado por el panel despachador (Agregar sin recargar)
+    """
+
+    if request.method != "POST":
+        return JsonResponse(
+            {"ok": False, "error": "Método no permitido"},
+            status=405
+        )
+
+    # ---------------------------------------------
+    # 📥 LEER Y NORMALIZAR CÓDIGO
+    # ---------------------------------------------
+    codigo = request.POST.get("codigo", "").strip()
+    hoy = timezone.localdate()
+
+    if not codigo:
+        return JsonResponse(
+            {"ok": False, "error": "Ingrese un código de unidad"}
+        )
+
+    # ---------------------------------------------
+    # 🚍 BUSCAR VEHÍCULO ACTIVO
+    # ---------------------------------------------
+    vehiculo = Vehiculo.objects.filter(
+        codigo=codigo,
+        activo=True
+    ).first()
+
+    if not vehiculo:
+        return JsonResponse({
+            "ok": False,
+            "error": f"No existe unidad activa con código {codigo}"
+        })
+
+    # ---------------------------------------------
+    # 🔥 CERRAR SALIDAS ACTIVAS PREVIAS DEL DÍA
+    # ---------------------------------------------
+    RegistroSalida.objects.filter(
+        vehiculo=vehiculo,
+        activo=True,
+        fecha=hoy
+    ).update(
+        activo=False,
+        en_cola=False,
+        orden_cola=None
+    )
+
+    # ---------------------------------------------
+    # 🟢 CREAR NUEVA SALIDA DEL DÍA
+    # ---------------------------------------------
+    salida = RegistroSalida.objects.create(
+        vehiculo=vehiculo,
+        ruta=vehiculo.ruta,
+        fecha=hoy,
+        hora_llegada=timezone.now(),
+        activo=True,
+        en_cola=False,
+        bloqueado=False
+    )
+
+    # ---------------------------------------------
+    # 📤 RESPUESTA JSON (PARA EL FRONTEND)
+    # ---------------------------------------------
+    return JsonResponse({
+        "ok": True,
+        "salida": {
+            "id": salida.id,
+            "vehiculo": vehiculo.numero,
+            "ruta": salida.ruta.nombre,
+            "hora_llegada": salida.hora_llegada.strftime("%H:%M"),
+            "hora_salida": "",
+            "intervalo": "",
+            "modo": "AUTO"
+        }
+    })
+
+# =================================================
 # 🗺️ DESPACHADOR — MAPA TIEMPO REAL (VISTA SEPARADA)
 # =================================================
 def despachador_mapa(request):
