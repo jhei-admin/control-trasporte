@@ -333,21 +333,19 @@ def panel_despachador(request):
     )
 
 # =================================================
-# 🔍 BUSCAR UNIDAD Y CREAR SALIDA DEL DÍA (FIX DEFINITIVO)
+# 🔍 BUSCAR UNIDAD Y CREAR SALIDA DEL DÍA (FIX REAL PRODUCCIÓN)
 # =================================================
-from django.views.decorators.http import require_http_methods
-
-@require_http_methods(["POST"])
 def buscar_unidad_panel(request):
     """
-    - Acepta SOLO POST (blindado contra GET / autocompletado)
-    - Normaliza el código de unidad
-    - Evita errores 500 en Render
-    - Cierra salidas activas previas del día
-    - Crea una nueva salida limpia para HOY
+    FIX DEFINITIVO:
+    - GET  → redirige al panel (nunca 500)
+    - POST → procesa búsqueda de unidad
+    - Compatible 100% con Render / producción
     """
 
-    # 🛡️ BLINDAJE EXTRA (navegador / bots / errores raros)
+    # -------------------------------------------------
+    # 🚫 SI ES GET → VOLVER AL PANEL
+    # -------------------------------------------------
     if request.method != "POST":
         return redirect("panel_despachador")
 
@@ -364,11 +362,10 @@ def buscar_unidad_panel(request):
     # -------------------------------------------------
     # 🚍 BUSCAR VEHÍCULO ACTIVO
     # -------------------------------------------------
-    vehiculo = (
-        Vehiculo.objects
-        .filter(codigo=codigo, activo=True)
-        .first()
-    )
+    vehiculo = Vehiculo.objects.filter(
+        codigo=codigo,
+        activo=True
+    ).first()
 
     if not vehiculo:
         messages.error(
@@ -379,7 +376,6 @@ def buscar_unidad_panel(request):
 
     # -------------------------------------------------
     # 🔥 CERRAR SALIDAS ACTIVAS PREVIAS DEL DÍA
-    # (MISMA UNIDAD + MISMA FECHA)
     # -------------------------------------------------
     RegistroSalida.objects.filter(
         vehiculo=vehiculo,
@@ -392,13 +388,13 @@ def buscar_unidad_panel(request):
     )
 
     # -------------------------------------------------
-    # 🟢 CREAR NUEVA SALIDA DEL DÍA (LIMPIA)
+    # 🟢 CREAR NUEVA SALIDA DEL DÍA
     # -------------------------------------------------
     RegistroSalida.objects.create(
         vehiculo=vehiculo,
-        ruta=vehiculo.ruta,           # ruta fija del vehículo
+        ruta=vehiculo.ruta,
         fecha=hoy,
-        hora_llegada=timezone.now(),  # aware
+        hora_llegada=timezone.now(),
         activo=True,
         en_cola=False,
         bloqueado=False
