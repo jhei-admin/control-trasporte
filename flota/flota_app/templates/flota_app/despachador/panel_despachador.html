@@ -90,9 +90,7 @@
 {# ============================= #}
 {# 🔍 BUSCADOR REAL DE UNIDAD    #}
 {# ============================= #}
-<form method="post"
-      action="{% url 'buscar_unidad_panel' %}"
-      id="formAgregarUnidad"
+<form id="formAgregarUnidad"
       class="mb-3 d-flex gap-2 align-items-center"
       style="max-width: 420px;"
       autocomplete="off">
@@ -100,14 +98,10 @@
     {% csrf_token %}
 
     <input type="text"
-           name="codigo"
            id="inputCodigoUnidad"
            class="form-control"
            placeholder="🔍 Buscar unidad por código (ej: 01)"
            autocomplete="off"
-           autocorrect="off"
-           autocapitalize="off"
-           spellcheck="false"
            inputmode="numeric"
            required>
 
@@ -172,12 +166,9 @@
 </table>
 
 {# ============================= #}
-{# JS FILTRO + AJAX AGREGAR       #}
+{# JS FILTRO + AJAX CORRECTO     #}
 {# ============================= #}
 <script>
-/* ============================
-   CSRF CORRECTO (RENDER FIX)
-============================ */
 function getCookie(name) {
     let cookieValue = null;
     if (document.cookie && document.cookie !== "") {
@@ -185,9 +176,7 @@ function getCookie(name) {
         for (let cookie of cookies) {
             cookie = cookie.trim();
             if (cookie.startsWith(name + "=")) {
-                cookieValue = decodeURIComponent(
-                    cookie.substring(name.length + 1)
-                );
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
                 break;
             }
         }
@@ -199,28 +188,31 @@ function getCookie(name) {
 document.getElementById("busquedaUnidad").addEventListener("keyup", function () {
     const filtro = this.value.toLowerCase().trim();
     document.querySelectorAll(".fila-unidad").forEach(fila => {
-        const unidad = fila.dataset.unidad || "";
-        fila.style.display = unidad.includes(filtro) ? "" : "none";
+        fila.style.display = fila.dataset.unidad.includes(filtro) ? "" : "none";
     });
 });
 
-/* AJAX AGREGAR UNIDAD (SEGURO + LIMPIO) */
+/* ✅ AJAX FINAL CORRECTO */
 document.getElementById("formAgregarUnidad").addEventListener("submit", function (e) {
     e.preventDefault();
 
-    const input = document.getElementById("inputCodigoUnidad");
-    const codigo = input.value.trim();
+    const codigo = document.getElementById("inputCodigoUnidad").value.trim();
     if (!codigo) return;
 
-    fetch("{% url 'buscar_unidad_panel' %}", {
+    fetch("/sistema/api/despachador/agregar-unidad/", {
         method: "POST",
         headers: {
             "X-CSRFToken": getCookie("csrftoken"),
         },
         body: new URLSearchParams({ codigo })
     })
-    .then(() => {
-        // 🔥 RECARGA LIMPIA (ESTADO REAL DESDE DJANGO)
+    .then(r => r.json())
+    .then(data => {
+        if (!data.ok) {
+            alert(data.error);
+            return;
+        }
+        // 🔥 estado real siempre desde backend
         window.location.reload();
     })
     .catch(() => alert("Error de conexión"));
