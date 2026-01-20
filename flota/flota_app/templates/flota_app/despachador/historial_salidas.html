@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h2>📋 Historial de Salidas</h2>
+
+<!-- ========================= -->
+<!-- 🔍 FILTROS -->
+<!-- ========================= -->
+<form method="get" class="row g-3 mb-3">
+
+    <div class="col-md-3">
+        <label class="form-label">Desde</label>
+        <input type="date"
+               name="desde"
+               class="form-control"
+               value="{{ request.GET.desde }}">
+    </div>
+
+    <div class="col-md-3">
+        <label class="form-label">Hasta</label>
+        <input type="date"
+               name="hasta"
+               class="form-control"
+               value="{{ request.GET.hasta }}">
+    </div>
+
+    <div class="col-md-4">
+        <label class="form-label">Ruta</label>
+        <select name="ruta" class="form-select">
+            <option value="">Todas</option>
+            {% for r in rutas %}
+                <option value="{{ r.id }}"
+                    {% if request.GET.ruta == r.id|stringformat:"s" %}selected{% endif %}>
+                    {{ r.nombre }}
+                </option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <div class="col-md-2 d-flex align-items-end">
+        <button class="btn btn-primary w-100">
+            🔍 Filtrar
+        </button>
+    </div>
+</form>
+
+<!-- ========================= -->
+<!-- 📋 TABLA -->
+<!-- ========================= -->
+<table class="table table-bordered table-sm">
+    <thead class="table-dark">
+        <tr>
+            <th>Vehículo</th>
+            <th>Ruta</th>
+            <th>Programada</th>
+            <th>Marcada</th>
+            <th>Falta (min)</th>
+            <th>Estado</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for s in salidas %}
+        <tr>
+            <td>{{ s.vehiculo }}</td>
+            <td>{{ s.ruta }}</td>
+            <td>{{ s.hora_salida|date:"H:i" }}</td>
+            <td>{{ s.hora_real_salida|date:"H:i" }}</td>
+            <td>{{ s.diferencia_minutos }}</td>
+            <td>
+                {% if s.estado_salida == "A TIEMPO" %}
+                    <span class="badge bg-success">A TIEMPO</span>
+                {% elif s.estado_salida == "TARDE" %}
+                    <span class="badge bg-danger">TARDE</span>
+                {% else %}
+                    <span class="badge bg-warning text-dark">ADELANTADO</span>
+                {% endif %}
+            </td>
+        </tr>
+        {% empty %}
+        <tr>
+            <td colspan="6" class="text-center">
+                No hay salidas registradas
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<a href="{% url 'panel_despachador' %}" class="btn btn-secondary">
+    ⬅ Volver al panel
+</a>
+{% endblock %}

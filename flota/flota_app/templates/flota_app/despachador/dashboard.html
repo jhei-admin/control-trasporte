@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Panel Despachador</title>
+    {% load static %}
+    <link rel="stylesheet" href="{% static 'flota_app/css/dashboard.css' %}">
+</head>
+<body>
+
+    <!-- NAVBAR -->
+    <nav class="navbar">
+        <h2>🚍 Control Transporte</h2>
+        <span>Despachador</span>
+    </nav>
+
+    <!-- CONTENIDO -->
+    <main class="container">
+
+        <!-- TARJETAS -->
+        <section class="cards">
+            <div class="card">
+                <h3>Vehículos</h3>
+                <p>12 activos</p>
+            </div>
+            <div class="card">
+                <h3>Conductores</h3>
+                <p>8 en ruta</p>
+            </div>
+            <div class="card">
+                <h3>Rutas</h3>
+                <p>5 operativas</p>
+            </div>
+        </section>
+
+        <!-- TABLA -->
+        <section class="table-section">
+            <h3>Últimos despachos</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Vehículo</th>
+                        <th>Conductor</th>
+                        <th>Ruta</th>
+                        <th>Hora salida</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Bus 01</td>
+                        <td>Juan Pérez</td>
+                        <td>Ruta A</td>
+                        <td>06:30</td>
+                    </tr>
+                    <tr>
+                        <td>Bus 02</td>
+                        <td>Carlos Gómez</td>
+                        <td>Ruta B</td>
+                        <td>07:00</td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+
+    </main>
+
+</body>
+</html>

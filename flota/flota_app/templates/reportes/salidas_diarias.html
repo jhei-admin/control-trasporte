@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Salidas diarias</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <style>
+        body {
+            margin: 0;
+            font-family: Arial, Helvetica, sans-serif;
+            background: #f4f6f8;
+        }
+
+        /* =========================
+           HEADER
+        ========================= */
+        .header {
+            background: #ffc107;
+            padding: 14px;
+            color: #000;
+            font-weight: bold;
+        }
+
+        .header .titulo {
+            font-size: 18px;
+        }
+
+        .header .sub {
+            font-size: 14px;
+            opacity: 0.85;
+        }
+
+        /* =========================
+           FILTRO SUPERIOR
+        ========================= */
+        .filtro {
+            background: #fff3cd;
+            padding: 10px;
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .filtro a.btn-atras {
+            background: #6c757d;
+            color: #fff;
+            padding: 6px 10px;
+            border-radius: 4px;
+            text-decoration: none;
+            font-size: 14px;
+        }
+
+        .filtro input,
+        .filtro select,
+        .filtro button {
+            padding: 6px;
+            font-size: 14px;
+        }
+
+        .filtro button {
+            background: #ffc107;
+            border: none;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        /* =========================
+           CONTENEDORES
+        ========================= */
+        .container {
+            padding: 12px;
+        }
+
+        .salida-card {
+            background: #fff;
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 12px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            transition: transform 0.1s ease, box-shadow 0.1s ease;
+        }
+
+        .salida-card:hover {
+            transform: scale(1.01);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        }
+
+        .fila {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 6px;
+        }
+
+        .hora {
+            font-size: 16px;
+            font-weight: bold;
+        }
+
+        .ruta {
+            font-size: 14px;
+            color: #555;
+        }
+
+        .badge {
+            background: #eee;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+        }
+
+        .marcacion {
+            margin-top: 8px;
+            font-size: 14px;
+        }
+
+        .barra {
+            height: 8px;
+            background: #ddd;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-top: 4px;
+        }
+
+        .barra .valor {
+            height: 100%;
+            background: #4caf50;
+        }
+
+        .barra .valor.alerta {
+            background: #ff9800;
+        }
+
+        .footer {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 10px;
+            font-size: 13px;
+            color: #444;
+        }
+
+        .sin-datos {
+            text-align: center;
+            color: #777;
+            margin-top: 40px;
+        }
+
+        .alerta {
+            color: #d32f2f;
+            font-size: 14px;
+            margin-top: 8px;
+        }
+
+        .ok {
+            color: #388e3c;
+            font-size: 14px;
+            margin-top: 8px;
+        }
+
+        /* 🔑 Quitar estilo de link */
+        a.card-link {
+            text-decoration: none;
+            color: inherit;
+            display: block;
+        }
+    </style>
+</head>
+<body>
+
+<!-- =========================
+     HEADER
+========================= -->
+<div class="header">
+    <div class="titulo">Salidas del día</div>
+    <div class="sub">
+        Vehículo {{ vehiculo.numero }} · {{ fecha }}
+    </div>
+</div>
+
+<!-- =========================
+     🔍 FILTRO + ⬅ ATRÁS
+========================= -->
+<form method="get" class="filtro">
+
+    <!-- ⬅ VOLVER AL PANEL -->
+    <a href="{% url 'panel_despachador' %}" class="btn-atras">
+        ⬅ Panel
+    </a>
+
+    <input
+        type="date"
+        name="fecha"
+        value="{{ fecha|date:'Y-m-d' }}"
+    >
+
+    <select onchange="location.href='/sistema/reportes/salidas/' + this.value + '/?fecha={{ fecha|date:'Y-m-d' }}'">
+        {% for v in vehiculos %}
+            <option value="{{ v.id }}"
+                {% if v.id == vehiculo.id %}selected{% endif %}
+            >
+                Unidad {{ v.numero }}
+            </option>
+        {% endfor %}
+    </select>
+
+    <button type="submit">🔍 Buscar</button>
+</form>
+
+<!-- =========================
+     📊 RESUMEN DIARIO
+========================= -->
+<div class="container">
+    <div class="salida-card">
+        <div class="fila">
+            <strong>Resumen del día</strong>
+        </div>
+
+        <div class="footer">
+            <div>🔁 Vueltas: {{ total_vueltas }}</div>
+            <div>📊 Promedio: {{ promedio_marcacion }} %</div>
+            <div>⏱ Minutos: {{ minutos_totales }}</div>
+        </div>
+
+        {% if alertas %}
+            {% for a in alertas %}
+                <div class="alerta">⚠️ {{ a }}</div>
+            {% endfor %}
+        {% else %}
+            <div class="ok">✔ Operación normal</div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- =========================
+     🚍 LISTA DE SALIDAS
+========================= -->
+<div class="container">
+
+    {% for s in salidas %}
+        <a href="{% url 'detalle_salida' s.salida_id %}" class="card-link">
+            <div class="salida-card">
+
+                <div class="fila">
+                    <div class="hora">{{ s.hora|date:"H:i" }}</div>
+                    <div class="badge">Vuelta {{ s.vuelta }}</div>
+                </div>
+
+                <div class="ruta">Ruta {{ s.ruta }}</div>
+
+                <div class="marcacion">
+                    Marcación {{ s.porcentaje }} %
+                    <div class="barra">
+                        <div class="valor {% if s.porcentaje < 100 %}alerta{% endif %}"
+                             style="width: {{ s.porcentaje }}%;">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="footer">
+                    <div>⏱ {{ s.minutos }} min</div>
+                    <div>#{{ s.salida_id }}</div>
+                </div>
+
+            </div>
+        </a>
+    {% empty %}
+        <div class="sin-datos">
+            No hay salidas registradas
+        </div>
+    {% endfor %}
+
+</div>
+
+</body>
+</html>

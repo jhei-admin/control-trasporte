@@ -1,0 +1,383 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Mapa en tiempo real{% endblock %}
+
+{% block content %}
+
+<link
+  rel="stylesheet"
+  href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+/>
+
+<style>
+  /* ================= TOOLTIP PRO (PARADERO) ================= */
+  .leaflet-tooltip.paradero-label {
+    background: rgba(20, 20, 20, 0.85);
+    color: #ffffff;
+    border: none;
+    box-shadow: none;
+    font-size: 12px;
+    font-weight: 500;
+    padding: 4px 8px;
+    border-radius: 6px;
+  }
+
+  /* ================= BUS CON NUMERO (PASO 1) ================= */
+  .bus-marker {
+    position: relative;
+    width: 34px;
+    height: 34px;
+  }
+
+  .bus-marker img {
+    width: 100%;
+    height: 100%;
+  }
+
+  .bus-numero {
+    position: absolute;
+    top: -10px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0, 0, 0, 0.85);
+    color: #ffffff;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 1px 6px;
+    border-radius: 6px;
+    line-height: 1;
+    white-space: nowrap;
+  }
+
+  /* ================= HALO / ESTADO (PASO 2) ================= */
+  .bus-activo {
+    filter: drop-shadow(0 0 6px rgba(40, 167, 69, 0.9));
+  }
+
+  .bus-inactivo {
+    filter: none;
+  }
+
+  .bus-offline {
+    opacity: 0.45;
+    filter: grayscale(80%);
+  }
+
+  /* ================= INDICADOR EN VIVO (PASO 3) ================= */
+  .live-dot {
+    position: absolute;
+    top: -18px;
+    right: -6px;
+    width: 8px;
+    height: 8px;
+    background: #28a745;
+    border-radius: 50%;
+    box-shadow: 0 0 0 rgba(40, 167, 69, 0.7);
+    animation: livePulse 1.5s infinite;
+  }
+
+  @keyframes livePulse {
+    0% { box-shadow: 0 0 0 0 rgba(40, 167, 69, 0.7); }
+    70% { box-shadow: 0 0 0 8px rgba(40, 167, 69, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(40, 167, 69, 0); }
+  }
+
+  /* ================= PUNTOS DE CONTROL (AGREGADO) ================= */
+  .punto-control-label {
+    background: rgba(0, 0, 0, 0.85);
+    color: #ffffff;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 6px;
+    border-radius: 6px;
+    border: none;
+  }
+</style>
+
+<h2 class="mb-3">🗺️ Mapa en tiempo real</h2>
+
+<a href="{% url 'panel_despachador' %}" class="btn btn-secondary btn-sm mb-3">
+  ⬅ Volver al panel
+</a>
+
+<hr>
+
+<!-- ================= CONTROLES SUPERIORES ================= -->
+<div class="d-flex flex-wrap gap-3 align-items-center mb-3">
+
+  <div>
+    🟢 Activos: <strong id="cnt-activo">0</strong>
+    &nbsp;&nbsp;
+    🟡 Inactivos: <strong id="cnt-inactivo">0</strong>
+    &nbsp;&nbsp;
+    🔴 Offline: <strong id="cnt-offline">0</strong>
+  </div>
+
+  <div class="d-flex gap-2">
+    <label><input type="checkbox" checked onchange="toggleFiltro('ACTIVO')"> 🟢 Activo</label>
+    <label><input type="checkbox" checked onchange="toggleFiltro('INACTIVO')"> 🟡 Inactivo</label>
+    <label><input type="checkbox" checked onchange="toggleFiltro('OFFLINE')"> 🔴 Offline</label>
+  </div>
+
+  <div>
+    🔍
+    <input
+      type="text"
+      id="busqueda"
+      class="form-control form-control-sm"
+      placeholder="Buscar placa / código"
+      style="max-width: 220px"
+      oninput="aplicarFiltros()"
+    >
+  </div>
+
+  <div class="ms-auto">
+    <button class="btn btn-sm btn-outline-primary" onclick="centrarMapa()">
+      📍 Centrar mapa
+    </button>
+  </div>
+</div>
+
+<!-- ================= MAPA ================= -->
+<div id="map" style="height: 520px; width: 100%; border-radius: 8px;"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+
+  const PARADERO = [-16.338088, -71.619947];
+  const ZOOM_PARADERO = 15;
+
+  const map = L.map("map").setView(PARADERO, ZOOM_PARADERO);
+
+  L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
+    attribution: "© OpenStreetMap © CARTO"
+  }).addTo(map);
+
+  map.zoomControl.setPosition("bottomright");
+  map.attributionControl.setPrefix(false);
+
+  const capaFlota = L.layerGroup().addTo(map);
+  const capaParadero = L.layerGroup().addTo(map);
+  const capaRutas = L.layerGroup().addTo(map);
+  const capaPuntosControl = L.layerGroup().addTo(map); // ✅ AGREGADO
+
+  L.control.layers(null, {
+    "🚌 Flota": capaFlota,
+    "🏁 Paradero": capaParadero,
+    "🛣️ Ruta": capaRutas,
+    "📍 Puntos de control": capaPuntosControl // ✅ AGREGADO
+  }).addTo(map);
+
+  const paraderoIcon = L.icon({
+    iconUrl: "{% static 'icons/paradero.png' %}",
+    iconSize: [36, 36],
+    iconAnchor: [18, 36],
+  });
+
+  L.marker(PARADERO, { icon: paraderoIcon })
+    .bindTooltip("Paradero", {
+      permanent: true,
+      direction: "bottom",
+      offset: [0, 8],
+      className: "paradero-label",
+      opacity: 0.95
+    })
+    .addTo(capaParadero);
+
+  /* ================= RUTA FIJA (SIN CAMBIOS) ================= */
+  const RUTA_FIJA = [
+    [-16.33822826038497, -71.62108004093172],
+    [-16.3384959453393, -71.62006080150606],
+    [-16.338999060149316, -71.6181242465973],
+    [-16.33950354103728, -71.61635398864748],
+    [-16.335910373260862, -71.6153132915497],
+    [-16.335045532186186, -71.61512017250062],
+    [-16.334118912503364, -71.61426186561586],
+    [-16.333727671763064, -71.61367177963258],
+    [-16.33406743350332, -71.61221265792848],
+    [-16.33423216625574, -71.61154747009279],
+    [-16.333048146511228, -71.61120414733888],
+    [-16.33287311689718, -71.61063551902772],
+    [-16.332008262386758, -71.610324382782],
+    [-16.331967078743226, -71.61033511161806],
+    [-16.331709680774605, -71.61124706268312],
+    [-16.331575833697013, -71.61181569099428],
+    [-16.331174291914554, -71.61327481269838],
+    [-16.329894854605975, -71.61216974258424],
+    [-16.326044104814017, -71.60888671875001],
+    [-16.325076257383078, -71.60802841186525],
+    [-16.323717144396525, -71.60682678222658],
+    [-16.32221660705363, -71.60595774650575],
+    [-16.32131051953444, -71.60549640655519],
+    [-16.32030146258623, -71.60498142242433],
+    [-16.318870240235526, -71.60414457321168],
+    [-16.318221553276814, -71.60375833511354],
+    [-16.317644940841774, -71.60350084304811],
+    [-16.318118586895153, -71.60278201103212],
+    [-16.319405662772066, -71.60101175308229],
+    [-16.320754509206658, -71.59918785095216],
+    [-16.321753267369182, -71.59808278083803],
+    [-16.32261816722592, -71.59754633903505],
+    [-16.323575730464615, -71.59695625305177],
+    [-16.325099584879133, -71.59605503082277],
+    [-16.326860239725523, -71.59497141838075],
+    [-16.32920775486741, -71.59400582313539],
+    [-16.330515349766745, -71.59351229667665],
+    [-16.331895007346166, -71.59297585487367],
+    [-16.335302925763084, -71.59160256385805],
+    [-16.337660635156805, -71.59069061279298],
+    [-16.33879314920856, -71.5901005268097],
+    [-16.339874179227195, -71.58912420272829],
+    [-16.34046102159031, -71.588351726532],
+    [-16.34078018073219, -71.58792257308961],
+    [-16.34129495244331, -71.58725738525392],
+    [-16.342190651988073, -71.58569097518922],
+    [-16.342520103661407, -71.58499360084535],
+    [-16.342726010675154, -71.58307313919069],
+    [-16.34268482928975, -71.58180713653566],
+    [-16.342808373419903, -71.58038020133974],
+    [-16.34290103146623, -71.57854557037355],
+    [-16.343323139787973, -71.57727956771852],
+    [-16.34415705842613, -71.57639980316164],
+    [-16.345289534828296, -71.57539129257204],
+    [-16.346186583387105, -71.57459735870363],
+    [-16.34848858433535, -71.57264471054079],
+    [-16.350321093140277, -71.57103538513185],
+    [-16.35196827739192, -71.56949043273927],
+    [-16.353615447749604, -71.56822443008424],
+    [-16.355056710414207, -71.56680822372438],
+    [-16.357033281910333, -71.56500577926637],
+    [-16.359998101629834, -71.56243085861207]
+  ];
+
+  L.polyline(RUTA_FIJA, {
+    color: "#000000",
+    weight: 15,
+    opacity: 0.5,
+    lineCap: "round",
+    lineJoin: "round"
+  }).addTo(capaRutas);
+
+  L.polyline(RUTA_FIJA, {
+    color: "#cfcfcf",
+    weight: 15,
+    opacity: 0.9,
+    lineCap: "round",
+    lineJoin: "round"
+  }).addTo(capaRutas);
+
+  /* ================= PUNTOS DE CONTROL (AGREGADO) ================= */
+  fetch("/sistema/api/despachador/puntos-control/")
+    .then(res => res.json())
+    .then(puntos => {
+      puntos.forEach(p => {
+
+        L.circle([p.lat, p.lng], {
+          radius: p.radio || 100,
+          color: "#ffd54f",
+          weight: 2,
+          fillColor: "#ffd54f",
+          fillOpacity: 0.25
+        }).addTo(capaPuntosControl);
+
+        L.circleMarker([p.lat, p.lng], {
+          radius: 6,
+          color: "#ff9800",
+          fillColor: "#ff9800",
+          fillOpacity: 1
+        })
+        .bindTooltip(p.codigo, {
+          permanent: true,
+          direction: "top",
+          className: "punto-control-label"
+        })
+        .addTo(capaPuntosControl);
+
+      });
+    });
+
+  /* ================= GPS (SIN CAMBIOS) ================= */
+  const ICON_BUS = {
+    ACTIVO: "{% static 'icons/bus_green.png' %}",
+    INACTIVO: "{% static 'icons/bus_yellow.png' %}",
+    OFFLINE: "{% static 'icons/bus_red.png' %}"
+  };
+
+  function crearIconoBus(vehiculo, estado) {
+    let claseEstado =
+      estado === "ACTIVO" ? "bus-activo" :
+      estado === "INACTIVO" ? "bus-inactivo" :
+      "bus-offline";
+
+    const live = estado === "ACTIVO" ? `<span class="live-dot"></span>` : "";
+
+    return L.divIcon({
+      className: "",
+      html: `
+        <div class="bus-marker ${claseEstado}">
+          ${live}
+          <div class="bus-numero">${vehiculo}</div>
+          <img src="${ICON_BUS[estado] || ICON_BUS.OFFLINE}">
+        </div>
+      `,
+      iconSize: [34, 34],
+      iconAnchor: [17, 17],
+    });
+  }
+
+  const markers = {};
+  const filtros = { ACTIVO: true, INACTIVO: true, OFFLINE: true };
+
+  window.toggleFiltro = estado => { filtros[estado] = !filtros[estado]; aplicarFiltros(); };
+
+  window.aplicarFiltros = () => {
+    const texto = document.getElementById("busqueda").value.toLowerCase();
+    Object.values(markers).forEach(m => {
+      const visible = filtros[m.estado] && m.codigo.toLowerCase().includes(texto);
+      visible ? capaFlota.addLayer(m) : capaFlota.removeLayer(m);
+    });
+  };
+
+  window.centrarMapa = () => map.setView(PARADERO, ZOOM_PARADERO);
+
+  async function cargar() {
+    const res = await fetch("/sistema/api/despachador/mapa/");
+    const data = await res.json();
+
+    let a=0,i=0,o=0;
+
+    data.forEach(v => {
+      if (!v.lat || !v.lng) return;
+      if (v.estado === "ACTIVO") a++;
+      else if (v.estado === "INACTIVO") i++;
+      else o++;
+
+      const icono = crearIconoBus(v.vehiculo, v.estado);
+
+      if (!markers[v.vehiculo]) {
+        const m = L.marker([v.lat, v.lng], { icon: icono }).addTo(capaFlota);
+        m.estado = v.estado;
+        m.codigo = String(v.vehiculo);
+        markers[v.vehiculo] = m;
+      } else {
+        markers[v.vehiculo].setLatLng([v.lat, v.lng]).setIcon(icono);
+        markers[v.vehiculo].estado = v.estado;
+      }
+    });
+
+    document.getElementById("cnt-activo").innerText = a;
+    document.getElementById("cnt-inactivo").innerText = i;
+    document.getElementById("cnt-offline").innerText = o;
+
+    aplicarFiltros();
+  }
+
+  cargar();
+  setInterval(cargar, 5000);
+});
+</script>
+
+{% endblock %}

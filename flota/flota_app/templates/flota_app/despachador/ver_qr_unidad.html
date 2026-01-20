@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+
+{% block title %}QR Unidad {{ vehiculo.numero }}{% endblock %}
+
+{% block content %}
+<div class="container text-center mt-4">
+  <h3>📱 QR de la Unidad {{ vehiculo.numero }}</h3>
+
+  <p class="text-muted">
+    El conductor debe escanear este código desde la App Conductor
+  </p>
+
+  <img
+    src="data:image/png;base64,{{ qr_base64 }}"
+    alt="QR Unidad {{ vehiculo.numero }}"
+    style="max-width:300px;"
+  >
+
+  <div class="mt-4">
+    <a href="{% url 'panel_despachador' %}" class="btn btn-secondary">
+      ⬅ Volver al panel
+    </a>
+  </div>
+</div>
+{% endblock %}

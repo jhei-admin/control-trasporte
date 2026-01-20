@@ -1,0 +1,44 @@
+{
+  "id": "/sistema/conductor/",
+  "name": "Control de Transporte",
+  "short_name": "GPS Flota",
+  "description": "App del conductor con GPS y audio",
+  "lang": "es",
+
+  "start_url": "/sistema/conductor/",
+  "scope": "/",
+
+  "display": "standalone",
+
+  "background_color": "#111111",
+  "theme_color": "#111111",
+
+  "orientation": "portrait",
+
+  "categories": [
+    "transportation",
+    "business",
+    "productivity"
+  ],
+
+  "prefer_related_applications": false,
+
+  "icons": [
+    {
+      "src": "/static/flota_app/pwa/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/static/flota_app/pwa/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "/static/flota_app/pwa/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

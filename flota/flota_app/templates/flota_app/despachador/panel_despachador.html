@@ -1,0 +1,232 @@
+{% extends "base.html" %}
+
+{% block title %}Panel del Despachador{% endblock %}
+
+{% block content %}
+
+<h2 class="mb-3">Panel del Despachador</h2>
+<hr>
+
+{# ================================================== #}
+{# CONFIGURACIÓN DE INTERVALO                         #}
+{# ================================================== #}
+
+{% url 'cambiar_intervalo_global' as url_cambiar_intervalo %}
+
+{% if url_cambiar_intervalo %}
+<div class="alert alert-info mb-3">
+
+    {% if config_despacho and config_despacho.intervalo_fijo %}
+        🟡 <strong>Intervalo fijo activo:</strong>
+        {{ config_despacho.intervalo_fijo }} minutos
+
+        <form method="post" action="{{ url_cambiar_intervalo }}" class="mt-2">
+            {% csrf_token %}
+            <input type="hidden" name="accion" value="automatico">
+            <button class="btn btn-sm btn-outline-dark">
+                🔄 Volver a automático
+            </button>
+        </form>
+
+    {% else %}
+        🟢 <strong>Modo automático activo</strong><br>
+        <small>El sistema ajusta el intervalo según unidades en cola (5 / 7 / 10 min)</small>
+
+        <form method="post"
+              action="{{ url_cambiar_intervalo }}"
+              class="mt-2 d-flex gap-2 align-items-center">
+            {% csrf_token %}
+            <input type="hidden" name="accion" value="manual">
+
+            <input type="number"
+                   name="intervalo"
+                   class="form-control form-control-sm"
+                   placeholder="min"
+                   min="1"
+                   required
+                   style="max-width: 90px;">
+
+            <button class="btn btn-sm btn-primary">
+                Aplicar intervalo fijo
+            </button>
+        </form>
+    {% endif %}
+</div>
+{% endif %}
+
+{# ============================= #}
+{# BOTONES SUPERIORES             #}
+{# ============================= #}
+<div class="mb-3 d-flex gap-2 flex-wrap">
+
+    {% if salidas %}
+        <a href="{% url 'reporte_salidas_diarias' salidas.0.vehiculo.id %}"
+           class="btn btn-primary btn-sm">
+            📱 Salidas del día
+        </a>
+    {% endif %}
+
+    <a href="{% url 'historial_salidas' %}" class="btn btn-dark btn-sm">
+        🧾 Historial de salidas
+    </a>
+
+    <a href="{% url 'despachador_mapa' %}" class="btn btn-outline-primary btn-sm">
+        🗺️ Ver mapa en tiempo real
+    </a>
+</div>
+
+{# ============================= #}
+{# 🔍 BÚSQUEDA RÁPIDA POR UNIDAD #}
+{# ============================= #}
+<div class="mb-3">
+    <input type="text"
+           id="busquedaUnidad"
+           class="form-control"
+           placeholder="🔍 Buscar unidad por código (ej: 01, 12, 105)"
+           style="max-width: 320px;">
+</div>
+
+{# ============================= #}
+{# TABLA PRINCIPAL                #}
+{# ============================= #}
+<table class="table table-bordered table-sm align-middle">
+    <thead class="table-dark text-center">
+        <tr>
+            <th>Vehículo</th>
+            <th>Ruta</th>
+            <th>Hora llegada</th>
+            <th>Hora salida</th>
+            <th>Intervalo</th>
+            <th>Modo</th>
+            <th>Acciones</th>
+        </tr>
+    </thead>
+
+    <tbody>
+        {% for s in salidas %}
+        <tr class="fila-unidad"
+            data-unidad="{{ s.vehiculo.numero }}">
+
+            <td class="text-center">{{ s.vehiculo.numero }}</td>
+            <td>{{ s.ruta.nombre }}</td>
+
+            <td class="text-center">
+                {{ s.hora_llegada|date:"H:i" }}
+            </td>
+
+            <td class="text-center">
+                {% if s.hora_salida %}
+                    {{ s.hora_salida|date:"H:i" }}
+                {% else %}
+                    —
+                {% endif %}
+            </td>
+
+            <td class="text-center">
+                {{ s.intervalo_minutos|default:"—" }}
+            </td>
+
+            <td class="text-center">
+                {% if s.bloqueado %}
+                    <span class="badge bg-warning text-dark">MANUAL</span>
+                {% else %}
+                    <span class="badge bg-success">AUTOMÁTICO</span>
+                {% endif %}
+            </td>
+
+            <td class="text-center d-flex gap-1 justify-content-center flex-wrap">
+
+                <a href="{% url 'control_ruta' s.id %}"
+                   class="btn btn-sm btn-outline-primary">
+                    🧭 Control ruta
+                </a>
+
+                <a href="{% url 'detalle_salida' s.id %}"
+                   class="btn btn-sm btn-primary">
+                    📍 Ver puntos
+                </a>
+
+                <a href="{% url 'ver_qr_unidad' s.vehiculo.id %}"
+                   class="btn btn-sm btn-outline-dark">
+                    📱 Ver QR
+                </a>
+
+                {% if s.en_cola %}
+
+                    {% if s.bloqueado %}
+                        <form method="post"
+                              action="{% url 'desbloquear_hora' s.id %}">
+                            {% csrf_token %}
+                            <button class="btn btn-sm btn-warning">
+                                🔓 Desbloquear
+                            </button>
+                        </form>
+                    {% else %}
+                        <form method="post"
+                              action="{% url 'asignar_hora_fija' s.id %}"
+                              class="d-inline">
+                            {% csrf_token %}
+                            <input type="time"
+                                   name="hora_fija"
+                                   required
+                                   class="form-control form-control-sm d-inline"
+                                   style="width: 90px;">
+                            <button class="btn btn-sm btn-warning">
+                                ⏱️ Fijar
+                            </button>
+                        </form>
+
+                        <form method="post"
+                              action="{% url 'quitar_de_cola' s.id %}"
+                              class="d-inline">
+                            {% csrf_token %}
+                            <button class="btn btn-sm btn-danger">
+                                ➖ Quitar
+                            </button>
+                        </form>
+                    {% endif %}
+
+                {% else %}
+                    <form method="post"
+                          action="{% url 'poner_en_cola' s.id %}">
+                        {% csrf_token %}
+                        <button class="btn btn-sm btn-success">
+                            ➕ Poner en cola
+                        </button>
+                    </form>
+                {% endif %}
+
+            </td>
+        </tr>
+
+        {% empty %}
+        <tr>
+            <td colspan="7" class="text-center text-muted">
+                No hay salidas registradas
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+{# ============================= #}
+{# JS FILTRO INSTANTÁNEO          #}
+{# ============================= #}
+<script>
+document.getElementById("busquedaUnidad").addEventListener("keyup", function () {
+    const filtro = this.value.toLowerCase();
+    const filas = document.querySelectorAll(".fila-unidad");
+
+    filas.forEach(function (fila) {
+        const unidad = fila.dataset.unidad.toLowerCase();
+
+        if (unidad.includes(filtro)) {
+            fila.style.display = "";
+        } else {
+            fila.style.display = "none";
+        }
+    });
+});
+</script>
+
+{% endblock %}

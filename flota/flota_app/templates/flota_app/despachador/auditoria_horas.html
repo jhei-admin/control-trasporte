@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+
+{% block title %}Auditoría de Horas{% endblock %}
+
+{% block content %}
+
+<h2 class="mb-4">🧾 Auditoría de cambios de hora</h2>
+
+<div class="alert alert-secondary">
+    Este registro muestra todas las modificaciones manuales de horas de salida.
+</div>
+
+<table class="table table-bordered table-striped table-hover">
+    <thead class="table-dark">
+        <tr>
+            <th>Fecha cambio</th>
+            <th>Usuario</th>
+            <th>Vehículo</th>
+            <th>Ruta</th>
+            <th>Hora anterior</th>
+            <th>Hora nueva</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for r in registros %}
+        <tr>
+            <td>{{ r.fecha_cambio|date:"d/m/Y H:i" }}</td>
+            <td>{{ r.usuario.username }}</td>
+            <td>{{ r.salida_vehiculo.numero }}</td>
+            <td>{{ r.salida_ruta.nombre }}</td>
+            <td>
+                {% if r.hora_anterior %}
+                    {{ r.hora_anterior|date:"H:i" }}
+                {% else %}
+                    —
+                {% endif %}
+            </td>
+            <td>{{ r.hora_nueva|date:"H:i" }}</td>
+        </tr>
+        {% empty %}
+        <tr>
+            <td colspan="6" class="text-center text-muted">
+                No hay registros de auditoría
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<a href="{% url 'panel_despachador' %}" class="btn btn-secondary">
+    ⬅ Volver al panel
+</a>
+
+{% endblock %}

@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.pyc
+
+# Django
+db.sqlite3
+*.log
+
+# Entornos virtuales
+venv/
+.env
+
+# VS Code
+.vscode/
+
+# Archivos compilados
+*.pyo
+*.pyd
+
+# Static files compilados por Django
+staticfiles/
+flota/staticfiles/

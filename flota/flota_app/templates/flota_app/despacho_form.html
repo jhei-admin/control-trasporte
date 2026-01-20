@@ -1,0 +1,13 @@
+{% extends "flota_app/base.html" %}
+
+{% block content %}
+<h2>Registrar despacho</h2>
+
+<form method="post">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <button type="submit">Guardar</button>
+</form>
+
+<a href="{% url 'panel' %}">⬅️ Volver</a>
+{% endblock %}

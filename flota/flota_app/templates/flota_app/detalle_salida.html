@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+
+{% block title %}Detalle de Salida{% endblock %}
+
+{% block content %}
+
+<h2 class="mb-3">📍 Detalle de Salida</h2>
+
+<div class="card mb-3">
+    <div class="card-body">
+        <strong>Unidad:</strong> {{ salida.vehiculo.numero }} <br>
+        <strong>Ruta:</strong> {{ salida.ruta.nombre }} <br>
+        <strong>Fecha:</strong> {{ fecha|date:"Y-m-d" }} <br>
+        <strong>Hora de salida:</strong>
+        {% if salida.hora_salida %}
+            {{ salida.hora_salida|date:"H:i" }}
+        {% else %}
+            —
+        {% endif %}
+    </div>
+</div>
+
+<style>
+.fila-adelantado { background-color: #e3f2fd; }
+.fila-atiempo    { background-color: #e8f5e9; }
+.fila-tarde      { background-color: #fdecea; }
+.fila-pendiente  { background-color: #fff8e1; }
+</style>
+
+<table class="table table-bordered table-sm text-center">
+    <thead class="table-dark">
+        <tr>
+            <th>#</th>
+            <th>Control</th>
+            <th>Programada</th>
+            <th>Marcada</th>
+            <th>Falta (min)</th>
+            <th>Estado</th>
+            <th>Acción</th>
+        </tr>
+    </thead>
+
+    <tbody>
+        {% for m in detalle %}
+        <tr class="
+            {% if m.estado == 'pendiente' %}
+                fila-pendiente
+            {% elif m.estado == 'adelantado' %}
+                fila-adelantado
+            {% elif m.estado == 'a_tiempo' %}
+                fila-atiempo
+            {% else %}
+                fila-tarde
+            {% endif %}
+        ">
+            <td>{{ forloop.counter }}</td>
+
+            <td>{{ m.punto.codigo }}</td>
+
+            <td>
+                {% if m.hora_programada %}
+                    {{ m.hora_programada|date:"H:i" }}
+                {% else %}
+                    —
+                {% endif %}
+            </td>
+
+            <td>
+                {% if m.hora_marcada %}
+                    {{ m.hora_marcada|date:"H:i" }}
+                {% else %}
+                    —
+                {% endif %}
+            </td>
+
+            <td>
+                {% if m.diferencia is not None %}
+                    {{ m.diferencia }}
+                {% else %}
+                    —
+                {% endif %}
+            </td>
+
+            <td>
+                {% if m.estado == "pendiente" %}
+                    <span class="badge bg-warning text-dark">Pendiente</span>
+                {% elif m.estado == "adelantado" %}
+                    <span class="badge bg-info text-dark">Adelantado</span>
+                {% elif m.estado == "a_tiempo" %}
+                    <span class="badge bg-success">A tiempo</span>
+                {% else %}
+                    <span class="badge bg-danger">Tarde</span>
+                {% endif %}
+            </td>
+
+            <!-- 🔒 AUDITORÍA = SOLO LECTURA -->
+            <td>—</td>
+        </tr>
+
+        {% empty %}
+        <tr>
+            <td colspan="7" class="text-muted">
+                No hay puntos generados para esta salida
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<!-- 🔙 BOTÓN ATRÁS CORRECTO -->
+<a href="{% url 'reporte_salidas_diarias' vehiculo_id %}?fecha={{ fecha }}"
+   class="btn btn-secondary mt-3">
+    ⬅ Volver a salidas del día
+</a>
+
+{% endblock %}

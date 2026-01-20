@@ -1,0 +1,231 @@
+{% extends "base.html" %}
+
+{% block title %}Panel del Despachador{% endblock %}
+
+{% block content %}
+
+<h2 class="mb-3">Panel del Despachador</h2>
+
+<!-- ============================= -->
+<!-- CONFIGURACIÓN DE DESPACHO -->
+<!-- ============================= -->
+<div class="alert alert-info mb-3">
+
+    {% if config_despacho and config_despacho.intervalo_fijo %}
+        🟡 <strong>Intervalo fijo activo:</strong>
+        {{ config_despacho.intervalo_fijo }} minutos
+
+        <form method="post" action="{% url 'cambiar_intervalo_global' %}" class="mt-2">
+            {% csrf_token %}
+            <input type="hidden" name="accion" value="automatico">
+            <button class="btn btn-sm btn-outline-dark">
+                🔄 Volver a automático
+            </button>
+        </form>
+
+    {% else %}
+        🟢 <strong>Modo automático activo</strong><br>
+        <small>El sistema calcula el intervalo según la cantidad de unidades en cola</small>
+
+        <form
+            method="post"
+            action="{% url 'cambiar_intervalo_global' %}"
+            class="mt-2 d-flex align-items-center gap-2"
+        >
+            {% csrf_token %}
+            <input type="hidden" name="accion" value="fijo">
+
+            <input
+                type="number"
+                name="intervalo"
+                min="1"
+                class="form-control"
+                style="width:120px"
+                placeholder="minutos"
+                required
+            >
+
+            <button class="btn btn-sm btn-primary">
+                ▶ Aplicar intervalo
+            </button>
+        </form>
+    {% endif %}
+</div>
+
+<!-- ============================= -->
+<!-- BOTONES SUPERIORES -->
+<!-- ============================= -->
+<div class="d-flex justify-content-between align-items-center mb-3">
+
+    <div class="d-flex gap-2">
+        <a href="{% url 'exportar_excel' %}" class="btn btn-success">
+            📊 Exportar a Excel
+        </a>
+
+        <a href="{% url 'auditoria_horas' %}" class="btn btn-outline-secondary">
+            📋 Auditoría de Horas
+        </a>
+    </div>
+
+    <a href="{% url 'nuevo_despacho' %}" class="btn btn-primary">
+        ➕ Nuevo Despacho
+    </a>
+</div>
+
+<!-- ========================= -->
+<!-- TABLA DE DESPACHO -->
+<!-- ========================= -->
+<table class="table table-bordered table-striped table-hover">
+    <thead class="table-dark">
+        <tr>
+            <th>Vehículo</th>
+            <th>Ruta</th>
+            <th>Hora llegada</th>
+            <th>Hora salida</th>
+            <th>Intervalo</th>
+            <th>⏰ Hora fija</th>
+            <th>Acciones</th>
+        </tr>
+    </thead>
+
+    <tbody>
+        {% for s in salidas %}
+        <tr {% if s.hora_fija %}style="background-color:#ffeaea; color:#8a1f1f; font-weight:bold;"{% endif %}>
+            <td>
+                <a href="{% url 'historial_vehiculo' s.vehiculo.id %}"
+                   class="fw-bold text-decoration-none">
+                    {{ s.vehiculo.numero }}
+                </a>
+            </td>
+
+            <td>{{ s.ruta.nombre }}</td>
+            <td>{{ s.hora_llegada|date:"H:i" }}</td>
+
+            <td>
+                {% if s.hora_salida %}
+                    {{ s.hora_salida|date:"H:i" }}
+                {% else %}
+                    <span class="text-muted">—</span>
+                {% endif %}
+            </td>
+
+            <td>
+                {% if s.intervalo_minutos %}
+                    {{ s.intervalo_minutos }} min
+                {% else %}
+                    —{% endif %}
+            </td>
+
+            <!-- ⏰ HORA FIJA -->
+            <td>
+                {% if s.hora_fija %}
+                    ⏰ {{ s.hora_fija|date:"H:i" }}
+                {% else %}
+                    {% if s.en_cola %}
+                        <form
+                            method="post"
+                            action="{% url 'fijar_hora_manual' s.id %}"
+                            class="d-flex gap-1 js-fijar-hora"
+                        >
+                            {% csrf_token %}
+                            <input
+                                type="datetime-local"
+                                name="hora"
+                                class="form-control form-control-sm"
+                                required
+                            >
+                            <button type="submit" class="btn btn-sm btn-outline-primary">✔</button>
+                        </form>
+                    {% else %}
+                        <span class="text-muted">—</span>
+                    {% endif %}
+                {% endif %}
+            </td>
+
+            <!-- ACCIONES -->
+            <td>
+                {% if not s.en_cola %}
+                    <form method="post" action="{% url 'poner_en_cola' s.id %}" class="d-inline">
+                        {% csrf_token %}
+                        <button class="btn btn-success btn-sm">🚦</button>
+                    </form>
+                {% else %}
+                    <form method="post" action="{% url 'quitar_de_cola' s.id %}" class="d-inline">
+                        {% csrf_token %}
+                        <button class="btn btn-danger btn-sm">❌</button>
+                    </form>
+                {% endif %}
+            </td>
+        </tr>
+        {% empty %}
+        <tr>
+            <td colspan="7" class="text-center">No hay unidades registradas</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<!-- ========================= -->
+<!-- MODAL CONFIRMACIÓN -->
+<!-- ========================= -->
+<div class="modal fade" id="confirmarHoraModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Confirmar hora fija</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        ¿Seguro que deseas fijar la hora
+        <strong id="horaSeleccionada">--:--</strong>?
+        <p class="text-muted mt-2 mb-0">
+            Esta acción bloqueará la salida automática.
+        </p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button class="btn btn-danger" id="confirmarHoraBtn">Sí, fijar hora</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ========================= -->
+<!-- JS CONFIRMACIÓN -->
+<!-- ========================= -->
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    let formPendiente = null;
+    const modal = new bootstrap.Modal(document.getElementById("confirmarHoraModal"));
+    const horaSpan = document.getElementById("horaSeleccionada");
+    const confirmarBtn = document.getElementById("confirmarHoraBtn");
+
+    document.querySelectorAll(".js-fijar-hora").forEach(form => {
+        form.addEventListener("submit", function (e) {
+
+            if (!form.checkValidity()) return;
+
+            e.preventDefault();
+            formPendiente = form;
+
+            const input = form.querySelector('input[name="hora"]');
+            const fecha = new Date(input.value);
+            const hh = String(fecha.getHours()).padStart(2, '0');
+            const mm = String(fecha.getMinutes()).padStart(2, '0');
+
+            horaSpan.textContent = `${hh}:${mm}`;
+            modal.show();
+        });
+    });
+
+    confirmarBtn.addEventListener("click", function () {
+        if (formPendiente) {
+            modal.hide();
+            formPendiente.submit();
+            formPendiente = null;
+        }
+    });
+});
+</script>
+
+{% endblock %}

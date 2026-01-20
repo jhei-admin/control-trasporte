@@ -1,0 +1,2036 @@
+# =================================================
+# 📦 IMPORTS ÚNICOS Y LIMPIOS
+# =================================================
+
+from datetime import datetime, date, timedelta
+import json
+from io import BytesIO
+
+from django.shortcuts import render, redirect, get_object_or_404
+from django.http import JsonResponse, HttpResponse
+from django.utils import timezone
+from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_POST, require_GET
+from django.contrib import messages
+
+import qrcode
+
+from .models import (
+    RegistroSalida,
+    Ruta,
+    Vehiculo,
+    ConfiguracionDespacho,
+    PuntoControl,
+    MarcacionPunto,
+    SesionUnidad,
+    GPSRegistro,
+    UbicacionVehiculo,
+    Parada,
+)
+
+from .utils import (
+    distancia_metros,
+    validar_sesion,
+    calcular_estado_sesion,
+)
+
+# =================================================
+# INTERVALO AUTOMÁTICO
+# =================================================
+def obtener_intervalo(cantidad):
+    if cantidad <= 3:
+        return 10
+    elif cantidad <= 6:
+        return 7
+    return 5
+
+
+# =================================================
+# 🔥 RECALCULAR COLA COMPLETA (FIX DEFINITIVO)
+# =================================================
+def recalcular_cola():
+    """
+    Recalcula la cola de salidas por ruta.
+
+    REGLAS DEFINITIVAS:
+    - ✔ Respeta SIEMPRE la hora fija manual (bloqueado)
+    - ✔ Nunca convierte 05:10 → 17:10
+    - ✔ Nunca pisa horas manuales con timezone.now()
+    - ✔ Evita horas en el pasado SOLO en modo automático
+    - ✔ Funciona igual en local y en Render
+    """
+
+    tz = timezone.get_current_timezone()
+    ahora = timezone.localtime(timezone.now(), tz)
+
+    for ruta in Ruta.objects.all():
+
+        cola = (
+            RegistroSalida.objects
+            .filter(
+                ruta=ruta,
+                en_cola=True,
+                activo=True
+            )
+            .order_by("orden_cola")
+        )
+
+        if not cola.exists():
+            continue
+
+        # =============================================
+        # ⏱️ INTERVALO DE DESPACHO
+        # =============================================
+        config = ConfiguracionDespacho.objects.filter(
+            activa=True
+        ).first()
+
+        if config and config.intervalo_fijo:
+            intervalo = config.intervalo_fijo
+        else:
+            intervalo = obtener_intervalo(cola.count())
+
+        hora_actual = None
+
+        for salida in cola:
+
+            # =============================================
+            # 🔒 HORA FIJA MANUAL (MANDATO ABSOLUTO)
+            # =============================================
+            if salida.bloqueado and salida.hora_fija:
+                # ⚠️ FIX CLAVE:
+                # Nunca tocar ni comparar contra "ahora"
+                # La hora fija MANDA siempre
+                hora_fija = timezone.localtime(salida.hora_fija, tz)
+
+                salida.hora_salida = hora_fija
+                salida.intervalo_minutos = intervalo
+
+                salida.save(
+                    update_fields=[
+                        "hora_salida",
+                        "intervalo_minutos"
+                    ]
+                )
+
+                hora_actual = hora_fija
+                continue
+
+            # =============================================
+            # 🧮 MODO AUTOMÁTICO (SIN HORA FIJA)
+            # =============================================
+            if hora_actual:
+                nueva_hora = hora_actual + timedelta(minutes=intervalo)
+            else:
+                nueva_hora = ahora.replace(
+                    second=0,
+                    microsecond=0
+                )
+
+            # =============================================
+            # 🔥 FIX: SOLO EN AUTOMÁTICO EVITAR PASADO
+            # =============================================
+            if nueva_hora < ahora:
+                nueva_hora = ahora.replace(
+                    second=0,
+                    microsecond=0
+                )
+
+            salida.hora_salida = nueva_hora
+            salida.intervalo_minutos = intervalo
+
+            salida.save(
+                update_fields=[
+                    "hora_salida",
+                    "intervalo_minutos"
+                ]
+            )
+
+            hora_actual = nueva_hora
+
+def reporte_salidas_diarias(request, vehiculo_id):
+    """
+    FASE 4A + 4C
+    Pantalla tipo app: salidas del día por vehículo
+    - Minutos calculados POR SALIDA
+    - Resumen diario automático
+    - Filtro visual (fecha + unidad)
+    - 🔥 FIX DEFINITIVO DE FECHA (timezone)
+    """
+
+    # =================================================
+    # 📅 FECHA (🔥 FIX DEFINITIVO TIMEZONE)
+    # =================================================
+    fecha_param = request.GET.get("fecha")
+
+    if fecha_param:
+        try:
+            fecha = date.fromisoformat(fecha_param)
+        except ValueError:
+            fecha = timezone.localdate()
+    else:
+        fecha = timezone.localdate()
+
+    # =================================================
+    # 🚌 VEHÍCULO ACTUAL
+    # =================================================
+    vehiculo = get_object_or_404(Vehiculo, id=vehiculo_id)
+
+    # =================================================
+    # 🚌 LISTA DE VEHÍCULOS (FILTRO SUPERIOR)
+    # =================================================
+    vehiculos = Vehiculo.objects.filter(activo=True).order_by("codigo")
+
+    # =================================================
+    # 🚍 SALIDAS DEL DÍA (ACTIVAS + FINALIZADAS)
+    # =================================================
+    salidas = list(
+        RegistroSalida.objects
+        .filter(
+            vehiculo=vehiculo,
+            fecha=fecha          # 🔥 CLAVE: misma fecha que el panel
+        )
+        .order_by("hora_salida")
+    )
+
+    resultado = []
+    total_salidas = len(salidas)
+
+    # =================================================
+    # 🔁 PROCESAR CADA SALIDA
+    # =================================================
+    for index, salida in enumerate(salidas):
+
+        vuelta = index + 1
+
+        # -------------------------------------------------
+        # % MARCACIÓN (🔥 FIX REAL)
+        # -------------------------------------------------
+        total_puntos = PuntoControl.objects.filter(
+            ruta=salida.ruta,
+            activo=True
+        ).count()
+
+        puntos_marcados = salida.marcaciones.exclude(
+            hora_marcada__isnull=True
+        ).count()
+
+        porcentaje = int(
+            (puntos_marcados / total_puntos) * 100
+        ) if total_puntos else 0
+
+        # -------------------------------------------------
+        # RANGO DE TIEMPO DE LA SALIDA
+        # -------------------------------------------------
+        inicio = salida.hora_salida
+
+        if index + 1 < total_salidas:
+            fin = salidas[index + 1].hora_salida
+        else:
+            fin = salida.hora_real_salida or timezone.now()
+
+        # -------------------------------------------------
+        # MINUTOS POR PARADAS PROLONGADAS
+        # -------------------------------------------------
+        minutos = 0
+
+        if inicio:
+            paradas = Parada.objects.filter(
+                vehiculo=vehiculo,
+                es_prolongada=True,
+                inicio__gte=inicio,
+                inicio__lt=fin
+            )
+
+            for p in paradas:
+                minutos += int(p.duracion_segundos / 60)
+
+        # -------------------------------------------------
+        # RESULTADO FINAL
+        # -------------------------------------------------
+        resultado.append({
+            "hora": salida.hora_salida,
+            "ruta": salida.ruta.nombre,
+            "vuelta": vuelta,
+            "porcentaje": porcentaje,
+            "minutos": minutos,
+            "salida_id": salida.id,
+        })
+
+    # =================================================
+    # 📊 RESUMEN DIARIO
+    # =================================================
+    total_vueltas = len(resultado)
+
+    promedio_marcacion = (
+        int(sum(s["porcentaje"] for s in resultado) / total_vueltas)
+        if total_vueltas > 0 else 0
+    )
+
+    minutos_totales = sum(s["minutos"] for s in resultado)
+
+    alertas = []
+
+    if total_vueltas > 0 and promedio_marcacion < 90:
+        alertas.append("Marcación promedio baja")
+
+    if minutos_totales > 15:
+        alertas.append("Exceso de minutos por paradas")
+
+    # =================================================
+    # 📤 RENDER FINAL
+    # =================================================
+    return render(
+        request,
+        "reportes/salidas_diarias.html",
+        {
+            "vehiculo": vehiculo,
+            "vehiculos": vehiculos,
+            "fecha": fecha,
+            "salidas": resultado,
+
+            "total_vueltas": total_vueltas,
+            "promedio_marcacion": promedio_marcacion,
+            "minutos_totales": minutos_totales,
+            "alertas": alertas,
+        }
+    )
+
+# =================================================
+# PANEL DESPACHADOR (FIX DEFINITIVO POR FECHA)
+# =================================================
+def panel_despachador(request):
+    # 🔑 FECHA LOCAL REAL (America/Lima)
+    hoy = timezone.localdate()
+
+    # 🔥 SOLO SALIDAS ACTIVAS DEL DÍA
+    salidas = (
+        RegistroSalida.objects
+        .filter(
+            activo=True,
+            fecha=hoy      # 👈 FIX CLAVE
+        )
+        .order_by(
+            "-en_cola",
+            "orden_cola",
+            "hora_llegada"
+        )
+    )
+
+    return render(
+        request,
+        "flota_app/despachador/panel_despachador.html",
+        {
+            "salidas": salidas,
+            "rutas": Ruta.objects.all(),
+            "vehiculos": Vehiculo.objects.all(),
+            "config_despacho": (
+                ConfiguracionDespacho.objects
+                .filter(activa=True)
+                .first()
+            ),
+        }
+    )
+
+# =================================================
+# 🗺️ DESPACHADOR — MAPA TIEMPO REAL (VISTA SEPARADA)
+# =================================================
+def despachador_mapa(request):
+    """
+    Vista exclusiva del mapa en tiempo real.
+    Se accede desde el botón 'Ver mapa' del panel.
+    """
+    return render(
+        request,
+        "flota_app/despachador/mapa.html"
+    )
+
+# =================================================
+# 🧭 DESPACHADOR — RECORRIDO HISTÓRICO (VISTA)
+# =================================================
+def recorrido_vehiculo(request):
+    """
+    Vista del despachador para visualizar
+    el recorrido histórico de un vehículo por fecha.
+    (Usa Leaflet + API de recorrido)
+    """
+
+    vehiculos = Vehiculo.objects.all().order_by("numero")
+
+    return render(
+        request,
+        "flota_app/despachador/recorrido.html",
+        {
+            "vehiculos": vehiculos
+        }
+    )
+
+# =================================================
+# 📡 API APP CONDUCTOR — GPS OFICIAL (DEFINITIVA CAMPO)
+# =================================================
+@csrf_exempt
+def api_gps_conductor(request):
+    if request.method != "POST":
+        return JsonResponse(
+            {"error": "Método no permitido"},
+            status=405
+        )
+
+    # =============================================
+    # 🔑 LEER TOKEN DESDE HEADER
+    # =============================================
+    auth = request.headers.get("Authorization", "")
+    if not auth.startswith("Bearer "):
+        # 🔕 No castigamos, solo ignoramos
+        return JsonResponse({"accion": "ignorar"})
+
+    token = auth.replace("Bearer ", "").strip()
+
+    # =============================================
+    # 🔐 VALIDACIÓN CENTRAL DE SESIÓN
+    # =============================================
+    sesion = validar_sesion(token)
+    if not sesion:
+        return JsonResponse({
+            "accion": "bloqueado",
+            "mensaje": "Sesión inválida o reemplazada"
+        })
+
+    # =============================================
+    # 📅 FECHA ACTUAL (🔥 CLAVE DEL FIX)
+    # =============================================
+    hoy = timezone.localdate()
+
+    # =============================================
+    # 🔥 CIERRE AUTOMÁTICO DE SALIDAS ANTIGUAS
+    # =============================================
+    RegistroSalida.objects.filter(
+        vehiculo=sesion.vehiculo,
+        activo=True,
+        fecha__lt=hoy
+    ).update(
+        activo=False,
+        en_cola=False
+    )
+
+    # =============================================
+    # 📦 LEER JSON
+    # =============================================
+    try:
+        data = json.loads(request.body or "{}")
+    except Exception:
+        return JsonResponse(
+            {"error": "JSON inválido"},
+            status=400
+        )
+
+    # =============================================
+    # 📍 COORDENADAS GPS
+    # =============================================
+    lat = data.get("lat")
+    lng = data.get("lng")
+
+    if lat is None or lng is None:
+        return JsonResponse({"accion": "ninguna"})
+
+    try:
+        lat = float(lat)
+        lng = float(lng)
+    except (TypeError, ValueError):
+        return JsonResponse({"accion": "ninguna"})
+
+    # =============================================
+    # 🛰️ GPS HISTÓRICO (ANTI-SPAM REAL)
+    # =============================================
+    ultimo_gps = (
+        GPSRegistro.objects
+        .filter(sesion=sesion)
+        .order_by("-timestamp")
+        .first()
+    )
+
+    if not ultimo_gps:
+        GPSRegistro.objects.create(
+            sesion=sesion,
+            lat=lat,
+            lng=lng
+        )
+    else:
+        delta = timezone.now() - ultimo_gps.timestamp
+        if delta >= timedelta(seconds=5):
+            GPSRegistro.objects.create(
+                sesion=sesion,
+                lat=lat,
+                lng=lng
+            )
+
+    # =============================================
+    # 🚍 SALIDA ACTIVA — SOLO DE HOY (🔥 FIX REAL)
+    # =============================================
+    salida = (
+        RegistroSalida.objects
+        .filter(
+            vehiculo=sesion.vehiculo,
+            fecha=hoy,          # 🔥 IMPRESCINDIBLE
+            activo=True
+        )
+        .order_by("-id")
+        .first()
+    )
+
+    # 🔕 SIN SALIDA HOY → NO MARCAR
+    if not salida:
+        return JsonResponse({"accion": "ninguna"})
+
+    # 🔕 SALIDA NO INICIADA → NO MARCAR
+    if not salida.hora_real_salida:
+        return JsonResponse({"accion": "ninguna"})
+
+    # =============================================
+    # 📍 SIGUIENTE MARCACIÓN PENDIENTE
+    # =============================================
+    marcacion = salida.siguiente_marcacion()
+
+    if not marcacion:
+        # 🔥 RUTA COMPLETADA
+        return JsonResponse({
+            "accion": "audio",
+            "audio": "ruta_completada"
+        })
+
+    punto = marcacion.punto
+
+    # =============================================
+    # 📏 DISTANCIA GPS
+    # =============================================
+    distancia = distancia_metros(
+        lat,
+        lng,
+        float(punto.latitud),
+        float(punto.longitud)
+    )
+
+    if distancia > punto.radio_metros:
+        return JsonResponse({"accion": "ninguna"})
+
+    # =============================================
+    # ✅ MARCAR PUNTO (UNA SOLA VEZ)
+    # =============================================
+    marcacion.marcar()
+
+    diff = marcacion.diferencia_minutos or 0
+
+    if diff < 0:
+        estado = "adelantado"
+    elif diff > 0:
+        estado = "tarde"
+    else:
+        estado = "atiempo"
+
+    # =============================================
+    # 🔊 RESPUESTA FINAL
+    # =============================================
+    return JsonResponse({
+        "accion": "audio",
+        "audio": estado,
+        "visual": {
+            "punto": punto.nombre,
+            "estado": estado.upper(),
+            "diferencia_min": diff
+        }
+    })
+
+# =================================================
+# 📡 API GPS — UBICACIÓN EN TIEMPO REAL (MAPA)
+# =================================================
+
+# =================================================
+# 🛑 DETECTOR DE PARADAS (AUTOMÁTICO + FASE 4)
+# =================================================
+TIEMPO_MIN_PARADA = 120          # 2 minutos → parada válida
+TIEMPO_PARADA_PROLONGADA = 300   # 🔥 5 minutos → FASE 4
+VEL_DETENIDO = 1                # km/h
+RADIO_METROS = 20               # metros
+
+
+def procesar_parada(vehiculo, lat, lng, velocidad, timestamp):
+    """
+    Detecta paradas de vehículo:
+    - Evita falsas paradas
+    - Cierra paradas reales
+    - 🔥 Marca parada prolongada (> X minutos) → FASE 4
+    """
+
+    parada = Parada.objects.filter(
+        vehiculo=vehiculo,
+        activa=True
+    ).order_by("-inicio").first()
+
+    # =================================================
+    # 🚍 VEHÍCULO DETENIDO
+    # =================================================
+    if velocidad <= VEL_DETENIDO:
+
+        # ▶️ Inicia nueva parada
+        if not parada:
+            Parada.objects.create(
+                vehiculo=vehiculo,
+                lat=lat,
+                lng=lng,
+                inicio=timestamp
+            )
+            return
+
+        # ▶️ Verificar si se desplazó (nuevo punto)
+        distancia = distancia_metros(
+            parada.lat, parada.lng,
+            lat, lng
+        )
+
+        if distancia > RADIO_METROS:
+            # Se movió: cerrar parada anterior y abrir otra
+            parada.cerrar(timestamp)
+            Parada.objects.create(
+                vehiculo=vehiculo,
+                lat=lat,
+                lng=lng,
+                inicio=timestamp
+            )
+            return
+
+        # =================================================
+        # 🔥 FASE 4 — PARADA PROLONGADA
+        # =================================================
+        duracion = (timestamp - parada.inicio).total_seconds()
+
+        if (
+            not parada.es_prolongada and
+            duracion >= TIEMPO_PARADA_PROLONGADA
+        ):
+            parada.es_prolongada = True
+            parada.save(update_fields=["es_prolongada"])
+
+    # =================================================
+    # 🚗 VEHÍCULO EN MOVIMIENTO
+    # =================================================
+    else:
+        if parada:
+            duracion = (timestamp - parada.inicio).total_seconds()
+
+            # ❌ Falsa parada
+            if duracion < TIEMPO_MIN_PARADA:
+                parada.delete()
+            else:
+                parada.cerrar(timestamp)
+
+@csrf_exempt
+@require_POST
+def api_gps(request):
+    """
+    API exclusiva para:
+    - Guardar ubicación GPS (histórico)
+    - Mantener ubicación actual por vehículo
+    - Alimentar mapa en tiempo real
+    - Reforzar heartbeat
+    ❌ NO marca puntos de control
+    """
+
+    # ---------------------------------------------
+    # 🔐 LEER TOKEN DESDE HEADER
+    # ---------------------------------------------
+    auth = request.headers.get("Authorization", "")
+    if not auth.startswith("Bearer "):
+        return JsonResponse(
+            {"error": "Token no enviado"},
+            status=401
+        )
+
+    token = auth.replace("Bearer ", "").strip()
+
+    sesion = validar_sesion(token)
+    if not sesion:
+        return JsonResponse(
+            {"error": "Sesión inválida o reemplazada"},
+            status=401
+        )
+
+    # ---------------------------------------------
+    # 📥 LEER JSON
+    # ---------------------------------------------
+    try:
+        data = json.loads(request.body or "{}")
+    except json.JSONDecodeError:
+        return JsonResponse(
+            {"error": "JSON inválido"},
+            status=400
+        )
+
+    lat = data.get("lat")
+    lng = data.get("lng")
+
+    if lat is None or lng is None:
+        return JsonResponse(
+            {"error": "Latitud y longitud requeridas"},
+            status=400
+        )
+
+    # ---------------------------------------------
+    # 🧪 NORMALIZAR DATOS
+    # ---------------------------------------------
+    try:
+        lat = float(lat)
+        lng = float(lng)
+    except (TypeError, ValueError):
+        return JsonResponse(
+            {"error": "Latitud o longitud inválidas"},
+            status=400
+        )
+
+    velocidad = data.get("velocidad")
+    precision = data.get("precision")
+    bateria = data.get("bateria")
+
+    try:
+        velocidad = float(velocidad) if velocidad is not None else 0
+    except (TypeError, ValueError):
+        velocidad = 0
+
+    try:
+        precision = float(precision) if precision is not None else None
+    except (TypeError, ValueError):
+        precision = None
+
+    try:
+        bateria = int(bateria) if bateria is not None else None
+    except (TypeError, ValueError):
+        bateria = None
+
+    # ---------------------------------------------
+    # 📜 HISTÓRICO GPS (AUDITORÍA)
+    # ---------------------------------------------
+    GPSRegistro.objects.create(
+        sesion=sesion,
+        lat=lat,
+        lng=lng,
+        velocidad=velocidad,
+        precision=precision,
+        bateria=bateria
+    )
+
+    # ---------------------------------------------
+    # 🛑 DETECTOR DE PARADAS
+    # ---------------------------------------------
+    procesar_parada(
+        vehiculo=sesion.vehiculo,
+        lat=lat,
+        lng=lng,
+        velocidad=velocidad,
+        timestamp=timezone.now()
+    )
+
+    # ---------------------------------------------
+    # 📍 UBICACIÓN ACTUAL (MAPA EN TIEMPO REAL)
+    # ---------------------------------------------
+    UbicacionVehiculo.objects.update_or_create(
+        vehiculo=sesion.vehiculo,
+        defaults={
+            "latitud": lat,
+            "longitud": lng,
+            "velocidad": velocidad,
+            "precision": precision,
+        }
+    )
+
+    # ---------------------------------------------
+    # ❌ MARCACIÓN DE PUNTOS DESACTIVADA
+    # ---------------------------------------------
+    # 👉 La marcación SOLO se hace en api_gps_conductor
+
+    # ---------------------------------------------
+    # 🫀 HEARTBEAT (SESIÓN ACTIVA)
+    # ---------------------------------------------
+    sesion.last_heartbeat = timezone.now()
+    sesion.save(update_fields=["last_heartbeat"])
+
+    # ---------------------------------------------
+    # ✅ RESPUESTA FINAL
+    # ---------------------------------------------
+    return JsonResponse({
+        "ok": True,
+        "vehiculo": sesion.vehiculo.codigo,
+        "lat": lat,
+        "lng": lng,
+        "timestamp": timezone.now().isoformat()
+    })
+
+# =================================================
+# 🗺️ API — MAPA EN TIEMPO REAL (DESPACHADOR)
+# =================================================
+@require_GET
+def api_despachador_mapa(request):
+    """
+    API para el panel despachador.
+    Devuelve la ubicación actual de todos los vehículos
+    con su estado (ACTIVO / INACTIVO / OFFLINE).
+    """
+
+    ahora = timezone.now()
+    data = []
+
+    for ub in UbicacionVehiculo.objects.select_related("vehiculo").all():
+        delta = ahora - ub.updated_at
+
+        # =================================================
+        # 🔥 TIMEOUTS REALISTAS PARA CAMPO
+        # =================================================
+        if delta <= timedelta(seconds=30):
+            estado = "ACTIVO"
+        elif delta <= timedelta(seconds=120):
+            estado = "INACTIVO"
+        else:
+            estado = "OFFLINE"
+
+        data.append({
+            "vehiculo": ub.vehiculo.numero,
+            "lat": ub.latitud,
+            "lng": ub.longitud,
+            "velocidad": ub.velocidad,
+            "precision": ub.precision,
+            "estado": estado,
+            "actualizado_en": ub.updated_at.isoformat(),
+        })
+
+    return JsonResponse(data, safe=False)
+
+# =================================================
+# 📍 API — PUNTOS DE CONTROL (MAPA DESPACHADOR)
+# =================================================
+@require_GET
+def api_puntos_control(request):
+    """
+    Devuelve los puntos de control activos
+    para ser dibujados en el mapa del despachador.
+    """
+
+    puntos = (
+        PuntoControl.objects
+        .filter(activo=True)
+        .order_by("orden")
+    )
+
+    data = []
+
+    for p in puntos:
+        # Seguridad: solo si tiene coordenadas
+        if p.latitud is None or p.longitud is None:
+            continue
+
+        data.append({
+            "id": p.id,
+            "codigo": p.codigo,          # SALI, COLE, APIP, ZAMA
+            "nombre": p.nombre,          # Nombre largo
+            "orden": p.orden,
+            "lat": float(p.latitud),
+            "lng": float(p.longitud),
+            "radio": p.radio_metros,
+        })
+
+    return JsonResponse(data, safe=False)
+
+# =================================================
+# 🔎 API — BÚSQUEDA RÁPIDA DE VEHÍCULO POR CÓDIGO
+# =================================================
+@require_GET
+def api_buscar_vehiculo_por_codigo(request):
+    """
+    Devuelve la unidad ACTIVA asociada a un código operativo (01, 02, 15, etc).
+    Usado por el despachador para búsqueda rápida.
+    """
+
+    codigo = request.GET.get("codigo")
+
+    if not codigo:
+        return JsonResponse(
+            {"error": "codigo requerido"},
+            status=400
+        )
+
+    qs = Vehiculo.objects.filter(
+        codigo=codigo,
+        activo=True
+    )
+
+    if not qs.exists():
+        return JsonResponse(
+            {"error": f"No existe unidad activa con código {codigo}"},
+            status=404
+        )
+
+    if qs.count() > 1:
+        # Esto NO debería pasar, pero protege el sistema
+        return JsonResponse(
+            {"error": f"Conflicto: más de una unidad activa con código {codigo}"},
+            status=409
+        )
+
+    vehiculo = qs.first()
+
+    return JsonResponse({
+        "vehiculo_id": vehiculo.id,
+        "codigo": vehiculo.codigo,
+        "placa": vehiculo.placa,
+        "activo": vehiculo.activo,
+    })
+
+# =================================================
+# 🧭 API — RECORRIDO HISTÓRICO (DESPACHADOR)
+# =================================================
+@require_GET
+def api_recorrido_vehiculo(request):
+    """
+    Devuelve el recorrido GPS de un vehículo en una fecha dada.
+    Usado para auditoría y análisis (PASO E1 + E2).
+    """
+
+    vehiculo_id = request.GET.get("vehiculo")
+    fecha = request.GET.get("fecha")
+
+    if not vehiculo_id or not fecha:
+        return JsonResponse(
+            {"error": "Parámetros incompletos"},
+            status=400
+        )
+
+    try:
+        fecha_dt = datetime.strptime(fecha, "%Y-%m-%d").date()
+    except ValueError:
+        return JsonResponse(
+            {"error": "Fecha inválida"},
+            status=400
+        )
+
+    registros = (
+        GPSRegistro.objects
+        .filter(
+            sesion__vehiculo_id=vehiculo_id,
+            timestamp__date=fecha_dt
+        )
+        .order_by("timestamp")
+    )
+
+    data = []
+    for r in registros:
+        data.append({
+            "lat": r.lat,
+            "lng": r.lng,
+            "hora": r.timestamp.strftime("%H:%M:%S"),
+            "velocidad": r.velocidad or 0
+        })
+
+    return JsonResponse(data, safe=False)
+
+# =================================================
+# 🛑 API — PARADAS POR VEHÍCULO Y FECHA (DESPACHADOR)
+# =================================================
+@require_GET
+def api_paradas_vehiculo(request):
+    vehiculo_id = request.GET.get("vehiculo")
+    fecha = request.GET.get("fecha")
+
+    if not vehiculo_id or not fecha:
+        return JsonResponse(
+            {"error": "Parámetros incompletos"},
+            status=400
+        )
+
+    try:
+        fecha_dt = datetime.strptime(fecha, "%Y-%m-%d").date()
+    except ValueError:
+        return JsonResponse(
+            {"error": "Fecha inválida"},
+            status=400
+        )
+
+    # 🔑 IMPORTANTE:
+    # Mostramos paradas CERRADAS y EN CURSO
+    paradas = (
+        Parada.objects
+        .filter(
+            vehiculo_id=vehiculo_id,
+            inicio__date=fecha_dt
+        )
+        .order_by("inicio")
+    )
+
+    data = []
+    for p in paradas:
+        data.append({
+            "lat": p.lat,
+            "lng": p.lng,
+            "inicio": p.inicio.strftime("%H:%M:%S"),
+            "fin": p.fin.strftime("%H:%M:%S") if p.fin else None,
+            "duracion_min": int(p.duracion_segundos / 60),
+            "activa": p.activa,  # 👈 útil para el frontend
+        })
+
+    return JsonResponse(data, safe=False)
+
+# =================================================
+# 🫀 API — HEARTBEAT (SEÑAL DE VIDA APP CONDUCTOR)
+# =================================================
+@csrf_exempt
+def api_heartbeat(request):
+    if request.method != "POST":
+        return JsonResponse(
+            {"error": "Método no permitido"},
+            status=405
+        )
+
+    # =============================================
+    # 🔑 LEER TOKEN (MISMO ESTÁNDAR QUE GPS)
+    # =============================================
+    try:
+        data = json.loads(request.body or "{}")
+    except Exception:
+        return JsonResponse({"error": "JSON inválido"}, status=400)
+
+    token = data.get("token")
+
+    if not token:
+        return JsonResponse(
+            {"estado": "BLOQUEADO", "mensaje": "Token requerido"},
+            status=401
+        )
+
+    # =============================================
+    # 🔐 VALIDACIÓN CENTRAL DE SESIÓN
+    # =============================================
+    sesion = validar_sesion(token)
+
+    if not sesion:
+        return JsonResponse(
+            {
+                "estado": "BLOQUEADO",
+                "mensaje": "Sesión inválida o reemplazada"
+            },
+            status=403
+        )
+
+    # =============================================
+    # 🫀 REGISTRAR HEARTBEAT
+    # =============================================
+    sesion.last_heartbeat = timezone.now()
+    sesion.save(update_fields=["last_heartbeat"])
+
+    return JsonResponse(
+        {
+            "ok": True,
+            "timestamp": sesion.last_heartbeat.isoformat()
+        }
+    )
+
+# =================================================
+# 🔐 API — ESCANEAR QR (ACTIVACIÓN DEFINITIVA)
+# =================================================
+@csrf_exempt
+def api_escanear_qr(request):
+
+    # =============================================
+    # 🔥 PREFLIGHT (CORS)
+    # =============================================
+    if request.method == "OPTIONS":
+        return JsonResponse(
+            {},
+            status=200,
+            headers={
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "POST, OPTIONS",
+                "Access-Control-Allow-Headers": "Content-Type",
+                "Access-Control-Allow-Credentials": "true",
+            }
+        )
+
+    # =============================================
+    # 🔒 SOLO POST
+    # =============================================
+    if request.method != "POST":
+        return JsonResponse(
+            {"ok": False, "error": "Método no permitido"},
+            status=405,
+            headers={
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Credentials": "true",
+            }
+        )
+
+    # =============================================
+    # 📦 LEER JSON (SEGURO)
+    # =============================================
+    try:
+        data = json.loads(request.body.decode("utf-8") or "{}")
+    except Exception:
+        return JsonResponse(
+            {"ok": False, "error": "JSON inválido"},
+            status=400,
+            headers={"Access-Control-Allow-Origin": "*"}
+        )
+
+    # =============================================
+    # 🚍 VALIDAR vehiculo_id
+    # =============================================
+    vehiculo_id = data.get("vehiculo_id")
+    if not vehiculo_id:
+        return JsonResponse(
+            {"ok": False, "error": "vehiculo_id requerido"},
+            status=400,
+            headers={"Access-Control-Allow-Origin": "*"}
+        )
+
+    # =============================================
+    # 🚍 BUSCAR VEHÍCULO
+    # =============================================
+    vehiculo = Vehiculo.objects.filter(id=vehiculo_id).first()
+    if not vehiculo:
+        return JsonResponse(
+            {"ok": False, "error": "Unidad no registrada"},
+            status=200,  # mantenemos tu contrato
+            headers={"Access-Control-Allow-Origin": "*"}
+        )
+
+    # =============================================
+    # 🔥 REGLA CLAVE:
+    # TODO ESCANEO REEMPLAZA LA SESIÓN
+    # =============================================
+    SesionUnidad.objects.filter(
+        vehiculo=vehiculo,
+        activa=True
+    ).update(activa=False)
+
+    # =============================================
+    # 🟢 CREAR NUEVA SESIÓN
+    # =============================================
+    sesion = SesionUnidad.objects.create(
+        vehiculo=vehiculo,
+        activa=True
+    )
+
+    # =============================================
+    # ✅ RESPUESTA FINAL
+    # =============================================
+    return JsonResponse(
+        {
+            "ok": True,
+            "token": str(sesion.token),
+            "vehiculo_id": vehiculo.id,
+            "unidad": vehiculo.numero,
+        },
+        status=200,
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Credentials": "true",
+        }
+    )
+
+# =================================================
+# 📱 API APP — ESTADO DE UNIDAD (FIX DEFINITIVO REAL)
+# =================================================
+@csrf_exempt
+def api_app_estado(request):
+    if request.method != "POST":
+        return JsonResponse({"error": "Método no permitido"}, status=405)
+
+    # =============================================
+    # 🔑 LEER TOKEN
+    # =============================================
+    auth = request.headers.get("Authorization")
+    if not auth or not auth.startswith("Bearer "):
+        return JsonResponse({
+            "autorizado": False,
+            "estado": "BLOQUEADO",
+            "estado_gps": "BLOQUEADO",
+            "bloqueado": True,
+            "mensaje": "Token no enviado"
+        })
+
+    token = auth.replace("Bearer ", "").strip()
+
+    # =============================================
+    # 🔐 VALIDAR SESIÓN
+    # =============================================
+    sesion = validar_sesion(token)
+    if not sesion:
+        return JsonResponse({
+            "autorizado": False,
+            "estado": "BLOQUEADO",
+            "estado_gps": "BLOQUEADO",
+            "bloqueado": True,
+            "mensaje": "Sesión inválida"
+        })
+
+    estado_gps = calcular_estado_sesion(sesion)
+
+    # =============================================
+    # 📅 FECHA ACTUAL (ZONA LOCAL)
+    # =============================================
+    hoy = timezone.localdate()
+
+    # =============================================
+    # 🚍 BUSCAR SALIDA ACTIVA SOLO DE HOY
+    # =============================================
+    salida = (
+        RegistroSalida.objects
+        .filter(
+            vehiculo=sesion.vehiculo,
+            fecha=hoy,          # 🔥 CLAVE ABSOLUTA
+            activo=True
+        )
+        .order_by("en_cola", "orden_cola", "hora_salida")
+        .first()
+    )
+
+    # =============================================
+    # 🚫 SIN SALIDA HOY
+    # =============================================
+    if not salida:
+        return JsonResponse({
+            "autorizado": True,
+            "estado": "SIN_SALIDA",
+            "estado_gps": estado_gps,
+            "bloqueado": False,
+            "hora_salida": None,
+            "mensaje": "Espere orden de salida"
+        })
+
+    # =============================================
+    # ⏳ SALIDA SIN HORA ASIGNADA
+    # =============================================
+    if not salida.hora_salida:
+        return JsonResponse({
+            "autorizado": True,
+            "estado": "SIN_HORA",
+            "estado_gps": estado_gps,
+            "bloqueado": False,
+            "hora_salida": None,
+            "mensaje": "Esperando asignación de hora"
+        })
+
+    # =============================================
+    # ⏱️ TIEMPOS (AWARE + ZONA LOCAL)
+    # =============================================
+    tz = timezone.get_current_timezone()
+    ahora = timezone.localtime(timezone.now(), tz)
+    hora_salida = timezone.localtime(salida.hora_salida, tz)
+
+    # =================================================
+    # 🔥 BLINDAJE EXTRA (CAMBIO 2)
+    # =================================================
+    # Si por cualquier motivo la hora pertenece a otro día,
+    # NUNCA permitir que pase a SALIDA_ACTIVA
+    if hora_salida.date() != hoy:
+        return JsonResponse({
+            "autorizado": True,
+            "estado": "EN_COLA",
+            "estado_gps": estado_gps,
+            "bloqueado": False,
+            "hora_salida": hora_salida.strftime("%H:%M"),
+            "mensaje": "Salida programada para otro día"
+        })
+
+    segundos = (hora_salida - ahora).total_seconds()
+    minutos = max(int(segundos // 60), 0)
+
+    # =================================================
+    # 🔴 AÚN EN COLA (NO HA SALIDO)
+    # =================================================
+    if salida.en_cola:
+
+        # 🟠 AVISO DE SALIDA (≤ 2 MIN)
+        if 0 < segundos <= 120:
+            return JsonResponse({
+                "autorizado": True,
+                "estado": "AVISO_SALIDA",
+                "estado_gps": estado_gps,
+                "bloqueado": False,
+                "hora_salida": hora_salida.strftime("%H:%M"),
+                "minutos": minutos,
+                "audio": "aviso_salida",
+                "mensaje": f"Tu salida es en {minutos} minutos"
+            })
+
+        # ⏳ YA ES HORA, PERO SIGUE EN COLA
+        if segundos <= 0:
+            return JsonResponse({
+                "autorizado": True,
+                "estado": "SALIDA_PROGRAMADA",
+                "estado_gps": estado_gps,
+                "bloqueado": False,
+                "hora_salida": hora_salida.strftime("%H:%M"),
+                "mensaje": "Espere orden de salida"
+            })
+
+        # 🟡 COLA NORMAL
+        return JsonResponse({
+            "autorizado": True,
+            "estado": "EN_COLA",
+            "estado_gps": estado_gps,
+            "bloqueado": False,
+            "hora_salida": hora_salida.strftime("%H:%M"),
+            "minutos": minutos,
+            "mensaje": "Unidad en cola"
+        })
+
+    # =================================================
+    # 🟢 SALIDA ACTIVA (YA SALIÓ)
+    # =================================================
+    if salida.hora_real_salida:
+
+        # 🔄 Sincronizar sesión con la salida real
+        if sesion.salida_id != salida.id:
+            sesion.salida = salida
+            sesion.save(update_fields=["salida"])
+
+        return JsonResponse({
+            "autorizado": True,
+            "estado": "SALIDA_ACTIVA",
+            "estado_gps": estado_gps,
+            "bloqueado": False,
+            "hora_salida": hora_salida.strftime("%H:%M"),
+            "mensaje": "Salida activa"
+        })
+
+    # =================================================
+    # 🟡 FALLBACK SEGURO
+    # =================================================
+    return JsonResponse({
+        "autorizado": True,
+        "estado": "EN_COLA",
+        "estado_gps": estado_gps,
+        "bloqueado": False,
+        "hora_salida": hora_salida.strftime("%H:%M"),
+        "mensaje": "Unidad en cola"
+    })
+
+# =================================================
+# 🚍 APP CONDUCTOR (DEFINITIVA — SIN LÓGICA)
+# =================================================
+from django.shortcuts import render
+
+
+def app_conductor(request):
+    """
+    Vista principal de la App del Conductor.
+
+    🔑 REGLA DE ORO (NO ROMPER):
+    - ❌ NO consulta modelos
+    - ❌ NO decide estados
+    - ❌ NO maneja horas
+    - ❌ NO usa sesiones
+    - ❌ NO lee salidas
+
+    ✅ SOLO carga la UI (PWA)
+    ✅ TODO el estado viene por APIs:
+       - api_app_estado
+       - api_gps
+       - api_gps_conductor
+    """
+
+    return render(
+        request,
+        "flota_app/app_conductor.html",
+        {
+            "modo_pwa": True,  # ✅ requerido para instalación PWA
+        }
+    )
+
+# =================================================
+# 📦 QR DE UNIDAD (JSON PURO – DEFINITIVO)
+# =================================================
+def ver_qr_unidad(request, vehiculo_id):
+    """
+    Genera el QR de la unidad.
+    El QR contiene SOLO JSON con el ID del vehículo.
+    """
+
+    vehiculo = get_object_or_404(Vehiculo, id=vehiculo_id)
+
+    # 🔑 CONTENIDO EXACTO DEL QR (JSON PURO)
+    qr_data = json.dumps({
+        "vehiculo_id": vehiculo.id
+    })
+
+    qr = qrcode.make(qr_data)
+
+    buffer = BytesIO()
+    qr.save(buffer, format="PNG")
+    buffer.seek(0)
+
+    # 🔥 DEVOLVER IMAGEN PNG DIRECTA
+    return HttpResponse(
+        buffer.getvalue(),
+        content_type="image/png"
+    )
+
+# =================================================
+# 🚦 COLA DE SALIDA (FIX DEFINITIVO REAL)
+# =================================================
+@require_POST
+def poner_en_cola(request, salida_id):
+    salida = get_object_or_404(RegistroSalida, id=salida_id)
+    hoy = timezone.localdate()
+
+    # ------------------------------------------------
+    # 🔥 SI LA SALIDA NO ES DE HOY → CREAR UNA NUEVA
+    # ------------------------------------------------
+    if salida.fecha != hoy:
+        # cerrar salida vieja
+        salida.activo = False
+        salida.en_cola = False
+        salida.save(update_fields=["activo", "en_cola"])
+
+        # crear NUEVA salida para HOY
+        salida = RegistroSalida.objects.create(
+            vehiculo=salida.vehiculo,
+            ruta=salida.ruta,
+            fecha=hoy,
+            hora_llegada=timezone.now(),
+            activo=True,
+            en_cola=False
+        )
+
+    # ------------------------------------------------
+    # VALIDACIONES NORMALES
+    # ------------------------------------------------
+    if salida.en_cola:
+        messages.info(request, "La unidad ya está en la cola.")
+        return redirect("panel_despachador")
+
+    # ------------------------------------------------
+    # ORDEN EN COLA (SOLO HOY)
+    # ------------------------------------------------
+    ultimo = (
+        RegistroSalida.objects
+        .filter(
+            ruta=salida.ruta,
+            fecha=hoy,
+            en_cola=True,
+            activo=True
+        )
+        .order_by("-orden_cola")
+        .first()
+    )
+
+    salida.en_cola = True
+    salida.orden_cola = (ultimo.orden_cola + 1) if ultimo else 1
+    salida.bloqueado = False
+
+    salida.save(update_fields=[
+        "en_cola",
+        "orden_cola",
+        "bloqueado"
+    ])
+
+    recalcular_cola()
+
+    messages.success(request, "Unidad puesta en cola para el día de hoy.")
+    return redirect("panel_despachador")
+
+# =================================================
+# 🚦 QUITAR DE COLA (RESTAURADO)
+# =================================================
+@require_POST
+def quitar_de_cola(request, salida_id):
+    salida = get_object_or_404(RegistroSalida, id=salida_id)
+
+    if not salida.en_cola:
+        messages.info(request, "La unidad no está en la cola.")
+        return redirect("panel_despachador")
+
+    salida.en_cola = False
+    salida.orden_cola = None
+    salida.save(update_fields=["en_cola", "orden_cola"])
+
+    recalcular_cola()
+
+    messages.success(request, "Unidad quitada de la cola.")
+    return redirect("panel_despachador")
+
+# =================================================
+# ⏱️ INTERVALO GLOBAL
+# =================================================
+@require_POST
+def cambiar_intervalo_global(request):
+    """
+    Cambia el intervalo de despacho:
+    - Manual: intervalo fijo
+    - Automático: según cantidad en cola
+    """
+
+    # Desactivar configuraciones anteriores
+    ConfiguracionDespacho.objects.all().update(activa=False)
+
+    accion = request.POST.get("accion")      # "manual" | "automatico"
+    valor = request.POST.get("intervalo")    # minutos (si manual)
+
+    if accion == "manual" and valor:
+        ConfiguracionDespacho.objects.create(
+            intervalo_fijo=int(valor),
+            activa=True
+        )
+        messages.success(
+            request,
+            f"Intervalo fijo establecido en {valor} minutos."
+        )
+    else:
+        ConfiguracionDespacho.objects.create(
+            intervalo_fijo=None,
+            activa=True
+        )
+        messages.success(
+            request,
+            "Intervalo automático activado."
+        )
+
+    # 🔑 ESTO YA ESTÁ BIEN
+    recalcular_cola()
+
+    return redirect("panel_despachador")
+
+# =================================================
+# 🔒 ASIGNAR HORA FIJA A SALIDA (FIX DEFINITIVO FECHA + TZ)
+# =================================================
+@require_POST
+def asignar_hora_fija(request, salida_id):
+    salida = get_object_or_404(RegistroSalida, id=salida_id)
+
+    # -------------------------
+    # VALIDACIONES
+    # -------------------------
+    if not salida.en_cola:
+        messages.error(
+            request,
+            "No se puede fijar una hora si la unidad no está en cola."
+        )
+        return redirect("panel_despachador")
+
+    if salida.bloqueado:
+        messages.info(
+            request,
+            "Esta unidad ya tiene una hora fija asignada."
+        )
+        return redirect("panel_despachador")
+
+    hora_str = request.POST.get("hora_fija")
+    if not hora_str:
+        messages.error(request, "Hora inválida.")
+        return redirect("panel_despachador")
+
+    # -------------------------
+    # 🔥 FIX CLAVE: FECHA = HOY (SIEMPRE)
+    # -------------------------
+    hoy = timezone.localdate()
+    salida.fecha = hoy
+
+    # -------------------------
+    # PARSE DE HORA
+    # -------------------------
+    try:
+        hora_time = datetime.strptime(hora_str, "%H:%M").time()
+    except ValueError:
+        messages.error(request, "Formato de hora inválido.")
+        return redirect("panel_despachador")
+
+    # -------------------------
+    # 🔑 DATETIME AWARE EN ZONA LOCAL
+    # -------------------------
+    hora_fija_dt = timezone.make_aware(
+        datetime.combine(hoy, hora_time),
+        timezone.get_current_timezone()
+    )
+
+    # -------------------------
+    # ASIGNACIÓN FINAL
+    # -------------------------
+    salida.hora_fija = hora_fija_dt
+    salida.hora_salida = hora_fija_dt
+    salida.bloqueado = True
+
+    salida.save(update_fields=[
+        "fecha",
+        "hora_fija",
+        "hora_salida",
+        "bloqueado"
+    ])
+
+    # -------------------------
+    # RECALCULAR COLA (RESPETA HORA FIJA)
+    # -------------------------
+    recalcular_cola()
+
+    messages.success(
+        request,
+        f"Hora fija asignada correctamente: {hora_str}"
+    )
+    return redirect("panel_despachador")
+
+# =================================================
+# 🔓 DESBLOQUEAR HORA FIJA (VOLVER A AUTOMÁTICO)
+# =================================================
+@require_POST
+def desbloquear_hora(request, salida_id):
+    salida = get_object_or_404(RegistroSalida, id=salida_id)
+
+    if not salida.bloqueado:
+        messages.info(
+            request,
+            "La unidad ya está en modo automático."
+        )
+        return redirect("panel_despachador")
+
+    salida.bloqueado = False
+    salida.save(update_fields=["bloqueado"])
+
+    messages.success(
+        request,
+        "Hora fija eliminada. Unidad en modo automático."
+    )
+    return redirect("panel_despachador")
+
+# =================================================
+# 📄 DETALLE DE SALIDA (CORREGIDO + CONTEXTO ATRÁS)
+# =================================================
+def detalle_salida(request, salida_id):
+    salida = get_object_or_404(RegistroSalida, id=salida_id)
+
+    marcaciones_qs = (
+        MarcacionPunto.objects
+        .filter(registro_salida=salida)
+        .select_related("punto")
+        .order_by("punto__orden")
+    )
+
+    detalle = []
+
+    for m in marcaciones_qs:
+        punto = m.punto
+
+        # 🔑 HORA PROGRAMADA CORRECTA (DINÁMICA)
+        if salida.hora_salida:
+            hora_programada = (
+                salida.hora_salida
+                + timedelta(minutes=punto.offset_minutos)
+            )
+        else:
+            hora_programada = None
+
+        # 🔑 ESTADO SOLO SI HAY MARCACIÓN
+        estado = "pendiente"
+        diferencia = None
+
+        if m.hora_marcada and hora_programada:
+            diferencia = int(
+                (m.hora_marcada - hora_programada).total_seconds() / 60
+            )
+
+            if diferencia < 0:
+                estado = "adelantado"
+            elif diferencia == 0:
+                estado = "a_tiempo"
+            else:
+                estado = "tarde"
+
+        detalle.append({
+            "punto": punto,
+            "hora_programada": hora_programada,
+            "hora_marcada": m.hora_marcada,
+            "diferencia": diferencia,
+            "estado": estado,
+        })
+
+    # =================================================
+    # 🔑 CONTEXTO PARA NAVEGACIÓN CORRECTA
+    # =================================================
+    vehiculo_id = salida.vehiculo.id
+    fecha = salida.fecha  # date (YYYY-MM-DD)
+
+    return render(
+        request,
+        "flota_app/detalle_salida.html",
+        {
+            "salida": salida,
+            "detalle": detalle,
+
+            # 🔥 NUEVO (NO ROMPE NADA)
+            "vehiculo_id": vehiculo_id,
+            "fecha": fecha,
+        }
+    )
+
+# =================================================
+# 📊 HISTORIAL DE VEHÍCULO
+# =================================================
+def historial_vehiculo(request, vehiculo_id):
+    """
+    Vista placeholder de historial por vehículo.
+    (Se puede ampliar luego con filtros y reportes)
+    """
+    vehiculo = get_object_or_404(Vehiculo, id=vehiculo_id)
+
+    salidas = (
+        RegistroSalida.objects
+        .filter(vehiculo=vehiculo)
+        .order_by("-fecha", "-hora_salida")
+    )
+
+    return render(
+        request,
+        "flota_app/despachador/historial_vehiculo.html",
+        {
+            "vehiculo": vehiculo,
+            "salidas": salidas,
+        }
+    )
+
+# =================================================
+# 🧭 CONTROL DE RUTA (DESPACHADOR)
+# =================================================
+def control_ruta(request, salida_id):
+    salida = get_object_or_404(RegistroSalida, id=salida_id)
+
+    puntos = (
+        PuntoControl.objects
+        .filter(
+            ruta=salida.ruta,
+            activo=True
+        )
+        .order_by("orden")
+    )
+
+    controles = []
+
+    for punto in puntos:
+
+        # 🔑 HORA PROGRAMADA CALCULADA SIEMPRE DESDE LA SALIDA ACTUAL
+        if salida.hora_salida:
+            hora_programada_calculada = (
+                salida.hora_salida
+                + timedelta(minutes=punto.offset_minutos)
+            )
+        else:
+            hora_programada_calculada = None
+
+        # ⚠️ MANTENEMOS get_or_create (NO ROMPE NADA)
+        marcacion, _ = MarcacionPunto.objects.get_or_create(
+            registro_salida=salida,
+            punto=punto,
+            defaults={
+                # Se guarda solo la primera vez
+                "hora_programada": hora_programada_calculada
+            }
+        )
+
+        controles.append({
+            "punto": punto,
+            "marcacion": marcacion,
+            # 🔑 ESTA ES LA CLAVE
+            "hora_programada_calculada": hora_programada_calculada,
+        })
+
+    return render(
+        request,
+        "flota_app/despachador/control_ruta.html",
+        {
+            "salida": salida,
+            "controles": controles,
+        }
+    )
+
+# =================================================
+# ✍️ MARCAR PASO (MANUAL DESPACHADOR)
+# =================================================
+@require_POST
+def marcar_paso(request, salida_id, punto_id):
+    salida = get_object_or_404(RegistroSalida, id=salida_id)
+    punto = get_object_or_404(PuntoControl, id=punto_id)
+
+    if not salida.hora_salida:
+        messages.error(
+            request,
+            "La salida no tiene hora base asignada."
+        )
+        return redirect("control_ruta", salida_id=salida.id)
+
+    ahora = timezone.now()
+
+    # Hora programada = hora salida + offset
+    hora_programada = salida.hora_salida + timedelta(
+        minutes=punto.offset_minutos
+    )
+
+    diferencia_min = int(
+        (ahora - hora_programada).total_seconds() / 60
+    )
+
+    if diferencia_min < 0:
+        estado = "adelantado"
+    elif diferencia_min > 0:
+        estado = "tarde"
+    else:
+        estado = "a_tiempo"
+
+    MarcacionPunto.objects.update_or_create(
+        registro_salida=salida,
+        punto=punto,
+        defaults={
+            "hora_programada": hora_programada,
+            "hora_marcada": ahora,
+            "diferencia_minutos": diferencia_min,
+            "estado": estado,
+        }
+    )
+
+    messages.success(
+        request,
+        f"Punto {punto.nombre} marcado ({estado})."
+    )
+
+    return redirect("control_ruta", salida_id=salida.id)
+
+# =================================================
+# ✍️ MARCAR SIGUIENTE PUNTO (DESPACHADOR)
+# =================================================
+@require_POST
+def marcar_siguiente_punto(request, salida_id):
+    """
+    Marca el siguiente punto pendiente de la ruta
+    (uso manual desde Control de Ruta).
+    """
+    salida = get_object_or_404(RegistroSalida, id=salida_id)
+
+    # 🛑 Validación básica
+    if not salida.hora_salida:
+        messages.error(
+            request,
+            "La salida no tiene hora base asignada."
+        )
+        return redirect("control_ruta", salida_id=salida.id)
+
+    # =================================================
+    # ✅ USAMOS EL MÉTODO CORRECTO DE TU MODELO
+    # =================================================
+    punto = salida.siguiente_punto()
+
+    if not punto:
+        messages.info(
+            request,
+            "No hay más puntos pendientes por marcar."
+        )
+        return redirect("control_ruta", salida_id=salida.id)
+
+    ahora = timezone.now()
+
+    # Hora programada = hora salida + offset del punto
+    hora_programada = salida.hora_salida + timedelta(
+        minutes=punto.offset_minutos
+    )
+
+    diferencia_min = int(
+        (ahora - hora_programada).total_seconds() / 60
+    )
+
+    if diferencia_min < 0:
+        estado = "adelantado"
+    elif diferencia_min > 0:
+        estado = "tarde"
+    else:
+        estado = "a_tiempo"
+
+    # Crear o actualizar marcación
+    MarcacionPunto.objects.update_or_create(
+        registro_salida=salida,
+        punto=punto,
+        defaults={
+            "hora_programada": hora_programada,
+            "hora_marcada": ahora,
+            "diferencia_minutos": diferencia_min,
+            "estado": estado,
+        }
+    )
+
+    # =================================================
+    # 🔥 NUEVO: CIERRE AUTOMÁTICO SI ES ÚLTIMO PUNTO
+    # =================================================
+    ultimo_punto = (
+        PuntoControl.objects
+        .filter(ruta=salida.ruta, activo=True)
+        .order_by("-orden")
+        .first()
+    )
+
+    if ultimo_punto and punto.id == ultimo_punto.id:
+        salida.activo = False
+        salida.en_cola = False
+        salida.save(update_fields=["activo", "en_cola"])
+
+        messages.success(
+            request,
+            "Último punto marcado. La salida fue finalizada y enviada al historial."
+        )
+        return redirect("detalle_salida", salida_id=salida.id)
+
+    # Mensaje normal si no es el último
+    messages.success(
+        request,
+        f"Punto {punto.nombre} marcado ({estado})."
+    )
+
+    return redirect("control_ruta", salida_id=salida.id)
+
+
+# =================================================
+# 🔁 ALIAS: MARCAR SIGUIENTE PUNTO (AUTO / LEGACY)
+# =================================================
+def marcar_siguiente_punto_auto(request, salida_id):
+    """
+    Alias para compatibilidad con URLs antiguas.
+    Marca automáticamente el siguiente punto pendiente.
+    """
+    salida = get_object_or_404(RegistroSalida, id=salida_id)
+
+    punto = salida.siguiente_punto()
+    if not punto:
+        messages.info(
+            request,
+            "No hay más puntos por marcar."
+        )
+        return redirect("detalle_salida", salida_id=salida.id)
+
+    return marcar_paso(
+        request,
+        salida_id=salida.id,
+        punto_id=punto.id
+    )
+
+# =================================================
+# 📊 AUDITORÍA DE HORAS (PLACEHOLDER)
+# =================================================
+def auditoria_horas(request):
+    """
+    Vista de auditoría de horas.
+    Se puede ampliar luego con filtros y exportación.
+    """
+    salidas = (
+        RegistroSalida.objects
+        .all()
+        .order_by("-fecha", "-hora_salida")
+    )
+
+    return render(
+        request,
+        "flota_app/despachador/auditoria_horas.html",
+        {
+            "salidas": salidas,
+        }
+    )
+
+# =================================================
+# 📜 HISTORIAL GENERAL DE SALIDAS (CORREGIDO BIEN)
+# =================================================
+def historial_salidas(request):
+    """
+    Historial de salidas basado en marcaciones reales (GPS).
+    No asume datos inexistentes.
+    """
+
+    salidas = (
+        RegistroSalida.objects
+        .all()
+        .order_by("-fecha", "-hora_salida")
+    )
+
+    historial = []
+
+    for salida in salidas:
+        hora_programada = salida.hora_salida
+
+        # 🔍 Buscar la primera marcación real (si existe)
+        primera_marcacion = (
+            MarcacionPunto.objects
+            .filter(
+                registro_salida=salida,
+                hora_marcada__isnull=False
+            )
+            .order_by("hora_marcada")
+            .first()
+        )
+
+        hora_marcada = (
+            primera_marcacion.hora_marcada
+            if primera_marcacion else None
+        )
+
+        estado = "pendiente"
+        diferencia = None
+
+        if hora_programada and hora_marcada:
+            diferencia = int(
+                (hora_marcada - hora_programada).total_seconds() / 60
+            )
+
+            if diferencia < 0:
+                estado = "adelantado"
+            elif diferencia == 0:
+                estado = "a_tiempo"
+            else:
+                estado = "tarde"
+
+        historial.append({
+            "salida": salida,
+            "programada": hora_programada,
+            "marcada": hora_marcada,
+            "falta": diferencia,
+            "estado": estado,
+        })
+
+    return render(
+        request,
+        "flota_app/despachador/historial_salidas.html",
+        {
+            "historial": historial,
+        }
+    )
+
+# =================================================
+# 📈 REPORTE DE CONTROL (PLACEHOLDER)
+# =================================================
+def reporte_control(request):
+    """
+    Vista de reporte general de control.
+    Placeholder para panel despachador.
+    """
+    salidas = (
+        RegistroSalida.objects
+        .all()
+        .order_by("-fecha", "-hora_salida")
+    )
+
+    return render(
+        request,
+        "flota_app/despachador/reporte_control.html",
+        {
+            "salidas": salidas,
+        }
+    )
+
+# =================================================
+# 📤 EXPORTAR EXCEL (PLACEHOLDER)
+# =================================================
+def exportar_excel(request):
+    """
+    Exportación a Excel (pendiente).
+    Placeholder seguro para evitar errores en URLs.
+    """
+    messages.info(
+        request,
+        "📄 Exportación a Excel aún no implementada."
+    )
+    return redirect("panel_despachador")

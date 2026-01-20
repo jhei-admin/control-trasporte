@@ -1,0 +1,207 @@
+{% extends "base.html" %}
+{% block title %}Historial de Recorrido{% endblock %}
+{% block content %}
+
+<link
+  rel="stylesheet"
+  href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+/>
+
+<h2 class="mb-3">🧭 Historial de Recorrido</h2>
+<hr>
+
+<div class="row mb-3">
+  <div class="col-md-4">
+    <label>Vehículo</label>
+    <select id="vehiculo" class="form-select">
+      {% for v in vehiculos %}
+        <option value="{{ v.id }}">{{ v.numero }}</option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <div class="col-md-4">
+    <label>Fecha</label>
+    <input type="date" id="fecha" class="form-control">
+  </div>
+
+  <div class="col-md-4 d-flex align-items-end">
+    <button
+      class="btn btn-primary w-100"
+      id="btn-recorrido"
+      onclick="cargarRecorrido()"
+    >
+      Ver recorrido
+    </button>
+  </div>
+</div>
+
+<div
+  id="map"
+  style="height:500px;width:100%;border-radius:8px;"
+></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script>
+  // ==============================
+  // 🗺️ Inicializar mapa
+  // ==============================
+  const map = L.map("map").setView([-16.338088, -71.619947], 13);
+
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    attribution: "© OpenStreetMap contributors"
+  }).addTo(map);
+
+  // ==============================
+  // 🧠 Capas
+  // ==============================
+  let polyline = null;
+  let puntos = [];
+  let paradasMarkers = [];
+
+  // ==============================
+  // 🟡 Ícono de parada
+  // ==============================
+  const paradaIcon = L.icon({
+    iconUrl: "/static/img/parada_amarilla.svg", // 👈 pon aquí tu ícono
+    iconSize: [26, 26],
+    iconAnchor: [13, 26],
+    popupAnchor: [0, -26],
+  });
+
+  function limpiarMapa() {
+    if (polyline) {
+      map.removeLayer(polyline);
+      polyline = null;
+    }
+
+    puntos.forEach(p => map.removeLayer(p));
+    puntos = [];
+
+    paradasMarkers.forEach(m => map.removeLayer(m));
+    paradasMarkers = [];
+  }
+
+  // ==============================
+  // 🚍 Cargar recorrido + paradas
+  // ==============================
+  async function cargarRecorrido() {
+    const vehiculo = document.getElementById("vehiculo").value;
+    const fecha = document.getElementById("fecha").value;
+    const btn = document.getElementById("btn-recorrido");
+
+    if (!vehiculo || !fecha) {
+      alert("Selecciona vehículo y fecha");
+      return;
+    }
+
+    btn.disabled = true;
+    btn.innerText = "Cargando...";
+
+    limpiarMapa();
+
+    try {
+      // ==============================
+      // 🔵 RECORRIDO GPS
+      // ==============================
+      const res = await fetch(
+        `/sistema/api/despachador/recorrido/?vehiculo=${vehiculo}&fecha=${fecha}`
+      );
+
+      if (!res.ok) {
+        throw new Error("Error consultando recorrido");
+      }
+
+      const data = await res.json();
+
+      if (!data.length) {
+        alert("No hay registros GPS para ese día");
+        return;
+      }
+
+      const coords = [];
+
+      data.forEach(p => {
+        const latlng = [p.lat, p.lng];
+        coords.push(latlng);
+
+        const m = L.circleMarker(latlng, {
+          radius: 4,
+          color: "#0d6efd",
+          fillOpacity: 0.8
+        })
+          .bindPopup(`
+            <strong>Hora:</strong> ${p.hora}<br>
+            <strong>Velocidad:</strong> ${p.velocidad} km/h<br>
+            <small>${p.lat.toFixed(5)}, ${p.lng.toFixed(5)}</small>
+          `)
+          .addTo(map);
+
+        puntos.push(m);
+      });
+
+      polyline = L.polyline(coords, {
+        color: "#dc3545",
+        weight: 4
+      }).addTo(map);
+
+      map.fitBounds(polyline.getBounds(), {
+        padding: [40, 40]
+      });
+
+      // ==============================
+      // 🟡 PARADAS DETECTADAS
+      // ==============================
+      cargarParadas(vehiculo, fecha);
+
+    } catch (err) {
+      console.error(err);
+      alert("Error cargando el recorrido");
+    } finally {
+      btn.disabled = false;
+      btn.innerText = "Ver recorrido";
+    }
+  }
+
+  // ==============================
+  // 🛑 Cargar paradas
+  // ==============================
+  async function cargarParadas(vehiculo, fecha) {
+    try {
+      const res = await fetch(
+        `/sistema/api/despachador/paradas/?vehiculo=${vehiculo}&fecha=${fecha}`
+      );
+
+      if (!res.ok) return;
+
+      const paradas = await res.json();
+
+      paradas.forEach(p => {
+        const m = L.marker([p.lat, p.lng], { icon: paradaIcon })
+          .addTo(map)
+          .bindPopup(`
+            <b>🛑 Parada</b><br>
+            <strong>Inicio:</strong> ${p.inicio}<br>
+            <strong>Fin:</strong> ${p.fin}<br>
+            <strong>Duración:</strong> ${p.duracion_min} min
+          `);
+
+        paradasMarkers.push(m);
+      });
+
+    } catch (e) {
+      console.error("Error cargando paradas", e);
+    }
+  }
+
+  // ==============================
+  // 📅 Fecha por defecto: hoy
+  // ==============================
+  document.addEventListener("DOMContentLoaded", () => {
+    const hoy = new Date().toISOString().slice(0, 10);
+    document.getElementById("fecha").value = hoy;
+  });
+</script>
+
+{% endblock %}

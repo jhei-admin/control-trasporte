@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h2>📊 Reporte de Control</h2>
+
+<!-- 🔍 Filtro -->
+<form method="get" class="row g-3 mb-3">
+    <div class="col-md-4">
+        <label class="form-label">Fecha</label>
+        <input type="date"
+               name="fecha"
+               class="form-control"
+               value="{{ request.GET.fecha }}">
+    </div>
+
+    <div class="col-md-4">
+        <label class="form-label">Ruta</label>
+        <select name="ruta" class="form-select">
+            <option value="">Todas</option>
+            {% for r in rutas %}
+                <option value="{{ r.id }}"
+                    {% if request.GET.ruta == r.id|stringformat:"s" %}selected{% endif %}>
+                    {{ r.nombre }}
+                </option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <div class="col-md-4 d-flex align-items-end">
+        <button class="btn btn-primary w-100">
+            🔍 Ver reporte
+        </button>
+    </div>
+</form>
+
+<!-- 📊 Tabla -->
+<table class="table table-bordered table-sm">
+    <thead class="table-dark">
+        <tr>
+            <th>#</th>
+            <th>Vehículo</th>
+            <th>Ruta</th>
+            <th>Programada</th>
+            <th>Marcada</th>
+            <th>Falta (min)</th>
+            <th>Estado</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for s in salidas %}
+        <tr>
+            <td>{{ forloop.counter }}</td>
+            <td>{{ s.vehiculo }}</td>
+            <td>{{ s.ruta }}</td>
+            <td>{{ s.hora_salida|date:"H:i" }}</td>
+            <td>{{ s.hora_real_salida|date:"H:i" }}</td>
+            <td>{{ s.diferencia_minutos }}</td>
+            <td>
+                {% if s.estado_salida == "A TIEMPO" %}
+                    <span class="badge bg-success">A TIEMPO</span>
+                {% elif s.estado_salida == "TARDE" %}
+                    <span class="badge bg-danger">TARDE</span>
+                {% else %}
+                    <span class="badge bg-warning text-dark">ADELANTADO</span>
+                {% endif %}
+            </td>
+        </tr>
+        {% empty %}
+        <tr>
+            <td colspan="7" class="text-center">
+                No hay datos para mostrar
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<a href="{% url 'panel_despachador' %}" class="btn btn-secondary">
+    ⬅ Volver al panel
+</a>
+{% endblock %}

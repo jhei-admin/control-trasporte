@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+
+{% block title %}Control de Ruta{% endblock %}
+
+{% block content %}
+
+<h2 class="mb-3">🧭 Control de Ruta</h2>
+
+<div class="card mb-3">
+  <div class="card-body">
+    <strong>Unidad:</strong> {{ salida.vehiculo.numero }} <br>
+    <strong>Ruta:</strong> {{ salida.ruta.nombre }} <br>
+    <strong>Hora programada de salida:</strong>
+    {% if salida.hora_salida %}
+        {{ salida.hora_salida|date:"H:i" }}
+    {% else %}
+        —
+    {% endif %}
+  </div>
+</div>
+
+<table class="table table-bordered table-sm align-middle">
+  <thead class="table-dark text-center">
+    <tr>
+      <th>#</th>
+      <th>Punto</th>
+      <th>Hora programada</th>
+      <th>Hora marcada</th>
+      <th>Diferencia (min)</th>
+      <th>Estado</th>
+      <th>Acción</th>
+    </tr>
+  </thead>
+
+  <tbody>
+    {% for c in controles %}
+    {% with p=c.punto m=c.marcacion %}
+    <tr class="text-center
+        {% if m %}
+            {% if m.estado == 'adelantado' %} table-info
+            {% elif m.estado == 'a_tiempo' %} table-success
+            {% elif m.estado == 'tarde' %} table-danger
+            {% endif %}
+        {% endif %}
+    ">
+        <td>{{ p.orden }}</td>
+
+        <td class="fw-bold">{{ p.codigo }}</td>
+
+        <!-- 🔑 HORA PROGRAMADA CORREGIDA -->
+        <td>
+            {% if c.hora_programada_calculada %}
+                {{ c.hora_programada_calculada|time:"H:i" }}
+            {% elif m and m.hora_programada %}
+                {{ m.hora_programada|time:"H:i" }}
+            {% else %}
+                —
+            {% endif %}
+        </td>
+
+        <td>
+            {% if m and m.hora_marcada %}
+                {{ m.hora_marcada|time:"H:i" }}
+            {% else %}
+                —
+            {% endif %}
+        </td>
+
+        <td>
+            {% if m and m.diferencia_minutos is not None %}
+                {{ m.diferencia_minutos }}
+            {% else %}
+                —
+            {% endif %}
+        </td>
+
+        <td>
+            {% if m and m.estado %}
+                {% if m.estado == "adelantado" %}
+                    <span class="badge bg-primary">🟦 Adelantado</span>
+                {% elif m.estado == "a_tiempo" %}
+                    <span class="badge bg-success">🟩 A tiempo</span>
+                {% elif m.estado == "tarde" %}
+                    <span class="badge bg-danger">🟥 Tarde</span>
+                {% endif %}
+            {% else %}
+                <span class="badge bg-secondary">⏳ Pendiente</span>
+            {% endif %}
+        </td>
+
+        <td>
+            {% if not m or not m.hora_marcada %}
+                <form method="post"
+                      action="{% url 'marcar_siguiente_punto' salida.id %}">
+                    {% csrf_token %}
+                    <button class="btn btn-sm btn-outline-primary">
+                        Marcar paso
+                    </button>
+                </form>
+            {% else %}
+                ✔
+            {% endif %}
+        </td>
+    </tr>
+    {% endwith %}
+    {% empty %}
+    <tr>
+      <td colspan="7" class="text-center text-muted">
+        No hay puntos de control configurados para esta ruta
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<a href="{% url 'panel_despachador' %}" class="btn btn-secondary mt-3">
+  ⬅ Volver al panel
+</a>
+
+{% endblock %}
