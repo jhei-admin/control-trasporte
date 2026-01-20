@@ -124,9 +124,12 @@ class RegistroSalida(models.Model):
         on_delete=models.CASCADE
     )
 
+    # ✅ RUTA PUEDE SER NULL (FIX DEFINITIVO)
     ruta = models.ForeignKey(
         "Ruta",
-        on_delete=models.CASCADE
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True
     )
 
     # 📅 Fecha operativa
@@ -188,7 +191,7 @@ class RegistroSalida(models.Model):
     creado_en = models.DateTimeField(auto_now_add=True)
 
     # =================================================
-    # 🔒 BLINDAJE EN BASE DE DATOS (PASO 4)
+    # 🔒 BLINDAJE EN BASE DE DATOS
     # =================================================
     class Meta:
         constraints = [
@@ -198,7 +201,7 @@ class RegistroSalida(models.Model):
                 name="una_salida_activa_por_vehiculo_y_dia"
             )
         ]
-        ordering = ["fecha", "hora_salida"]
+        ordering = ["fecha", "creado_en"]
 
     # =================================================
     # 🔒 VALIDACIONES DE NEGOCIO
@@ -251,16 +254,12 @@ class RegistroSalida(models.Model):
         super().save(*args, **kwargs)
 
     # =================================================
-    # ▶️ INICIAR SALIDA (CAMPO REAL)
+    # ▶️ INICIAR SALIDA
     # =================================================
     def iniciar_salida(self):
-        """
-        Marca oficialmente el inicio de la salida.
-        Se llama SOLO una vez.
-        """
 
         if self.hora_real_salida:
-            return  # ya iniciada
+            return
 
         ahora = timezone.now()
 
@@ -277,12 +276,9 @@ class RegistroSalida(models.Model):
         )
 
     # =================================================
-    # ⏹ FINALIZAR SALIDA (CAMPO REAL)
+    # ⏹ FINALIZAR SALIDA
     # =================================================
     def finalizar_salida(self):
-        """
-        Cierra definitivamente la salida.
-        """
 
         self.activo = False
         self.en_cola = False
@@ -296,15 +292,14 @@ class RegistroSalida(models.Model):
         return self.hora_salida
 
     # =================================================
-    # 📍 SIGUIENTE PUNTO (CORE)
+    # 📍 SIGUIENTE PUNTO
     # =================================================
     def siguiente_punto(self):
-        """
-        Devuelve el siguiente PuntoControl NO marcado
-        según el orden de la ruta.
-        """
-        from django.apps import apps
 
+        if not self.ruta:
+            return None
+
+        from django.apps import apps
         PuntoControl = apps.get_model("flota_app", "PuntoControl")
         MarcacionPunto = apps.get_model("flota_app", "MarcacionPunto")
 
@@ -324,19 +319,16 @@ class RegistroSalida(models.Model):
         return None
 
     # =================================================
-    # 🔥 SIGUIENTE MARCACIÓN (API CONDUCTOR)
+    # 🔥 SIGUIENTE MARCACIÓN
     # =================================================
     def siguiente_marcacion(self):
-        """
-        Retorna la siguiente MarcacionPunto pendiente.
-        """
-        from django.apps import apps
-
-        MarcacionPunto = apps.get_model("flota_app", "MarcacionPunto")
 
         punto = self.siguiente_punto()
         if not punto:
             return None
+
+        from django.apps import apps
+        MarcacionPunto = apps.get_model("flota_app", "MarcacionPunto")
 
         marcacion, _ = MarcacionPunto.objects.get_or_create(
             registro_salida=self,
@@ -360,7 +352,9 @@ class RegistroSalida(models.Model):
         return "MANUAL" if self.bloqueado else "AUTOMÁTICO"
 
     def __str__(self):
-        return f"{self.vehiculo} - {self.ruta} ({self.fecha})"
+        ruta = self.ruta.nombre if self.ruta else "SIN RUTA"
+        return f"{self.vehiculo} - {ruta} ({self.fecha})"
+
 
 from django.db import models
 

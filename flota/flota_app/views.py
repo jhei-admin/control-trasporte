@@ -333,14 +333,20 @@ def panel_despachador(request):
     )
 
 # =================================================
-# 🔍 BUSCAR UNIDAD Y CREAR SALIDA DEL DÍA (FIX REAL PRODUCCIÓN)
+# 🔍 BUSCAR UNIDAD Y CREAR SALIDA DEL DÍA
+# FIX REAL PRODUCCIÓN (SIN RUTA FORZADA)
 # =================================================
+from django.shortcuts import redirect
+from django.contrib import messages
+from django.utils import timezone
+
 def buscar_unidad_panel(request):
     """
     FIX DEFINITIVO:
     - GET  → redirige al panel (nunca 500)
-    - POST → procesa búsqueda de unidad
-    - Compatible 100% con Render / producción
+    - POST → crea salida del día
+    - NO asume que Vehiculo tenga ruta
+    - Compatible con Render / producción
     """
 
     # -------------------------------------------------
@@ -388,11 +394,11 @@ def buscar_unidad_panel(request):
     )
 
     # -------------------------------------------------
-    # 🟢 CREAR NUEVA SALIDA DEL DÍA
+    # 🟢 CREAR NUEVA SALIDA DEL DÍA (SIN RUTA)
     # -------------------------------------------------
     RegistroSalida.objects.create(
         vehiculo=vehiculo,
-        ruta=vehiculo.ruta,
+        ruta=None,  # ✅ FIX CLAVE
         fecha=hoy,
         hora_llegada=timezone.now(),
         activo=True,
@@ -413,6 +419,8 @@ def buscar_unidad_panel(request):
 # =================================================
 # 🔍 AJAX — AGREGAR UNIDAD AL PANEL (FIX DEFINITIVO)
 # =================================================
+from django.http import JsonResponse
+from django.utils import timezone
 from django.views.decorators.http import require_POST
 
 @require_POST
@@ -422,7 +430,8 @@ def api_agregar_unidad_panel(request):
     - SOLO POST
     - Devuelve JSON
     - NO redirige
-    - 100% segura en Render
+    - NO asume que Vehiculo tenga ruta
+    - 100% estable en Render / producción
     """
 
     try:
@@ -466,11 +475,11 @@ def api_agregar_unidad_panel(request):
         )
 
         # ---------------------------------------------
-        # 🟢 CREAR NUEVA SALIDA DEL DÍA
+        # 🟢 CREAR NUEVA SALIDA DEL DÍA (SIN RUTA)
         # ---------------------------------------------
         salida = RegistroSalida.objects.create(
             vehiculo=vehiculo,
-            ruta=vehiculo.ruta,
+            ruta=None,  # ✅ FIX CLAVE
             fecha=hoy,
             hora_llegada=timezone.now(),
             activo=True,
@@ -485,8 +494,8 @@ def api_agregar_unidad_panel(request):
             "ok": True,
             "salida": {
                 "id": salida.id,
-                "vehiculo": str(vehiculo.numero),
-                "ruta": salida.ruta.nombre if salida.ruta else "—",
+                "vehiculo": str(vehiculo.codigo),
+                "ruta": "—",
                 "hora_llegada": salida.hora_llegada.strftime("%H:%M"),
                 "hora_salida": "—",
                 "intervalo": "—",
