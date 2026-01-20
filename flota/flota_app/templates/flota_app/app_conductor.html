@@ -57,11 +57,6 @@ button {
   </div>
 </div>
 
-<!-- 🔊 AUDIO -->
-<audio id="sonidoAviso" preload="auto">
-  <source src="{% static 'flota_app/sonidos/aviso_salida.mp3' %}" type="audio/mpeg">
-</audio>
-
 {% endblock %}
 
 {% block extra_js %}
@@ -71,16 +66,22 @@ button {
 /* ================= CONFIG ================= */
 const API_BASE = location.origin;
 
+/* ================= AUDIO (FIX DEFINITIVO) ================= */
+let salidaAudio = new Audio("{% static 'flota_app/sonidos/aviso_salida.mp3' %}");
+salidaAudio.preload = "auto";
+let audioPlayed = false;
+
+/* ================= GLOBAL ================= */
 let qrScanner = null;
 let escaneando = false;
 let estadoInterval = null;
 let gpsInterval = null;
 let heartbeatInterval = null;
 
-/* 🔥 CONTROL AVISO */
 let avisoActivo = false;
 let countdownInterval = null;
 let segundosRestantes = 0;
+let horaProgramada = null;
 
 /* ================= UTIL ================= */
 const $ = id => document.getElementById(id);
@@ -103,6 +104,7 @@ function resetSistema() {
   localStorage.removeItem("token");
 
   avisoActivo = false;
+  audioPlayed = false;
 
   $("pantallaEstado").style.display = "none";
   $("pantallaQR").style.display = "block";
@@ -192,7 +194,8 @@ function consultarEstado() {
       case "AVISO_SALIDA":
         if (!avisoActivo) {
           avisoActivo = true;
-          iniciarAviso(120); // 🔥 2 minutos exactos
+          horaProgramada = data.hora_salida;
+          iniciarAviso(120);
         }
         break;
 
@@ -202,8 +205,9 @@ function consultarEstado() {
         break;
 
       case "EN_COLA":
-        detenerCountdown();
-        mostrarEstado("⏳ EN COLA\nSalida: " + data.hora_salida, "info");
+        if (!avisoActivo) {
+          mostrarEstado("⏳ EN COLA\nSalida: " + data.hora_salida, "info");
+        }
         break;
 
       default:
@@ -212,14 +216,24 @@ function consultarEstado() {
   });
 }
 
-/* ================= AVISO CON COUNTDOWN ================= */
+/* ================= AVISO + COUNTDOWN ================= */
 function iniciarAviso(segundos) {
   segundosRestantes = segundos;
-  reproducirAudioAviso();
+
+  if (!audioPlayed) {
+    salidaAudio.currentTime = 0;
+    salidaAudio.play().then(() => {
+      audioPlayed = true;
+    }).catch(() => {});
+  }
 
   countdownInterval = setInterval(() => {
     if (segundosRestantes <= 0) {
       detenerCountdown();
+      mostrarEstado(
+        `⏳ SALIDA PROGRAMADA\nHora: ${horaProgramada}`,
+        "info"
+      );
       return;
     }
 
@@ -241,14 +255,6 @@ function detenerCountdown() {
     countdownInterval = null;
   }
   avisoActivo = false;
-}
-
-/* ================= AUDIO ================= */
-function reproducirAudioAviso() {
-  const audio = $("sonidoAviso");
-  audio.pause();
-  audio.currentTime = 0;
-  audio.play().catch(() => {});
 }
 
 /* ================= HEARTBEAT ================= */
