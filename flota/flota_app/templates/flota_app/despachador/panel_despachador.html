@@ -93,13 +93,19 @@
 <form method="post"
       action="{% url 'buscar_unidad_panel' %}"
       class="mb-3 d-flex gap-2 align-items-center"
-      style="max-width: 420px;">
+      style="max-width: 420px;"
+      autocomplete="off">
     {% csrf_token %}
 
     <input type="text"
            name="codigo"
            class="form-control"
            placeholder="🔍 Buscar unidad por código (ej: 01)"
+           autocomplete="off"
+           autocorrect="off"
+           autocapitalize="off"
+           spellcheck="false"
+           inputmode="numeric"
            required>
 
     <button class="btn btn-success">
@@ -114,6 +120,7 @@
        id="busquedaUnidad"
        class="form-control mb-3"
        placeholder="Filtrar unidades visibles"
+       autocomplete="off"
        style="max-width: 320px;">
 
 {# ============================= #}
@@ -135,7 +142,7 @@
     <tbody>
         {% for s in salidas %}
         <tr class="fila-unidad"
-            data-unidad="{{ s.vehiculo.numero }}">
+            data-unidad="{{ s.vehiculo.numero|lower }}">
 
             <td class="text-center">{{ s.vehiculo.numero }}</td>
             <td>{{ s.ruta.nombre }}</td>
@@ -187,9 +194,11 @@
                     {% else %}
                         <form method="post" action="{% url 'asignar_hora_fija' s.id %}">
                             {% csrf_token %}
-                            <input type="time" name="hora_fija"
+                            <input type="time"
+                                   name="hora_fija"
                                    class="form-control form-control-sm"
-                                   style="width: 95px;" required>
+                                   style="width: 95px;"
+                                   required>
                             <button class="btn btn-sm btn-warning">
                                 ⏱️ Fijar
                             </button>
@@ -229,9 +238,9 @@
 {# ============================= #}
 <script>
 document.getElementById("busquedaUnidad").addEventListener("keyup", function () {
-    const filtro = this.value.toLowerCase();
+    const filtro = this.value.toLowerCase().trim();
     document.querySelectorAll(".fila-unidad").forEach(fila => {
-        const unidad = fila.dataset.unidad.toLowerCase();
+        const unidad = fila.dataset.unidad || "";
         fila.style.display = unidad.includes(filtro) ? "" : "none";
     });
 });

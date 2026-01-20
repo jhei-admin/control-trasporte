@@ -333,46 +333,85 @@ def panel_despachador(request):
     )
 
 # =================================================
-# 🔍 BUSCAR UNIDAD Y CREAR SALIDA DEL DÍA
+# 🔍 BUSCAR UNIDAD Y CREAR SALIDA DEL DÍA (FIX DEFINITIVO)
 # =================================================
-@require_POST
+from django.views.decorators.http import require_http_methods
+
+@require_http_methods(["POST"])
 def buscar_unidad_panel(request):
-    codigo = request.POST.get("codigo")
+    """
+    - Acepta SOLO POST (blindado contra GET / autocompletado)
+    - Normaliza el código de unidad
+    - Evita errores 500 en Render
+    - Cierra salidas activas previas del día
+    - Crea una nueva salida limpia para HOY
+    """
+
+    # 🛡️ BLINDAJE EXTRA (navegador / bots / errores raros)
+    if request.method != "POST":
+        return redirect("panel_despachador")
+
+    # -------------------------------------------------
+    # 📥 LEER Y NORMALIZAR CÓDIGO
+    # -------------------------------------------------
+    codigo = request.POST.get("codigo", "").strip()
     hoy = timezone.localdate()
 
     if not codigo:
         messages.error(request, "Ingrese un código de unidad.")
         return redirect("panel_despachador")
 
-    vehiculo = Vehiculo.objects.filter(codigo=codigo, activo=True).first()
+    # -------------------------------------------------
+    # 🚍 BUSCAR VEHÍCULO ACTIVO
+    # -------------------------------------------------
+    vehiculo = (
+        Vehiculo.objects
+        .filter(codigo=codigo, activo=True)
+        .first()
+    )
+
     if not vehiculo:
-        messages.error(request, f"No existe unidad activa con código {codigo}.")
+        messages.error(
+            request,
+            f"No existe unidad activa con código {codigo}."
+        )
         return redirect("panel_despachador")
 
-    # 🔥 Cerrar salidas activas previas del día
+    # -------------------------------------------------
+    # 🔥 CERRAR SALIDAS ACTIVAS PREVIAS DEL DÍA
+    # (MISMA UNIDAD + MISMA FECHA)
+    # -------------------------------------------------
     RegistroSalida.objects.filter(
         vehiculo=vehiculo,
         activo=True,
         fecha=hoy
     ).update(
         activo=False,
-        en_cola=False
+        en_cola=False,
+        orden_cola=None
     )
 
-    # 🟢 Crear nueva salida del día
+    # -------------------------------------------------
+    # 🟢 CREAR NUEVA SALIDA DEL DÍA (LIMPIA)
+    # -------------------------------------------------
     RegistroSalida.objects.create(
         vehiculo=vehiculo,
-        ruta=vehiculo.ruta,   # si el vehículo tiene ruta fija
+        ruta=vehiculo.ruta,           # ruta fija del vehículo
         fecha=hoy,
-        hora_llegada=timezone.now(),
+        hora_llegada=timezone.now(),  # aware
         activo=True,
-        en_cola=False
+        en_cola=False,
+        bloqueado=False
     )
 
+    # -------------------------------------------------
+    # ✅ MENSAJE FINAL
+    # -------------------------------------------------
     messages.success(
         request,
         f"Unidad {vehiculo.codigo} agregada al panel del día."
     )
+
     return redirect("panel_despachador")
 
 # =================================================
