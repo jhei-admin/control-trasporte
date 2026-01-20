@@ -66,10 +66,19 @@ button {
 /* ================= CONFIG ================= */
 const API_BASE = location.origin;
 
-/* ================= AUDIO (FIX DEFINITIVO) ================= */
+/* ================= AUDIO (ANDROID SAFE) ================= */
 let salidaAudio = new Audio("{% static 'flota_app/sonidos/aviso_salida.mp3' %}");
 salidaAudio.preload = "auto";
 let audioPlayed = false;
+
+/* 🔓 desbloqueo por interacción REAL */
+function prepararAudio() {
+  salidaAudio.play().then(() => {
+    salidaAudio.pause();
+    salidaAudio.currentTime = 0;
+    console.log("🔓 Audio desbloqueado");
+  }).catch(() => {});
+}
 
 /* ================= GLOBAL ================= */
 let qrScanner = null;
@@ -82,6 +91,9 @@ let avisoActivo = false;
 let countdownInterval = null;
 let segundosRestantes = 0;
 let horaProgramada = null;
+
+/* 🧊 congelar estado para que backend no pise */
+let estadoCongelado = false;
 
 /* ================= UTIL ================= */
 const $ = id => document.getElementById(id);
@@ -105,6 +117,7 @@ function resetSistema() {
 
   avisoActivo = false;
   audioPlayed = false;
+  estadoCongelado = false;
 
   $("pantallaEstado").style.display = "none";
   $("pantallaQR").style.display = "block";
@@ -120,6 +133,7 @@ window.addEventListener("load", () => {
   }
 
   $("btnEscanear").onclick = () => {
+    prepararAudio();   // 🔥 CLAVE ANDROID
     if (escaneando) return;
     escaneando = true;
 
@@ -171,6 +185,8 @@ function iniciarSistema() {
 
 /* ================= ESTADO ================= */
 function consultarEstado() {
+  if (estadoCongelado) return;   // 🧊 NO backend
+
   const token = localStorage.getItem("token");
   if (!token) return;
 
@@ -200,6 +216,7 @@ function consultarEstado() {
         break;
 
       case "SALIDA_ACTIVA":
+        estadoCongelado = false;
         detenerCountdown();
         mostrarEstado("🟢 SALIDA ACTIVA\nHora: " + data.hora_salida, "ok");
         break;
@@ -230,6 +247,8 @@ function iniciarAviso(segundos) {
   countdownInterval = setInterval(() => {
     if (segundosRestantes <= 0) {
       detenerCountdown();
+      estadoCongelado = true;   // 🧊 congelar estado
+
       mostrarEstado(
         `⏳ SALIDA PROGRAMADA\nHora: ${horaProgramada}`,
         "info"
