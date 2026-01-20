@@ -11,7 +11,7 @@ urlpatterns = [
         views.app_conductor,
         name="app_conductor"
     ),
-    
+
     # =========================
     # 📡 APIs APP CONDUCTOR
     # =========================
@@ -64,7 +64,7 @@ urlpatterns = [
     ),
 
     # =========================
-    # 🗺️ MAPA DESPACHADOR
+    # 🗺️ MAPA DESPACHADOR (API)
     # =========================
     path(
         "api/despachador/mapa/",
@@ -90,7 +90,7 @@ urlpatterns = [
     ),
 
     # =========================
-    # 🔎 BÚSQUEDA RÁPIDA
+    # 🔎 API BÚSQUEDA (AJAX)
     # =========================
     path(
         "api/despachador/buscar-vehiculo/",
@@ -138,9 +138,24 @@ urlpatterns = [
     ),
 
     path(
+        "despachador/mapa/",
+        views.despachador_mapa,
+        name="despachador_mapa"
+    ),
+
+    path(
         "despachador/recorrido/",
         views.recorrido_vehiculo,
         name="recorrido_vehiculo"
+    ),
+
+    # =========================
+    # 🔍 BUSCADOR REAL (CLAVE)
+    # =========================
+    path(
+        "despachador/buscar-unidad/",
+        views.buscar_unidad_panel,
+        name="buscar_unidad_panel"
     ),
 
     # =========================
@@ -226,16 +241,7 @@ urlpatterns = [
     ),
 
     # =========================
-    # 🗺️ MAPA DESPACHADOR (HTML)
-    # =========================
-    path(
-        "despachador/mapa/",
-        views.despachador_mapa,
-        name="despachador_mapa"
-    ),
-
-    # =========================
-    # 🟡 FASE 4 — REPORTES
+    # 🟡 REPORTES
     # =========================
     path(
         "reportes/salidas/<int:vehiculo_id>/",

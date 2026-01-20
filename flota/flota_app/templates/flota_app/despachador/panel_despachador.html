@@ -30,7 +30,7 @@
 
     {% else %}
         🟢 <strong>Modo automático activo</strong><br>
-        <small>El sistema ajusta el intervalo según unidades en cola (5 / 7 / 10 min)</small>
+        <small>El sistema ajusta el intervalo según unidades en cola</small>
 
         <form method="post"
               action="{{ url_cambiar_intervalo }}"
@@ -76,15 +76,33 @@
 </div>
 
 {# ============================= #}
-{# 🔍 BÚSQUEDA RÁPIDA POR UNIDAD #}
+{# 🔍 BUSCADOR REAL DE UNIDAD    #}
 {# ============================= #}
-<div class="mb-3">
+<form method="post"
+      action="{% url 'buscar_unidad_panel' %}"
+      class="mb-3 d-flex gap-2 align-items-center"
+      style="max-width: 420px;">
+    {% csrf_token %}
+
     <input type="text"
-           id="busquedaUnidad"
+           name="codigo"
            class="form-control"
-           placeholder="🔍 Buscar unidad por código (ej: 01, 12, 105)"
-           style="max-width: 320px;">
-</div>
+           placeholder="🔍 Buscar unidad por código (ej: 01)"
+           required>
+
+    <button class="btn btn-success">
+        ➕ Agregar
+    </button>
+</form>
+
+{# ============================= #}
+{# 🔍 FILTRO VISUAL (LOCAL)       #}
+{# ============================= #}
+<input type="text"
+       id="busquedaUnidad"
+       class="form-control mb-3"
+       placeholder="Filtrar unidades visibles"
+       style="max-width: 320px;">
 
 {# ============================= #}
 {# TABLA PRINCIPAL                #}
@@ -109,17 +127,10 @@
 
             <td class="text-center">{{ s.vehiculo.numero }}</td>
             <td>{{ s.ruta.nombre }}</td>
+            <td class="text-center">{{ s.hora_llegada|date:"H:i" }}</td>
 
             <td class="text-center">
-                {{ s.hora_llegada|date:"H:i" }}
-            </td>
-
-            <td class="text-center">
-                {% if s.hora_salida %}
-                    {{ s.hora_salida|date:"H:i" }}
-                {% else %}
-                    —
-                {% endif %}
+                {{ s.hora_salida|date:"H:i"|default:"—" }}
             </td>
 
             <td class="text-center">
@@ -130,72 +141,35 @@
                 {% if s.bloqueado %}
                     <span class="badge bg-warning text-dark">MANUAL</span>
                 {% else %}
-                    <span class="badge bg-success">AUTOMÁTICO</span>
+                    <span class="badge bg-success">AUTO</span>
                 {% endif %}
             </td>
 
             <td class="text-center d-flex gap-1 justify-content-center flex-wrap">
 
-                <a href="{% url 'control_ruta' s.id %}"
-                   class="btn btn-sm btn-outline-primary">
-                    🧭 Control ruta
+                <a href="{% url 'control_ruta' s.id %}" class="btn btn-sm btn-outline-primary">
+                    🧭 Ruta
                 </a>
 
-                <a href="{% url 'detalle_salida' s.id %}"
-                   class="btn btn-sm btn-primary">
-                    📍 Ver puntos
-                </a>
-
-                <a href="{% url 'ver_qr_unidad' s.vehiculo.id %}"
-                   class="btn btn-sm btn-outline-dark">
-                    📱 Ver QR
+                <a href="{% url 'detalle_salida' s.id %}" class="btn btn-sm btn-primary">
+                    📍 Puntos
                 </a>
 
                 {% if s.en_cola %}
-
-                    {% if s.bloqueado %}
-                        <form method="post"
-                              action="{% url 'desbloquear_hora' s.id %}">
-                            {% csrf_token %}
-                            <button class="btn btn-sm btn-warning">
-                                🔓 Desbloquear
-                            </button>
-                        </form>
-                    {% else %}
-                        <form method="post"
-                              action="{% url 'asignar_hora_fija' s.id %}"
-                              class="d-inline">
-                            {% csrf_token %}
-                            <input type="time"
-                                   name="hora_fija"
-                                   required
-                                   class="form-control form-control-sm d-inline"
-                                   style="width: 90px;">
-                            <button class="btn btn-sm btn-warning">
-                                ⏱️ Fijar
-                            </button>
-                        </form>
-
-                        <form method="post"
-                              action="{% url 'quitar_de_cola' s.id %}"
-                              class="d-inline">
-                            {% csrf_token %}
-                            <button class="btn btn-sm btn-danger">
-                                ➖ Quitar
-                            </button>
-                        </form>
-                    {% endif %}
-
+                    <form method="post" action="{% url 'quitar_de_cola' s.id %}">
+                        {% csrf_token %}
+                        <button class="btn btn-sm btn-danger">
+                            ➖ Quitar
+                        </button>
+                    </form>
                 {% else %}
-                    <form method="post"
-                          action="{% url 'poner_en_cola' s.id %}">
+                    <form method="post" action="{% url 'poner_en_cola' s.id %}">
                         {% csrf_token %}
                         <button class="btn btn-sm btn-success">
-                            ➕ Poner en cola
+                            ➕ Cola
                         </button>
                     </form>
                 {% endif %}
-
             </td>
         </tr>
 
@@ -210,21 +184,14 @@
 </table>
 
 {# ============================= #}
-{# JS FILTRO INSTANTÁNEO          #}
+{# JS FILTRO LOCAL                #}
 {# ============================= #}
 <script>
 document.getElementById("busquedaUnidad").addEventListener("keyup", function () {
     const filtro = this.value.toLowerCase();
-    const filas = document.querySelectorAll(".fila-unidad");
-
-    filas.forEach(function (fila) {
+    document.querySelectorAll(".fila-unidad").forEach(fila => {
         const unidad = fila.dataset.unidad.toLowerCase();
-
-        if (unidad.includes(filtro)) {
-            fila.style.display = "";
-        } else {
-            fila.style.display = "none";
-        }
+        fila.style.display = unidad.includes(filtro) ? "" : "none";
     });
 });
 </script>

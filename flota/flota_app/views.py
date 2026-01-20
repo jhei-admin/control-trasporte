@@ -333,6 +333,49 @@ def panel_despachador(request):
     )
 
 # =================================================
+# 🔍 BUSCAR UNIDAD Y CREAR SALIDA DEL DÍA
+# =================================================
+@require_POST
+def buscar_unidad_panel(request):
+    codigo = request.POST.get("codigo")
+    hoy = timezone.localdate()
+
+    if not codigo:
+        messages.error(request, "Ingrese un código de unidad.")
+        return redirect("panel_despachador")
+
+    vehiculo = Vehiculo.objects.filter(codigo=codigo, activo=True).first()
+    if not vehiculo:
+        messages.error(request, f"No existe unidad activa con código {codigo}.")
+        return redirect("panel_despachador")
+
+    # 🔥 Cerrar salidas activas previas del día
+    RegistroSalida.objects.filter(
+        vehiculo=vehiculo,
+        activo=True,
+        fecha=hoy
+    ).update(
+        activo=False,
+        en_cola=False
+    )
+
+    # 🟢 Crear nueva salida del día
+    RegistroSalida.objects.create(
+        vehiculo=vehiculo,
+        ruta=vehiculo.ruta,   # si el vehículo tiene ruta fija
+        fecha=hoy,
+        hora_llegada=timezone.now(),
+        activo=True,
+        en_cola=False
+    )
+
+    messages.success(
+        request,
+        f"Unidad {vehiculo.codigo} agregada al panel del día."
+    )
+    return redirect("panel_despachador")
+
+# =================================================
 # 🗺️ DESPACHADOR — MAPA TIEMPO REAL (VISTA SEPARADA)
 # =================================================
 def despachador_mapa(request):
