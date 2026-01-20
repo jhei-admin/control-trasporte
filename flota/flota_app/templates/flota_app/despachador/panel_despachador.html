@@ -8,6 +8,18 @@
 <hr>
 
 {# ================================================== #}
+{# 🔔 MENSAJES DEL SISTEMA (CLAVE)                     #}
+{# ================================================== #}
+{% if messages %}
+    {% for message in messages %}
+        <div class="alert alert-{{ message.tags }} alert-dismissible fade show">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    {% endfor %}
+{% endif %}
+
+{# ================================================== #}
 {# CONFIGURACIÓN DE INTERVALO                         #}
 {# ================================================== #}
 
@@ -130,7 +142,11 @@
             <td class="text-center">{{ s.hora_llegada|date:"H:i" }}</td>
 
             <td class="text-center">
-                {{ s.hora_salida|date:"H:i"|default:"—" }}
+                {% if s.hora_salida %}
+                    {{ s.hora_salida|date:"H:i" }}
+                {% else %}
+                    —
+                {% endif %}
             </td>
 
             <td class="text-center">
@@ -155,13 +171,38 @@
                     📍 Puntos
                 </a>
 
+                <a href="{% url 'ver_qr_unidad' s.vehiculo.id %}" class="btn btn-sm btn-outline-dark">
+                    📱 QR
+                </a>
+
                 {% if s.en_cola %}
-                    <form method="post" action="{% url 'quitar_de_cola' s.id %}">
-                        {% csrf_token %}
-                        <button class="btn btn-sm btn-danger">
-                            ➖ Quitar
-                        </button>
-                    </form>
+
+                    {% if s.bloqueado %}
+                        <form method="post" action="{% url 'desbloquear_hora' s.id %}">
+                            {% csrf_token %}
+                            <button class="btn btn-sm btn-warning">
+                                🔓 Auto
+                            </button>
+                        </form>
+                    {% else %}
+                        <form method="post" action="{% url 'asignar_hora_fija' s.id %}">
+                            {% csrf_token %}
+                            <input type="time" name="hora_fija"
+                                   class="form-control form-control-sm"
+                                   style="width: 95px;" required>
+                            <button class="btn btn-sm btn-warning">
+                                ⏱️ Fijar
+                            </button>
+                        </form>
+
+                        <form method="post" action="{% url 'quitar_de_cola' s.id %}">
+                            {% csrf_token %}
+                            <button class="btn btn-sm btn-danger">
+                                ➖ Quitar
+                            </button>
+                        </form>
+                    {% endif %}
+
                 {% else %}
                     <form method="post" action="{% url 'poner_en_cola' s.id %}">
                         {% csrf_token %}
