@@ -57,7 +57,7 @@ button {
   </div>
 </div>
 
-<!-- 🔊 AUDIO (UNA SOLA INSTANCIA) -->
+<!-- 🔊 AUDIO -->
 <audio id="sonidoAviso" preload="auto">
   <source src="{% static 'flota_app/sonidos/aviso_salida.mp3' %}" type="audio/mpeg">
 </audio>
@@ -77,9 +77,10 @@ let estadoInterval = null;
 let gpsInterval = null;
 let heartbeatInterval = null;
 
-/* 🔥 FIX AUDIO / ESTADO */
-let ultimoEstado = null;
-let audioAvisoReproducido = false;
+/* 🔥 CONTROL AVISO */
+let avisoActivo = false;
+let countdownInterval = null;
+let segundosRestantes = 0;
 
 /* ================= UTIL ================= */
 const $ = id => document.getElementById(id);
@@ -96,12 +97,12 @@ function resetSistema() {
   clearInterval(estadoInterval);
   clearInterval(gpsInterval);
   clearInterval(heartbeatInterval);
+  detenerCountdown();
 
   estadoInterval = gpsInterval = heartbeatInterval = null;
   localStorage.removeItem("token");
 
-  ultimoEstado = null;
-  audioAvisoReproducido = false;
+  avisoActivo = false;
 
   $("pantallaEstado").style.display = "none";
   $("pantallaQR").style.display = "block";
@@ -166,7 +167,7 @@ function iniciarSistema() {
   iniciarGPS();
 }
 
-/* ================= ESTADO (FIX FINAL) ================= */
+/* ================= ESTADO ================= */
 function consultarEstado() {
   const token = localStorage.getItem("token");
   if (!token) return;
@@ -186,28 +187,22 @@ function consultarEstado() {
       return;
     }
 
-    /* 🔁 RESET AUDIO SI CAMBIA ESTADO */
-    if (data.estado !== ultimoEstado) {
-      audioAvisoReproducido = false;
-      ultimoEstado = data.estado;
-    }
-
     switch (data.estado) {
 
       case "AVISO_SALIDA":
-        mostrarAvisoMinutos(data.minutos);
-
-        if (!audioAvisoReproducido) {
-          reproducirAudioAviso();
-          audioAvisoReproducido = true;
+        if (!avisoActivo) {
+          avisoActivo = true;
+          iniciarAviso(120); // 🔥 2 minutos exactos
         }
         break;
 
       case "SALIDA_ACTIVA":
+        detenerCountdown();
         mostrarEstado("🟢 SALIDA ACTIVA\nHora: " + data.hora_salida, "ok");
         break;
 
       case "EN_COLA":
+        detenerCountdown();
         mostrarEstado("⏳ EN COLA\nSalida: " + data.hora_salida, "info");
         break;
 
@@ -217,14 +212,35 @@ function consultarEstado() {
   });
 }
 
-/* ================= MENSAJE SOLO MINUTOS ================= */
-function mostrarAvisoMinutos(min) {
-  let texto = "🟠 PRÓXIMA SALIDA\n";
-  if (min > 1) texto += `Tu salida es en ${min} minutos`;
-  else if (min === 1) texto += "Tu salida es en 1 minuto";
-  else texto += "Es tu turno de salida";
+/* ================= AVISO CON COUNTDOWN ================= */
+function iniciarAviso(segundos) {
+  segundosRestantes = segundos;
+  reproducirAudioAviso();
 
-  mostrarEstado(texto, "alerta");
+  countdownInterval = setInterval(() => {
+    if (segundosRestantes <= 0) {
+      detenerCountdown();
+      return;
+    }
+
+    const min = Math.floor(segundosRestantes / 60);
+    const sec = segundosRestantes % 60;
+
+    mostrarEstado(
+      `🟠 PRÓXIMA SALIDA\n${min}:${sec.toString().padStart(2, "0")}`,
+      "alerta"
+    );
+
+    segundosRestantes--;
+  }, 1000);
+}
+
+function detenerCountdown() {
+  if (countdownInterval) {
+    clearInterval(countdownInterval);
+    countdownInterval = null;
+  }
+  avisoActivo = false;
 }
 
 /* ================= AUDIO ================= */
