@@ -104,7 +104,7 @@ urlpatterns = [
 
     # ======================================================
     # ➕ API AGREGAR UNIDAD AL PANEL (AJAX – SIN RECARGA)
-    # 🔥 ESTO ES LO NUEVO QUE FALTABA
+    # 🔥 CLAVE PARA EL BOTÓN "AGREGAR"
     # ======================================================
     path(
         "api/despachador/agregar-unidad/",
