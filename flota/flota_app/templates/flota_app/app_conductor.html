@@ -41,19 +41,6 @@ button {
   margin: 20px auto;
   display: none;
 }
-
-/* Overlay audio */
-#audioOverlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0,0,0,0.9);
-  color: #fff;
-  display: none;
-  align-items: center;
-  justify-content: center;
-  z-index: 9999;
-  padding: 20px;
-}
 </style>
 
 <h1 class="mb-4">🚍 Control de Ruta</h1>
@@ -70,14 +57,10 @@ button {
   </div>
 </div>
 
-<!-- OVERLAY AUDIO (una sola vez) -->
-<div id="audioOverlay">
-  <div>
-    <h2>🔊 Activar avisos</h2>
-    <p>Toque una vez para habilitar los avisos de audio</p>
-    <button id="btnActivarAudio" class="btn btn-success">Activar audio</button>
-  </div>
-</div>
+<!-- AUDIO SIMPLE (como antes) -->
+<audio id="audioAviso" preload="auto">
+  <source src="{% static 'flota_app/sonidos/aviso_salida.mp3' %}" type="audio/mpeg">
+</audio>
 
 {% endblock %}
 
@@ -87,13 +70,6 @@ button {
 <script>
 /* ================= CONFIG ================= */
 const API_BASE = location.origin;
-
-/* ================= AUDIO ================= */
-const salidaAudio = new Audio("{% static 'flota_app/sonidos/aviso_salida.mp3' %}");
-salidaAudio.preload = "auto";
-
-let audioHabilitado = localStorage.getItem("audio_habilitado") === "1";
-let audioPlayed = false;
 
 /* ================= GLOBAL ================= */
 let qrScanner = null;
@@ -105,9 +81,6 @@ let countdownInterval = null;
 let segundosRestantes = 0;
 let horaProgramada = null;
 
-/* 🔒 persistencia salida programada */
-let estadoCongelado = localStorage.getItem("salida_programada") === "1";
-
 /* ================= UTIL ================= */
 const $ = id => document.getElementById(id);
 
@@ -117,38 +90,12 @@ function mostrarEstado(texto, clase="info") {
   el.innerText = texto;
 }
 
-/* ================= AUDIO UNLOCK ================= */
-function activarAudio() {
-  salidaAudio.play().then(() => {
-    salidaAudio.pause();
-    salidaAudio.currentTime = 0;
-    audioHabilitado = true;
-    localStorage.setItem("audio_habilitado", "1");
-    $("audioOverlay").style.display = "none";
-  }).catch(()=>{});
-}
-
-/* ================= LOAD ================= */
+/* ================= QR ================= */
 window.addEventListener("load", () => {
-
-  if (!audioHabilitado) {
-    $("audioOverlay").style.display = "flex";
-    $("btnActivarAudio").onclick = activarAudio;
-  }
-
-  if (estadoCongelado) {
-    $("pantallaQR").style.display = "none";
-    $("pantallaEstado").style.display = "block";
-    mostrarEstado(
-      `⏳ SALIDA PROGRAMADA\nHora: ${localStorage.getItem("hora_programada")}`,
-      "info"
-    );
-    return;
-  }
-
   const token = localStorage.getItem("token");
   if (token) {
     iniciarSistema();
+    return;
   }
 
   $("btnEscanear").onclick = () => {
@@ -175,15 +122,15 @@ window.addEventListener("load", () => {
 function activarUnidad(texto) {
   let vehiculoId;
   try { vehiculoId = JSON.parse(texto).vehiculo_id; }
-  catch { alert("QR inválido"); return; }
+  catch { alert("❌ QR inválido"); resetEscaneo(); return; }
 
   fetch(`${API_BASE}/sistema/api/app/escanear-qr/`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ vehiculo_id: vehiculoId })
   })
-  .then(r=>r.json())
-  .then(d=>{
+  .then(r => r.json())
+  .then(d => {
     if (!d.ok || !d.token) return;
     localStorage.setItem("token", d.token);
     iniciarSistema();
@@ -201,8 +148,6 @@ function iniciarSistema() {
 
 /* ================= ESTADO ================= */
 function consultarEstado() {
-  if (estadoCongelado) return;
-
   const token = localStorage.getItem("token");
   if (!token) return;
 
@@ -213,42 +158,49 @@ function consultarEstado() {
       "Content-Type": "application/json"
     }
   })
-  .then(r=>r.json())
-  .then(data=>{
+  .then(r => r.json())
+  .then(data => {
+
     if (!data.autorizado) return;
 
-    if (data.estado === "AVISO_SALIDA" && !avisoActivo) {
-      avisoActivo = true;
-      horaProgramada = data.hora_salida;
-      iniciarAviso(120);
-    }
+    switch (data.estado) {
 
-    if (data.estado === "SALIDA_ACTIVA") {
-      localStorage.removeItem("salida_programada");
-      localStorage.removeItem("hora_programada");
-      estadoCongelado = false;
-      mostrarEstado("🟢 SALIDA ACTIVA\nHora: " + data.hora_salida, "ok");
+      case "AVISO_SALIDA":
+        if (!avisoActivo) {
+          avisoActivo = true;
+          horaProgramada = data.hora_salida;
+          iniciarAviso(120); // 2 minutos
+        }
+        break;
+
+      case "SALIDA_ACTIVA":
+        detenerCountdown();
+        mostrarEstado("🟢 SALIDA ACTIVA\nHora: " + data.hora_salida, "ok");
+        break;
+
+      case "EN_COLA":
+        detenerCountdown();
+        mostrarEstado("⏳ EN COLA\nSalida: " + data.hora_salida, "info");
+        break;
+
+      default:
+        mostrarEstado(data.mensaje || data.estado, "info");
     }
   });
 }
 
-/* ================= AVISO ================= */
+/* ================= AVISO + COUNTDOWN (SIMPLE) ================= */
 function iniciarAviso(segundos) {
   segundosRestantes = segundos;
 
-  if (audioHabilitado && !audioPlayed) {
-    salidaAudio.currentTime = 0;
-    salidaAudio.play().then(()=> audioPlayed = true).catch(()=>{});
-  }
+  // 🔊 audio como antes (aunque sea incompleto)
+  const audio = $("audioAviso");
+  audio.currentTime = 0;
+  audio.play().catch(() => {});
 
   countdownInterval = setInterval(() => {
     if (segundosRestantes <= 0) {
-      clearInterval(countdownInterval);
-      estadoCongelado = true;
-
-      localStorage.setItem("salida_programada", "1");
-      localStorage.setItem("hora_programada", horaProgramada);
-
+      detenerCountdown();
       mostrarEstado(
         `⏳ SALIDA PROGRAMADA\nHora: ${horaProgramada}`,
         "info"
@@ -256,12 +208,29 @@ function iniciarAviso(segundos) {
       return;
     }
 
+    const min = Math.floor(segundosRestantes / 60);
+    const sec = segundosRestantes % 60;
+
     mostrarEstado(
-      `🟠 PRÓXIMA SALIDA\n${Math.floor(segundosRestantes/60)}:${(segundosRestantes%60).toString().padStart(2,"0")}`,
+      `🟠 PRÓXIMA SALIDA\n${min}:${sec.toString().padStart(2, "0")}`,
       "alerta"
     );
+
     segundosRestantes--;
   }, 1000);
+}
+
+function detenerCountdown() {
+  if (countdownInterval) {
+    clearInterval(countdownInterval);
+    countdownInterval = null;
+  }
+  avisoActivo = false;
+}
+
+function resetEscaneo() {
+  escaneando = false;
+  $("btnEscanear").disabled = false;
 }
 </script>
 {% endblock %}
