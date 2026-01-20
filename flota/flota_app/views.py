@@ -771,32 +771,59 @@ def api_despachador_mapa(request):
     """
     API para el panel despachador.
     Devuelve la ubicación actual de todos los vehículos
-    con su estado (ACTIVO / INACTIVO / OFFLINE).
+    separando:
+    - estado OPERATIVO (ACTIVO / INACTIVO)
+    - estado GPS (ONLINE / LENTO / OFFLINE)
     """
 
     ahora = timezone.now()
+    hoy = timezone.localdate()
     data = []
 
     for ub in UbicacionVehiculo.objects.select_related("vehiculo").all():
         delta = ahora - ub.updated_at
 
-        # =================================================
-        # 🔥 TIMEOUTS REALISTAS PARA CAMPO
-        # =================================================
+        # =============================================
+        # 📡 ESTADO GPS (COMUNICACIÓN)
+        # =============================================
         if delta <= timedelta(seconds=30):
-            estado = "ACTIVO"
+            estado_gps = "ONLINE"
         elif delta <= timedelta(seconds=120):
-            estado = "INACTIVO"
+            estado_gps = "LENTO"
         else:
-            estado = "OFFLINE"
+            estado_gps = "OFFLINE"
 
+        # =============================================
+        # 🚍 ¿TIENE SALIDA ACTIVA HOY?
+        # =============================================
+        tiene_salida_hoy = RegistroSalida.objects.filter(
+            vehiculo=ub.vehiculo,
+            fecha=hoy,
+            activo=True
+        ).exists()
+
+        # =============================================
+        # 🧭 ESTADO OPERATIVO (MAPA)
+        # =============================================
+        if tiene_salida_hoy:
+            estado = "ACTIVO"
+        else:
+            estado = "INACTIVO"
+
+        # =============================================
+        # 📤 RESPUESTA
+        # =============================================
         data.append({
             "vehiculo": ub.vehiculo.numero,
             "lat": ub.latitud,
             "lng": ub.longitud,
             "velocidad": ub.velocidad,
             "precision": ub.precision,
-            "estado": estado,
+
+            # 👇 CLAVE
+            "estado": estado,          # ACTIVO / INACTIVO
+            "estado_gps": estado_gps,  # ONLINE / LENTO / OFFLINE
+
             "actualizado_en": ub.updated_at.isoformat(),
         })
 
