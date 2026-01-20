@@ -161,6 +161,12 @@
             </td>
             <td class="text-center">—</td>
         </tr>
+        {% empty %}
+        <tr>
+            <td colspan="7" class="text-center text-muted">
+                No hay salidas registradas
+            </td>
+        </tr>
         {% endfor %}
     </tbody>
 </table>
@@ -169,6 +175,26 @@
 {# JS FILTRO + AJAX AGREGAR       #}
 {# ============================= #}
 <script>
+/* ============================
+   CSRF CORRECTO (RENDER FIX)
+============================ */
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== "") {
+        const cookies = document.cookie.split(";");
+        for (let cookie of cookies) {
+            cookie = cookie.trim();
+            if (cookie.startsWith(name + "=")) {
+                cookieValue = decodeURIComponent(
+                    cookie.substring(name.length + 1)
+                );
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
 /* FILTRO LOCAL */
 document.getElementById("busquedaUnidad").addEventListener("keyup", function () {
     const filtro = this.value.toLowerCase().trim();
@@ -178,7 +204,7 @@ document.getElementById("busquedaUnidad").addEventListener("keyup", function () 
     });
 });
 
-/* AJAX AGREGAR UNIDAD */
+/* AJAX AGREGAR UNIDAD (SEGURO + LIMPIO) */
 document.getElementById("formAgregarUnidad").addEventListener("submit", function (e) {
     e.preventDefault();
 
@@ -186,42 +212,16 @@ document.getElementById("formAgregarUnidad").addEventListener("submit", function
     const codigo = input.value.trim();
     if (!codigo) return;
 
-    fetch("{% url 'api_agregar_unidad_panel' %}", {
+    fetch("{% url 'buscar_unidad_panel' %}", {
         method: "POST",
         headers: {
-            "X-CSRFToken": "{{ csrf_token }}",
+            "X-CSRFToken": getCookie("csrftoken"),
         },
         body: new URLSearchParams({ codigo })
     })
-    .then(res => res.json())
-    .then(data => {
-        if (!data.ok) {
-            alert(data.error || "Error al agregar unidad");
-            return;
-        }
-
-        const s = data.salida;
-        const fila = document.createElement("tr");
-        fila.className = "fila-unidad";
-        fila.dataset.unidad = s.vehiculo.toLowerCase();
-
-        fila.innerHTML = `
-            <td class="text-center">${s.vehiculo}</td>
-            <td>${s.ruta}</td>
-            <td class="text-center">${s.hora_llegada}</td>
-            <td class="text-center">—</td>
-            <td class="text-center">—</td>
-            <td class="text-center">
-                <span class="badge bg-success">AUTO</span>
-            </td>
-            <td class="text-center">
-                <small class="text-muted">Recargue para acciones</small>
-            </td>
-        `;
-
-        document.getElementById("tablaSalidas").prepend(fila);
-        input.value = "";
-        input.focus();
+    .then(() => {
+        // 🔥 RECARGA LIMPIA (ESTADO REAL DESDE DJANGO)
+        window.location.reload();
     })
     .catch(() => alert("Error de conexión"));
 });
