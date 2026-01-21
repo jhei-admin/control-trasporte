@@ -32,20 +32,20 @@ def validar_sesion(token):
 
 
 # =================================================
-# 📡 CALCULAR ESTADO GPS / SESIÓN  ✅ (FALTABA)
+# 📡 CALCULAR ESTADO GPS / SESIÓN  ✅
 # =================================================
 def calcular_estado_sesion(sesion):
     """
     Determina el estado GPS de la unidad.
     NO decide lógica de salida.
-    SOLO estado técnico de la sesión.
+    SOLO estado técnico.
     """
 
     if not sesion:
         return "OFFLINE"
 
-    # Último ping / ubicación
-    ultimo_ping = sesion.ultima_actualizacion
+    # ⚠️ USAR SIEMPRE EL MISMO CAMPO
+    ultimo_ping = getattr(sesion, "ultimo_gps", None)
 
     if not ultimo_ping:
         return "OFFLINE"
@@ -53,13 +53,37 @@ def calcular_estado_sesion(sesion):
     ahora = timezone.now()
     diferencia = (ahora - ultimo_ping).total_seconds()
 
-    # ⏱️ Umbrales simples y estables
     if diferencia <= 30:
         return "ACTIVO"
     elif diferencia <= 120:
         return "INACTIVO"
     else:
         return "OFFLINE"
+
+
+# =================================================
+# 🚦 INICIAR SALIDA (BLINDADO)
+# =================================================
+def iniciar_salida_segura(salida):
+    """
+    Marca la salida como iniciada de forma segura.
+    """
+    if salida.hora_real_salida:
+        return salida
+
+    salida.hora_real_salida = timezone.now()
+    salida.en_cola = False
+    salida.activo = True
+
+    salida.save(
+        update_fields=[
+            "hora_real_salida",
+            "en_cola",
+            "activo"
+        ]
+    )
+
+    return salida
 
 
 # =================================================
@@ -71,7 +95,7 @@ def registrar_llegada_al_paradero(vehiculo, ruta):
     Crea un RegistroSalida limpio y controlado.
     """
 
-    # 🔒 Cerrar cualquier salida activa previa del vehículo
+    # 🔒 Cerrar cualquier salida activa previa
     RegistroSalida.objects.filter(
         vehiculo=vehiculo,
         activo=True
@@ -80,7 +104,6 @@ def registrar_llegada_al_paradero(vehiculo, ruta):
         en_cola=False
     )
 
-    # 🆕 Crear nuevo registro de salida
     nueva_salida = RegistroSalida.objects.create(
         vehiculo=vehiculo,
         ruta=ruta,
@@ -98,16 +121,14 @@ def registrar_llegada_al_paradero(vehiculo, ruta):
 def recalcular_cola():
     """
     Recalcula horas de salida de las unidades en cola.
-    - Si hay intervalo fijo → se usa siempre
-    - Si no → modo automático (5 / 7 / 10 min)
+    - Intervalo fijo si existe
+    - Automático si no
     """
 
-    # 🧠 Obtener configuración de despacho (solo 1 activa)
     config = ConfiguracionDespacho.objects.filter(
         activa=True
     ).first()
 
-    # 🚍 Obtener salidas en cola, activas y ordenadas
     salidas = RegistroSalida.objects.filter(
         en_cola=True,
         activo=True
@@ -116,14 +137,10 @@ def recalcular_cola():
     if not salidas.exists():
         return
 
-    # =================================================
-    # 🧠 DETERMINAR INTERVALO
-    # =================================================
     if config and config.intervalo_fijo:
         intervalo_minutos = config.intervalo_fijo
     else:
         cantidad = salidas.count()
-
         if cantidad <= 2:
             intervalo_minutos = 5
         elif cantidad <= 5:
@@ -131,9 +148,6 @@ def recalcular_cola():
         else:
             intervalo_minutos = 10
 
-    # =================================================
-    # ⏱️ ASIGNAR HORAS DE SALIDA
-    # =================================================
     hora_base = timezone.now().replace(
         second=0,
         microsecond=0
@@ -149,6 +163,4 @@ def recalcular_cola():
             ]
         )
 
-        hora_base += timedelta(
-            minutes=intervalo_minutos
-        )
+        hora_base += timedelta(minutes=intervalo_minutos)
