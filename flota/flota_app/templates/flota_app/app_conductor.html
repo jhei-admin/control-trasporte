@@ -70,6 +70,7 @@ const API_BASE = location.origin;
 let qrScanner = null;
 let escaneando = false;
 let estadoInterval = null;
+let gpsInterval = null;
 
 let avisoActivo = false;
 let countdownInterval = null;
@@ -78,11 +79,13 @@ let horaProgramada = null;
 
 let estadoAnterior = localStorage.getItem("estado_anterior") || null;
 
-/* ================= WEB AUDIO API (ANTI-CORTE) ================= */
+/* ================= AUDIO CONTROL ================= */
 let audioContext = null;
 let audioBuffers = {};
 let audioUnlocked = false;
+let ultimoAudioReproducido = null;
 
+/* ================= AUDIO ================= */
 async function initAudio() {
   if (audioContext) return;
   audioContext = new (window.AudioContext || window.webkitAudioContext)();
@@ -101,6 +104,9 @@ async function unlockAudio() {
 
   await loadAudio("aviso", "{% static 'flota_app/sonidos/aviso_salida.mp3' %}");
   await loadAudio("salida", "{% static 'flota_app/sonidos/inicio_salida.mp3' %}");
+  await loadAudio("audio_adelantado", "{% static 'flota_app/sonidos/adelantado.mp3' %}");
+  await loadAudio("audio_tarde", "{% static 'flota_app/sonidos/tarde.mp3' %}");
+  await loadAudio("ruta_completada", "{% static 'flota_app/sonidos/ruta_completada.mp3' %}");
 
   audioUnlocked = true;
 }
@@ -111,6 +117,15 @@ function playAudio(name) {
   src.buffer = audioBuffers[name];
   src.connect(audioContext.destination);
   src.start(0);
+}
+
+function reproducirAudioSeguro(audioName) {
+  if (!audioName) return;
+  if (audioName === "audio_a_tiempo") return; // ❌ solo visual
+  if (ultimoAudioReproducido === audioName) return;
+
+  playAudio(audioName);
+  ultimoAudioReproducido = audioName;
 }
 
 /* ================= UTIL ================= */
@@ -179,6 +194,7 @@ function iniciarSistema() {
 
   consultarEstado();
   estadoInterval = setInterval(consultarEstado, 5000);
+  gpsInterval = setInterval(enviarGPS, 5000);
 }
 
 /* ================= ESTADO ================= */
@@ -195,88 +211,73 @@ function consultarEstado() {
   })
   .then(r => r.json())
   .then(data => {
-
     if (!data.autorizado) return;
 
     const estadoActual = data.estado;
 
     if (estadoAnterior !== estadoActual) {
-
-      if (estadoActual === "AVISO_SALIDA") {
-        playAudio("aviso");
-      }
-
-      if (estadoActual === "SALIDA_ACTIVA") {
-        playAudio("salida");
-      }
-
-      if (estadoActual === "SIN_SALIDA") {
-        detenerCountdown();
-        avisoActivo = false;
-      }
-
+      if (estadoActual === "AVISO_SALIDA") playAudio("aviso");
+      if (estadoActual === "SALIDA_ACTIVA") playAudio("salida");
       estadoAnterior = estadoActual;
       localStorage.setItem("estado_anterior", estadoActual);
-    }
-
-    switch (estadoActual) {
-
-      case "AVISO_SALIDA":
-        if (!avisoActivo) {
-          avisoActivo = true;
-          horaProgramada = data.hora_salida;
-          iniciarAviso(120);
-        }
-        break;
-
-      case "SALIDA_ACTIVA":
-        detenerCountdown();
-        mostrarEstado("🟢 SALIDA ACTIVA\nHora: " + data.hora_salida, "ok");
-        break;
-
-      case "EN_COLA":
-        detenerCountdown();
-        mostrarEstado("⏳ EN COLA\nSalida: " + data.hora_salida, "info");
-        break;
-
-      case "SIN_SALIDA":
-        mostrarEstado("⏳ Espere orden de salida", "info");
-        break;
-
-      default:
-        mostrarEstado(data.mensaje || estadoActual, "info");
     }
   });
 }
 
-/* ================= AVISO + COUNTDOWN ================= */
-function iniciarAviso(segundos) {
-  segundosRestantes = segundos;
+/* ================= GPS + MARCACIÓN ================= */
+function enviarGPS() {
+  const token = localStorage.getItem("token");
+  if (!token || !navigator.geolocation) return;
 
-  countdownInterval = setInterval(() => {
-    if (segundosRestantes <= 0) {
-      detenerCountdown();
-      mostrarEstado(`⏳ SALIDA PROGRAMADA\nHora: ${horaProgramada}`, "info");
-      return;
-    }
+  navigator.geolocation.getCurrentPosition(pos => {
 
-    const min = Math.floor(segundosRestantes / 60);
-    const sec = segundosRestantes % 60;
+    fetch(`${API_BASE}/sistema/api/gps/conductor/`, {
+      method: "POST",
+      headers: {
+        "Authorization": "Bearer " + token,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        lat: pos.coords.latitude,
+        lng: pos.coords.longitude
+      })
+    })
+    .then(r => r.json())
+    .then(data => {
 
-    mostrarEstado(
-      `🟠 PRÓXIMA SALIDA\n${min}:${sec.toString().padStart(2, "0")}`,
-      "alerta"
-    );
+      if (data.accion !== "audio") return;
 
-    segundosRestantes--;
-  }, 1000);
-}
+      reproducirAudioSeguro(data.audio);
 
-function detenerCountdown() {
-  if (countdownInterval) {
-    clearInterval(countdownInterval);
-    countdownInterval = null;
-  }
+      if (data.audio === "ruta_completada") {
+        mostrarEstado("🏁 RUTA COMPLETADA", "ok");
+        return;
+      }
+
+      if (data.visual) {
+        const codigo = data.visual.codigo;
+        const diff = data.visual.diferencia_min;
+        const estado = data.visual.estado;
+
+        let texto = `📍 ${codigo}\n`;
+        let clase = "ok";
+
+        if (estado === "ADELANTADO") {
+          texto += `⏩ ${diff} min`;
+          clase = "alerta";
+        } else if (estado === "TARDE") {
+          texto += `⏰ +${diff} min`;
+          clase = "error";
+        } else {
+          texto += `✅ A TIEMPO`;
+          clase = "ok";
+        }
+
+        mostrarEstado(texto, clase);
+      }
+    });
+
+  });
 }
 
 function resetEscaneo() {

@@ -683,6 +683,7 @@ def api_gps_conductor(request):
         "accion": "audio",
         "audio": marcacion.audio_flag,
         "visual": {
+            "codigo": punto.codigo,
             "punto": punto.nombre,
             "estado": marcacion.estado.upper(),
             "diferencia_min": marcacion.diferencia_minutos
