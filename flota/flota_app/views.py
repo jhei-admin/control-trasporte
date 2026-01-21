@@ -297,56 +297,95 @@ def reporte_salidas_diarias(request, vehiculo_id):
     )
 
 # =================================================
-# PANEL DESPACHADOR (FIX DEFINITIVO POR FECHA)
+# 🧭 PANEL DESPACHADOR
+# FIX DEFINITIVO PRODUCCIÓN (POR FECHA + ESTABLE)
 # =================================================
+from django.shortcuts import render
+from django.utils import timezone
+
+from flota_app.models import (
+    RegistroSalida,
+    Vehiculo,
+    Ruta,
+    ConfiguracionDespacho
+)
+
+
 def panel_despachador(request):
-    # 🔑 FECHA LOCAL REAL (America/Lima)
+    """
+    PANEL PRINCIPAL DEL DESPACHADOR
+
+    - Muestra SOLO salidas activas del día
+    - Fecha local real (America/Lima)
+    - Tabla completa (vehículo, ruta, horas, modo, acciones)
+    - Compatible con Render / producción
+    """
+
+    # -------------------------------------------------
+    # 📅 FECHA OPERATIVA REAL
+    # -------------------------------------------------
     hoy = timezone.localdate()
 
-    # 🔥 SOLO SALIDAS ACTIVAS DEL DÍA
+    # -------------------------------------------------
+    # 🔥 SALIDAS ACTIVAS DEL DÍA (OPTIMIZADO)
+    # -------------------------------------------------
     salidas = (
         RegistroSalida.objects
+        .select_related("vehiculo", "ruta")  # 🔑 FIX CLAVE
         .filter(
             activo=True,
-            fecha=hoy      # 👈 FIX CLAVE
+            fecha=hoy
         )
         .order_by(
-            "-en_cola",
-            "orden_cola",
-            "hora_llegada"
+            "-en_cola",      # primero los que están en cola
+            "orden_cola",    # orden real de cola
+            "hora_llegada"   # llegada a terminal
         )
     )
 
+    # -------------------------------------------------
+    # ⚙️ CONFIGURACIÓN DE DESPACHO ACTIVA
+    # -------------------------------------------------
+    config_despacho = (
+        ConfiguracionDespacho.objects
+        .filter(activa=True)
+        .first()
+    )
+
+    # -------------------------------------------------
+    # 📤 RENDER FINAL
+    # -------------------------------------------------
     return render(
         request,
         "flota_app/despachador/panel_despachador.html",
         {
             "salidas": salidas,
+            "config_despacho": config_despacho,
+            # 👇 útiles para formularios / selects / futuro
             "rutas": Ruta.objects.all(),
             "vehiculos": Vehiculo.objects.all(),
-            "config_despacho": (
-                ConfiguracionDespacho.objects
-                .filter(activa=True)
-                .first()
-            ),
         }
     )
 
 # =================================================
 # 🔍 BUSCAR UNIDAD Y CREAR SALIDA DEL DÍA
-# FIX REAL PRODUCCIÓN (SIN RUTA FORZADA)
+# FIX DEFINITIVO PRODUCCIÓN (ESTABLE + SEGURO)
 # =================================================
 from django.shortcuts import redirect
 from django.contrib import messages
 from django.utils import timezone
 
+from flota_app.models import Vehiculo, RegistroSalida
+
+
 def buscar_unidad_panel(request):
     """
-    FIX DEFINITIVO:
-    - GET  → redirige al panel (nunca 500)
+    COMPORTAMIENTO FINAL:
+    - GET  → redirige al panel (nunca error)
     - POST → crea salida del día
     - NO asume que Vehiculo tenga ruta
-    - Compatible con Render / producción
+    - Usa ruta solo si existe
+    - Compatible 100% con Render / producción
     """
 
     # -------------------------------------------------
@@ -394,11 +433,16 @@ def buscar_unidad_panel(request):
     )
 
     # -------------------------------------------------
-    # 🟢 CREAR NUEVA SALIDA DEL DÍA (SIN RUTA)
+    # 🧭 RESOLVER RUTA (SIN SUPOSICIONES)
+    # -------------------------------------------------
+    ruta = getattr(vehiculo, "ruta", None)
+
+    # -------------------------------------------------
+    # 🟢 CREAR NUEVA SALIDA DEL DÍA
     # -------------------------------------------------
     RegistroSalida.objects.create(
         vehiculo=vehiculo,
-        ruta=None,  # ✅ FIX CLAVE
+        ruta=ruta,                  # ✅ segura (puede ser None)
         fecha=hoy,
         hora_llegada=timezone.now(),
         activo=True,
@@ -411,7 +455,7 @@ def buscar_unidad_panel(request):
     # -------------------------------------------------
     messages.success(
         request,
-        f"Unidad {vehiculo.codigo} agregada al panel del día."
+        f"Unidad {vehiculo.codigo} agregada correctamente al panel del día."
     )
 
     return redirect("panel_despachador")

@@ -90,7 +90,8 @@
 {# ============================= #}
 {# 🔍 BUSCADOR REAL DE UNIDAD    #}
 {# ============================= #}
-<form id="formAgregarUnidad"
+<form method="post"
+      action="{% url 'buscar_unidad_panel' %}"
       class="mb-3 d-flex gap-2 align-items-center"
       style="max-width: 420px;"
       autocomplete="off">
@@ -98,7 +99,7 @@
     {% csrf_token %}
 
     <input type="text"
-           id="inputCodigoUnidad"
+           name="codigo"
            class="form-control"
            placeholder="🔍 Buscar unidad por código (ej: 01)"
            autocomplete="off"
@@ -136,14 +137,18 @@
         </tr>
     </thead>
 
-    <tbody id="tablaSalidas">
+    <tbody>
         {% for s in salidas %}
         <tr class="fila-unidad" data-unidad="{{ s.vehiculo.numero|lower }}">
             <td class="text-center">{{ s.vehiculo.numero }}</td>
             <td>{{ s.ruta.nombre }}</td>
             <td class="text-center">{{ s.hora_llegada|date:"H:i" }}</td>
             <td class="text-center">
-                {% if s.hora_salida %}{{ s.hora_salida|date:"H:i" }}{% else %}—{% endif %}
+                {% if s.hora_salida %}
+                    {{ s.hora_salida|date:"H:i" }}
+                {% else %}
+                    —
+                {% endif %}
             </td>
             <td class="text-center">{{ s.intervalo_minutos|default:"—" }}</td>
             <td class="text-center">
@@ -153,7 +158,17 @@
                     <span class="badge bg-success">AUTO</span>
                 {% endif %}
             </td>
-            <td class="text-center">—</td>
+            <td class="text-center">
+                <a href="{% url 'control_ruta' s.id %}" class="btn btn-sm btn-outline-primary">
+                    🧭 Control ruta
+                </a>
+                <a href="{% url 'detalle_salida' s.id %}" class="btn btn-sm btn-outline-info">
+                    📍 Ver puntos
+                </a>
+                <a href="{% url 'ver_qr_unidad' s.vehiculo.id %}" class="btn btn-sm btn-outline-dark">
+                    📦 QR
+                </a>
+            </td>
         </tr>
         {% empty %}
         <tr>
@@ -166,56 +181,15 @@
 </table>
 
 {# ============================= #}
-{# JS FILTRO + AJAX CORRECTO     #}
+{# JS SOLO FILTRO (NADA DE AJAX)  #}
 {# ============================= #}
 <script>
-function getCookie(name) {
-    let cookieValue = null;
-    if (document.cookie && document.cookie !== "") {
-        const cookies = document.cookie.split(";");
-        for (let cookie of cookies) {
-            cookie = cookie.trim();
-            if (cookie.startsWith(name + "=")) {
-                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-                break;
-            }
-        }
-    }
-    return cookieValue;
-}
-
-/* FILTRO LOCAL */
 document.getElementById("busquedaUnidad").addEventListener("keyup", function () {
     const filtro = this.value.toLowerCase().trim();
     document.querySelectorAll(".fila-unidad").forEach(fila => {
-        fila.style.display = fila.dataset.unidad.includes(filtro) ? "" : "none";
+        const unidad = fila.dataset.unidad || "";
+        fila.style.display = unidad.includes(filtro) ? "" : "none";
     });
-});
-
-/* ✅ AJAX FINAL CORRECTO */
-document.getElementById("formAgregarUnidad").addEventListener("submit", function (e) {
-    e.preventDefault();
-
-    const codigo = document.getElementById("inputCodigoUnidad").value.trim();
-    if (!codigo) return;
-
-    fetch("/sistema/api/despachador/agregar-unidad/", {
-        method: "POST",
-        headers: {
-            "X-CSRFToken": getCookie("csrftoken"),
-        },
-        body: new URLSearchParams({ codigo })
-    })
-    .then(r => r.json())
-    .then(data => {
-        if (!data.ok) {
-            alert(data.error);
-            return;
-        }
-        // 🔥 estado real siempre desde backend
-        window.location.reload();
-    })
-    .catch(() => alert("Error de conexión"));
 });
 </script>
 
