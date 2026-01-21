@@ -1322,7 +1322,11 @@ from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 
 from flota_app.models import RegistroSalida
-from flota_app.services import validar_sesion, calcular_estado_sesion
+from flota_app.services import (
+    validar_sesion,
+    calcular_estado_sesion,
+    iniciar_salida_segura
+)
 
 
 @csrf_exempt
@@ -1393,7 +1397,7 @@ def api_app_estado(request):
         })
 
     # =============================================
-    # ⏳ SIN HORA
+    # ⏳ SIN HORA ASIGNADA
     # =============================================
     if not salida.hora_salida:
         return JsonResponse({
@@ -1444,13 +1448,14 @@ def api_app_estado(request):
                 "mensaje": f"Tu salida es en {minutos} minutos"
             })
 
-        # 🔥 AUTO SALIDA (LA HORA ES LA ORDEN)
+        # 🔥 LA HORA ES LA ORDEN (AUTO-INICIO)
         if segundos <= 0:
-            salida.iniciar_salida()
+            iniciar_salida_segura(salida)
 
-            # sincronizar sesión
-            sesion.salida = salida
-            sesion.save(update_fields=["salida"])
+            # 🔄 sincronizar sesión
+            if sesion.salida_id != salida.id:
+                sesion.salida = salida
+                sesion.save(update_fields=["salida"])
 
             return JsonResponse({
                 "autorizado": True,
@@ -1458,7 +1463,7 @@ def api_app_estado(request):
                 "estado_gps": estado_gps,
                 "bloqueado": False,
                 "hora_salida": hora_salida.strftime("%H:%M"),
-                "audio": "salida_autorizada",  # 🔊 CLAVE
+                "audio": "salida_autorizada",
                 "mensaje": "Salida autorizada, puede iniciar ruta"
             })
 
@@ -1492,7 +1497,7 @@ def api_app_estado(request):
         })
 
     # =================================================
-    # 🟡 FALLBACK
+    # 🟡 FALLBACK SEGURO
     # =================================================
     return JsonResponse({
         "autorizado": True,
