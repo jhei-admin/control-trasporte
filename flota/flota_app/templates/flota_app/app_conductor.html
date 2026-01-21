@@ -57,16 +57,6 @@ button {
   </div>
 </div>
 
-<!-- 🔊 AUDIO AVISO -->
-<audio id="audioAviso" preload="auto" playsinline>
-  <source src="{% static 'flota_app/sonidos/aviso_salida.mp3' %}" type="audio/mpeg">
-</audio>
-
-<!-- 🔊 AUDIO SALIDA ACTIVA -->
-<audio id="audioSalidaActiva" preload="auto" playsinline>
-  <source src="{% static 'flota_app/sonidos/inicio_salida.mp3' %}" type="audio/mpeg">
-</audio>
-
 {% endblock %}
 
 {% block extra_js %}
@@ -86,14 +76,42 @@ let countdownInterval = null;
 let segundosRestantes = 0;
 let horaProgramada = null;
 
-/* 🔑 ESTADO ANTERIOR */
 let estadoAnterior = localStorage.getItem("estado_anterior") || null;
 
-/* 🔊 DESBLOQUEO AUDIO */
-let audioDesbloqueado = localStorage.getItem("audio_ok") === "1";
+/* ================= WEB AUDIO API (ANTI-CORTE) ================= */
+let audioContext = null;
+let audioBuffers = {};
+let audioUnlocked = false;
 
-/* 🔒 PROTECCIÓN AUDIO COMPLETO */
-let audioSalidaSonando = false;
+async function initAudio() {
+  if (audioContext) return;
+  audioContext = new (window.AudioContext || window.webkitAudioContext)();
+}
+
+async function loadAudio(name, url) {
+  const res = await fetch(url);
+  const buffer = await res.arrayBuffer();
+  audioBuffers[name] = await audioContext.decodeAudioData(buffer);
+}
+
+async function unlockAudio() {
+  if (audioUnlocked) return;
+  await initAudio();
+  await audioContext.resume();
+
+  await loadAudio("aviso", "{% static 'flota_app/sonidos/aviso_salida.mp3' %}");
+  await loadAudio("salida", "{% static 'flota_app/sonidos/inicio_salida.mp3' %}");
+
+  audioUnlocked = true;
+}
+
+function playAudio(name) {
+  if (!audioUnlocked || !audioBuffers[name]) return;
+  const src = audioContext.createBufferSource();
+  src.buffer = audioBuffers[name];
+  src.connect(audioContext.destination);
+  src.start(0);
+}
 
 /* ================= UTIL ================= */
 const $ = id => document.getElementById(id);
@@ -104,39 +122,20 @@ function mostrarEstado(texto, clase="info") {
   el.innerText = texto;
 }
 
-/* ================= 🔊 DESBLOQUEAR AUDIO ================= */
-function desbloquearAudio() {
-  if (audioDesbloqueado) return;
-
-  [$("audioAviso"), $("audioSalidaActiva")].forEach(a => {
-    try {
-      a.muted = true;
-      a.play().then(() => {
-        a.pause();
-        a.currentTime = 0;
-        a.muted = false;
-      }).catch(() => {});
-    } catch {}
-  });
-
-  audioDesbloqueado = true;
-  localStorage.setItem("audio_ok", "1");
-}
-
 /* ================= QR ================= */
 window.addEventListener("load", () => {
   const token = localStorage.getItem("token");
 
   if (token) {
-    desbloquearAudio();
+    unlockAudio();
     iniciarSistema();
     return;
   }
 
-  $("btnEscanear").onclick = () => {
-    desbloquearAudio();
-    if (escaneando) return;
+  $("btnEscanear").onclick = async () => {
+    await unlockAudio();
 
+    if (escaneando) return;
     escaneando = true;
     $("btnEscanear").disabled = true;
     $("qr-reader").style.display = "block";
@@ -184,8 +183,6 @@ function iniciarSistema() {
 
 /* ================= ESTADO ================= */
 function consultarEstado() {
-  if (audioSalidaSonando) return; // ⛔ NO interrumpir audio
-
   const token = localStorage.getItem("token");
   if (!token) return;
 
@@ -205,18 +202,12 @@ function consultarEstado() {
 
     if (estadoAnterior !== estadoActual) {
 
-      if (estadoActual === "SALIDA_ACTIVA" && !audioSalidaSonando) {
-        const audio = $("audioSalidaActiva");
-        audioSalidaSonando = true;
-        audio.currentTime = 0;
+      if (estadoActual === "AVISO_SALIDA") {
+        playAudio("aviso");
+      }
 
-        audio.play().then(() => {
-          audio.onended = () => {
-            audioSalidaSonando = false;
-          };
-        }).catch(() => {
-          audioSalidaSonando = false;
-        });
+      if (estadoActual === "SALIDA_ACTIVA") {
+        playAudio("salida");
       }
 
       if (estadoActual === "SIN_SALIDA") {
@@ -261,10 +252,6 @@ function consultarEstado() {
 /* ================= AVISO + COUNTDOWN ================= */
 function iniciarAviso(segundos) {
   segundosRestantes = segundos;
-
-  const audio = $("audioAviso");
-  audio.currentTime = 0;
-  audio.play().catch(() => {});
 
   countdownInterval = setInterval(() => {
     if (segundosRestantes <= 0) {
