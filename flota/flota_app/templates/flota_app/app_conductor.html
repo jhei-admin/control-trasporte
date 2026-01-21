@@ -58,12 +58,12 @@ button {
 </div>
 
 <!-- 🔊 AUDIO AVISO -->
-<audio id="audioAviso" preload="auto">
+<audio id="audioAviso" preload="auto" playsinline>
   <source src="{% static 'flota_app/sonidos/aviso_salida.mp3' %}" type="audio/mpeg">
 </audio>
 
 <!-- 🔊 AUDIO SALIDA ACTIVA -->
-<audio id="audioSalidaActiva" preload="auto">
+<audio id="audioSalidaActiva" preload="auto" playsinline>
   <source src="{% static 'flota_app/sonidos/inicio_salida.mp3' %}" type="audio/mpeg">
 </audio>
 
@@ -89,8 +89,11 @@ let horaProgramada = null;
 /* 🔑 ESTADO ANTERIOR */
 let estadoAnterior = localStorage.getItem("estado_anterior") || null;
 
-/* 🔊 AUDIO DESBLOQUEO (CLAVE ANDROID/PWA) */
+/* 🔊 DESBLOQUEO AUDIO */
 let audioDesbloqueado = localStorage.getItem("audio_ok") === "1";
+
+/* 🔒 PROTECCIÓN AUDIO COMPLETO */
+let audioSalidaSonando = false;
 
 /* ================= UTIL ================= */
 const $ = id => document.getElementById(id);
@@ -105,12 +108,7 @@ function mostrarEstado(texto, clase="info") {
 function desbloquearAudio() {
   if (audioDesbloqueado) return;
 
-  const audios = [
-    $("audioAviso"),
-    $("audioSalidaActiva")
-  ];
-
-  audios.forEach(a => {
+  [$("audioAviso"), $("audioSalidaActiva")].forEach(a => {
     try {
       a.muted = true;
       a.play().then(() => {
@@ -130,13 +128,13 @@ window.addEventListener("load", () => {
   const token = localStorage.getItem("token");
 
   if (token) {
-    desbloquearAudio();   // 🔓 CLAVE
+    desbloquearAudio();
     iniciarSistema();
     return;
   }
 
   $("btnEscanear").onclick = () => {
-    desbloquearAudio();   // 🔓 CLAVE
+    desbloquearAudio();
     if (escaneando) return;
 
     escaneando = true;
@@ -186,6 +184,8 @@ function iniciarSistema() {
 
 /* ================= ESTADO ================= */
 function consultarEstado() {
+  if (audioSalidaSonando) return; // ⛔ NO interrumpir audio
+
   const token = localStorage.getItem("token");
   if (!token) return;
 
@@ -203,13 +203,20 @@ function consultarEstado() {
 
     const estadoActual = data.estado;
 
-    /* 🔊 EVENTO REAL DE CAMBIO */
     if (estadoAnterior !== estadoActual) {
 
-      if (estadoActual === "SALIDA_ACTIVA") {
+      if (estadoActual === "SALIDA_ACTIVA" && !audioSalidaSonando) {
         const audio = $("audioSalidaActiva");
+        audioSalidaSonando = true;
         audio.currentTime = 0;
-        audio.play().catch(() => {});
+
+        audio.play().then(() => {
+          audio.onended = () => {
+            audioSalidaSonando = false;
+          };
+        }).catch(() => {
+          audioSalidaSonando = false;
+        });
       }
 
       if (estadoActual === "SIN_SALIDA") {
@@ -221,7 +228,6 @@ function consultarEstado() {
       localStorage.setItem("estado_anterior", estadoActual);
     }
 
-    /* 🎨 UI */
     switch (estadoActual) {
 
       case "AVISO_SALIDA":
@@ -234,18 +240,12 @@ function consultarEstado() {
 
       case "SALIDA_ACTIVA":
         detenerCountdown();
-        mostrarEstado(
-          "🟢 SALIDA ACTIVA\nHora: " + data.hora_salida,
-          "ok"
-        );
+        mostrarEstado("🟢 SALIDA ACTIVA\nHora: " + data.hora_salida, "ok");
         break;
 
       case "EN_COLA":
         detenerCountdown();
-        mostrarEstado(
-          "⏳ EN COLA\nSalida: " + data.hora_salida,
-          "info"
-        );
+        mostrarEstado("⏳ EN COLA\nSalida: " + data.hora_salida, "info");
         break;
 
       case "SIN_SALIDA":
@@ -269,10 +269,7 @@ function iniciarAviso(segundos) {
   countdownInterval = setInterval(() => {
     if (segundosRestantes <= 0) {
       detenerCountdown();
-      mostrarEstado(
-        `⏳ SALIDA PROGRAMADA\nHora: ${horaProgramada}`,
-        "info"
-      );
+      mostrarEstado(`⏳ SALIDA PROGRAMADA\nHora: ${horaProgramada}`, "info");
       return;
     }
 
