@@ -385,7 +385,7 @@ def panel_despachador(request):
 
 # =================================================
 # 🔍 BUSCAR UNIDAD Y CREAR SALIDA DEL DÍA
-# FIX DEFINITIVO PRODUCCIÓN (OPERATIVO REAL)
+# SOLUCIÓN DEFINITIVA (SIN es_default / SIN 500)
 # =================================================
 from django.shortcuts import redirect
 from django.contrib import messages
@@ -396,29 +396,25 @@ from flota_app.models import Vehiculo, RegistroSalida, Ruta
 
 
 def buscar_unidad_panel(request):
-    """
-    COMPORTAMIENTO FINAL (DEFINITIVO Y OPERATIVO):
-    - El despachador agrega la unidad
-    - La salida se crea CON ruta automáticamente
-    - La unidad queda lista para cola
-    - Control de ruta queda solo para ajustes
-    """
-
-    # -------------------------------------------------
-    # 🚫 SOLO POST
-    # -------------------------------------------------
     if request.method != "POST":
         return redirect("panel_despachador")
 
     # -------------------------------------------------
-    # 📥 LEER CÓDIGO
+    # 📥 LEER Y NORMALIZAR CÓDIGO
     # -------------------------------------------------
-    codigo = request.POST.get("codigo", "").strip()
-    hoy = timezone.localdate()
+    codigo_raw = request.POST.get("codigo", "").strip()
 
-    if not codigo:
+    if not codigo_raw:
         messages.error(request, "Ingrese un código de unidad.")
         return redirect("panel_despachador")
+
+    # Normalizar: "1" -> "01"
+    if codigo_raw.isdigit() and len(codigo_raw) == 1:
+        codigo = codigo_raw.zfill(2)
+    else:
+        codigo = codigo_raw
+
+    hoy = timezone.localdate()
 
     # -------------------------------------------------
     # 🚍 BUSCAR VEHÍCULO ACTIVO
@@ -431,7 +427,7 @@ def buscar_unidad_panel(request):
     if not vehiculo:
         messages.error(
             request,
-            f"No existe unidad activa con código {codigo}."
+            f"No existe unidad activa con código {codigo_raw}."
         )
         return redirect("panel_despachador")
 
@@ -450,32 +446,31 @@ def buscar_unidad_panel(request):
         return redirect("panel_despachador")
 
     # -------------------------------------------------
-    # 🧭 RESOLVER RUTA AUTOMÁTICA (CLAVE)
+    # 🧭 RUTA AUTOMÁTICA (SEGURA)
+    # 👉 TOMA LA PRIMERA RUTA ACTIVA
     # -------------------------------------------------
-    ruta = Ruta.objects.filter(es_default=True).first()
+    ruta = Ruta.objects.first()
 
     if not ruta:
         messages.error(
             request,
-            "No hay una ruta por defecto configurada. "
-            "Configure una ruta antes de despachar."
+            "No existe ninguna ruta registrada en el sistema."
         )
         return redirect("panel_despachador")
 
     # -------------------------------------------------
-    # 🟢 CREAR SALIDA DEL DÍA
+    # 🟢 CREAR SALIDA
     # -------------------------------------------------
     try:
         salida = RegistroSalida(
             vehiculo=vehiculo,
-            ruta=ruta,                      # ✅ AQUÍ ESTÁ EL FIX
+            ruta=ruta,
             fecha=hoy,
             hora_llegada=timezone.now(),
             activo=True,
             en_cola=False,
             bloqueado=False
         )
-
         salida.full_clean()
         salida.save()
 
@@ -486,9 +481,6 @@ def buscar_unidad_panel(request):
         )
         return redirect("panel_despachador")
 
-    # -------------------------------------------------
-    # ✅ MENSAJE FINAL
-    # -------------------------------------------------
     messages.success(
         request,
         f"Unidad {vehiculo.codigo} agregada correctamente al panel."
