@@ -86,8 +86,11 @@ let countdownInterval = null;
 let segundosRestantes = 0;
 let horaProgramada = null;
 
-/* 🔑 CLAVE DEL FIX */
+/* 🔑 ESTADO ANTERIOR */
 let estadoAnterior = localStorage.getItem("estado_anterior") || null;
+
+/* 🔊 AUDIO DESBLOQUEO (CLAVE ANDROID/PWA) */
+let audioDesbloqueado = localStorage.getItem("audio_ok") === "1";
 
 /* ================= UTIL ================= */
 const $ = id => document.getElementById(id);
@@ -98,18 +101,45 @@ function mostrarEstado(texto, clase="info") {
   el.innerText = texto;
 }
 
+/* ================= 🔊 DESBLOQUEAR AUDIO ================= */
+function desbloquearAudio() {
+  if (audioDesbloqueado) return;
+
+  const audios = [
+    $("audioAviso"),
+    $("audioSalidaActiva")
+  ];
+
+  audios.forEach(a => {
+    try {
+      a.muted = true;
+      a.play().then(() => {
+        a.pause();
+        a.currentTime = 0;
+        a.muted = false;
+      }).catch(() => {});
+    } catch {}
+  });
+
+  audioDesbloqueado = true;
+  localStorage.setItem("audio_ok", "1");
+}
+
 /* ================= QR ================= */
 window.addEventListener("load", () => {
   const token = localStorage.getItem("token");
+
   if (token) {
+    desbloquearAudio();   // 🔓 CLAVE
     iniciarSistema();
     return;
   }
 
   $("btnEscanear").onclick = () => {
+    desbloquearAudio();   // 🔓 CLAVE
     if (escaneando) return;
-    escaneando = true;
 
+    escaneando = true;
     $("btnEscanear").disabled = true;
     $("qr-reader").style.display = "block";
 
@@ -173,7 +203,7 @@ function consultarEstado() {
 
     const estadoActual = data.estado;
 
-    /* 🔊 DETECTAR CAMBIO REAL DE ESTADO */
+    /* 🔊 EVENTO REAL DE CAMBIO */
     if (estadoAnterior !== estadoActual) {
 
       if (estadoActual === "SALIDA_ACTIVA") {
@@ -204,12 +234,18 @@ function consultarEstado() {
 
       case "SALIDA_ACTIVA":
         detenerCountdown();
-        mostrarEstado("🟢 SALIDA ACTIVA\nHora: " + data.hora_salida, "ok");
+        mostrarEstado(
+          "🟢 SALIDA ACTIVA\nHora: " + data.hora_salida,
+          "ok"
+        );
         break;
 
       case "EN_COLA":
         detenerCountdown();
-        mostrarEstado("⏳ EN COLA\nSalida: " + data.hora_salida, "info");
+        mostrarEstado(
+          "⏳ EN COLA\nSalida: " + data.hora_salida,
+          "info"
+        );
         break;
 
       case "SIN_SALIDA":
