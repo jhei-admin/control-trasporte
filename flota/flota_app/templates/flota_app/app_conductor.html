@@ -57,12 +57,12 @@ button {
   </div>
 </div>
 
-<!-- 🔊 AUDIO AVISO (YA EXISTÍA) -->
+<!-- 🔊 AUDIO AVISO -->
 <audio id="audioAviso" preload="auto">
   <source src="{% static 'flota_app/sonidos/aviso_salida.mp3' %}" type="audio/mpeg">
 </audio>
 
-<!-- 🔊 AUDIO SALIDA ACTIVA (✅ AGREGADO) -->
+<!-- 🔊 AUDIO SALIDA ACTIVA -->
 <audio id="audioSalidaActiva" preload="auto">
   <source src="{% static 'flota_app/sonidos/inicio_salida.mp3' %}" type="audio/mpeg">
 </audio>
@@ -85,6 +85,9 @@ let avisoActivo = false;
 let countdownInterval = null;
 let segundosRestantes = 0;
 let horaProgramada = null;
+
+/* 🔑 CLAVE DEL FIX */
+let estadoAnterior = localStorage.getItem("estado_anterior") || null;
 
 /* ================= UTIL ================= */
 const $ = id => document.getElementById(id);
@@ -168,7 +171,28 @@ function consultarEstado() {
 
     if (!data.autorizado) return;
 
-    switch (data.estado) {
+    const estadoActual = data.estado;
+
+    /* 🔊 DETECTAR CAMBIO REAL DE ESTADO */
+    if (estadoAnterior !== estadoActual) {
+
+      if (estadoActual === "SALIDA_ACTIVA") {
+        const audio = $("audioSalidaActiva");
+        audio.currentTime = 0;
+        audio.play().catch(() => {});
+      }
+
+      if (estadoActual === "SIN_SALIDA") {
+        detenerCountdown();
+        avisoActivo = false;
+      }
+
+      estadoAnterior = estadoActual;
+      localStorage.setItem("estado_anterior", estadoActual);
+    }
+
+    /* 🎨 UI */
+    switch (estadoActual) {
 
       case "AVISO_SALIDA":
         if (!avisoActivo) {
@@ -181,14 +205,6 @@ function consultarEstado() {
       case "SALIDA_ACTIVA":
         detenerCountdown();
         mostrarEstado("🟢 SALIDA ACTIVA\nHora: " + data.hora_salida, "ok");
-
-        // 🔊 AUDIO SALIDA ACTIVA (✅ AGREGADO)
-        if (!localStorage.getItem("audio_salida_activa")) {
-          const audio = $("audioSalidaActiva");
-          audio.currentTime = 0;
-          audio.play().catch(() => {});
-          localStorage.setItem("audio_salida_activa", "1");
-        }
         break;
 
       case "EN_COLA":
@@ -197,13 +213,11 @@ function consultarEstado() {
         break;
 
       case "SIN_SALIDA":
-        // 🔄 RESET PARA SIGUIENTE VUELTA (✅ AGREGADO)
-        localStorage.removeItem("audio_salida_activa");
         mostrarEstado("⏳ Espere orden de salida", "info");
         break;
 
       default:
-        mostrarEstado(data.mensaje || data.estado, "info");
+        mostrarEstado(data.mensaje || estadoActual, "info");
     }
   });
 }
@@ -243,7 +257,6 @@ function detenerCountdown() {
     clearInterval(countdownInterval);
     countdownInterval = null;
   }
-  avisoActivo = false;
 }
 
 function resetEscaneo() {
