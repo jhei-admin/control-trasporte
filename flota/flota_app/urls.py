@@ -102,20 +102,6 @@ urlpatterns = [
         views.api_buscar_vehiculo_por_codigo
     ),
 
-    # ======================================================
-    # ➕ API AGREGAR UNIDAD AL PANEL (AJAX – SIN RECARGA)
-    # 🔥 CLAVE PARA EL BOTÓN "AGREGAR"
-    # ======================================================
-    path(
-        "api/despachador/agregar-unidad/",
-        views.api_agregar_unidad_panel,
-        name="api_agregar_unidad_panel"
-    ),
-    path(
-        "api/despachador/agregar-unidad",
-        views.api_agregar_unidad_panel
-    ),
-
     # =========================
     # 🧭 API RECORRIDO
     # =========================

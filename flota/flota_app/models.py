@@ -124,7 +124,8 @@ class RegistroSalida(models.Model):
         on_delete=models.CASCADE
     )
 
-    # ✅ RUTA PUEDE SER NULL (FIX DEFINITIVO)
+    # ✅ RUTA PUEDE SER NULL
+    # ⚠️ pero NO puede entrar en cola sin ruta (blindaje abajo)
     ruta = models.ForeignKey(
         "Ruta",
         on_delete=models.SET_NULL,
@@ -132,7 +133,7 @@ class RegistroSalida(models.Model):
         blank=True
     )
 
-    # 📅 Fecha operativa
+    # 📅 Fecha operativa (local)
     fecha = models.DateField(
         default=timezone.localdate
     )
@@ -204,25 +205,29 @@ class RegistroSalida(models.Model):
         ordering = ["fecha", "creado_en"]
 
     # =================================================
-    # 🔒 VALIDACIONES DE NEGOCIO
+    # 🔒 VALIDACIONES DE NEGOCIO (FIX DEFINITIVO)
     # =================================================
     def clean(self):
 
+        # ❌ Fuera de cola no puede tener orden
         if not self.en_cola and self.orden_cola is not None:
             raise ValidationError(
                 "Una unidad fuera de la cola no puede tener orden."
             )
 
+        # ❌ Bloqueado sin hora fija
         if self.bloqueado and not self.hora_fija:
             raise ValidationError(
                 "Una unidad bloqueada debe tener hora fija."
             )
 
+        # ❌ Hora fija solo si está en cola
         if self.hora_fija and not self.en_cola:
             raise ValidationError(
                 "No se puede fijar hora si la unidad no está en cola."
             )
 
+        # ❌ Hora fija y hora salida deben coincidir
         if (
             self.hora_fija
             and self.hora_salida
@@ -230,6 +235,15 @@ class RegistroSalida(models.Model):
         ):
             raise ValidationError(
                 "La hora fija debe coincidir con la hora de salida."
+            )
+
+        # =================================================
+        # 🔥 BLINDAJE CLAVE (PASO 2)
+        # =================================================
+        # ❌ NO permitir cola sin ruta
+        if self.en_cola and not self.ruta:
+            raise ValidationError(
+                "No se puede poner en cola una salida sin ruta asignada."
             )
 
     # =================================================
@@ -257,7 +271,6 @@ class RegistroSalida(models.Model):
     # ▶️ INICIAR SALIDA
     # =================================================
     def iniciar_salida(self):
-
         if self.hora_real_salida:
             return
 
@@ -279,7 +292,6 @@ class RegistroSalida(models.Model):
     # ⏹ FINALIZAR SALIDA
     # =================================================
     def finalizar_salida(self):
-
         self.activo = False
         self.en_cola = False
 

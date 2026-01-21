@@ -148,14 +148,27 @@ def recalcular_cola():
 
             hora_actual = nueva_hora
 
+from datetime import date
+from django.shortcuts import render, get_object_or_404
+from django.utils import timezone
+
+from flota_app.models import (
+    RegistroSalida,
+    Vehiculo,
+    PuntoControl,
+    Parada,
+)
+
 def reporte_salidas_diarias(request, vehiculo_id):
     """
     FASE 4A + 4C
     Pantalla tipo app: salidas del día por vehículo
-    - Minutos calculados POR SALIDA
-    - Resumen diario automático
-    - Filtro visual (fecha + unidad)
-    - 🔥 FIX DEFINITIVO DE FECHA (timezone)
+
+    ✔ Minutos calculados POR SALIDA
+    ✔ Resumen diario automático
+    ✔ Filtro visual (fecha + unidad)
+    ✔ FIX DEFINITIVO de timezone
+    ✔ FIX DEFINITIVO contra rutas NULL (500)
     """
 
     # =================================================
@@ -188,9 +201,9 @@ def reporte_salidas_diarias(request, vehiculo_id):
         RegistroSalida.objects
         .filter(
             vehiculo=vehiculo,
-            fecha=fecha          # 🔥 CLAVE: misma fecha que el panel
+            fecha=fecha      # 🔥 MISMA FECHA OPERATIVA
         )
-        .order_by("hora_salida")
+        .order_by("hora_salida", "creado_en")
     )
 
     resultado = []
@@ -204,12 +217,15 @@ def reporte_salidas_diarias(request, vehiculo_id):
         vuelta = index + 1
 
         # -------------------------------------------------
-        # % MARCACIÓN (🔥 FIX REAL)
+        # 🔒 FIX CRÍTICO — RUTA NULL
         # -------------------------------------------------
-        total_puntos = PuntoControl.objects.filter(
-            ruta=salida.ruta,
-            activo=True
-        ).count()
+        if not salida.ruta:
+            total_puntos = 0
+        else:
+            total_puntos = PuntoControl.objects.filter(
+                ruta=salida.ruta,
+                activo=True
+            ).count()
 
         puntos_marcados = salida.marcaciones.exclude(
             hora_marcada__isnull=True
@@ -217,10 +233,10 @@ def reporte_salidas_diarias(request, vehiculo_id):
 
         porcentaje = int(
             (puntos_marcados / total_puntos) * 100
-        ) if total_puntos else 0
+        ) if total_puntos > 0 else 0
 
         # -------------------------------------------------
-        # RANGO DE TIEMPO DE LA SALIDA
+        # ⏱ RANGO DE TIEMPO DE LA SALIDA
         # -------------------------------------------------
         inicio = salida.hora_salida
 
@@ -230,11 +246,11 @@ def reporte_salidas_diarias(request, vehiculo_id):
             fin = salida.hora_real_salida or timezone.now()
 
         # -------------------------------------------------
-        # MINUTOS POR PARADAS PROLONGADAS
+        # 🛑 MINUTOS POR PARADAS PROLONGADAS
         # -------------------------------------------------
         minutos = 0
 
-        if inicio:
+        if inicio and fin:
             paradas = Parada.objects.filter(
                 vehiculo=vehiculo,
                 es_prolongada=True,
@@ -246,11 +262,11 @@ def reporte_salidas_diarias(request, vehiculo_id):
                 minutos += int(p.duracion_segundos / 60)
 
         # -------------------------------------------------
-        # RESULTADO FINAL
+        # 📦 RESULTADO FINAL POR SALIDA
         # -------------------------------------------------
         resultado.append({
             "hora": salida.hora_salida,
-            "ruta": salida.ruta.nombre,
+            "ruta": salida.ruta.nombre if salida.ruta else "SIN RUTA",
             "vuelta": vuelta,
             "porcentaje": porcentaje,
             "minutos": minutos,
@@ -275,7 +291,7 @@ def reporte_salidas_diarias(request, vehiculo_id):
         alertas.append("Marcación promedio baja")
 
     if minutos_totales > 15:
-        alertas.append("Exceso de minutos por paradas")
+        alertas.append("Exceso de minutos por paradas prolongadas")
 
     # =================================================
     # 📤 RENDER FINAL
@@ -369,23 +385,24 @@ def panel_despachador(request):
 
 # =================================================
 # 🔍 BUSCAR UNIDAD Y CREAR SALIDA DEL DÍA
-# FIX DEFINITIVO PRODUCCIÓN (ESTABLE + SEGURO)
+# FIX DEFINITIVO PRODUCCIÓN (BLINDADO PARA CAMPO)
 # =================================================
 from django.shortcuts import redirect
 from django.contrib import messages
 from django.utils import timezone
+from django.core.exceptions import ValidationError
 
 from flota_app.models import Vehiculo, RegistroSalida
 
 
 def buscar_unidad_panel(request):
     """
-    COMPORTAMIENTO FINAL:
-    - GET  → redirige al panel (nunca error)
-    - POST → crea salida del día
-    - NO asume que Vehiculo tenga ruta
-    - Usa ruta solo si existe
-    - Compatible 100% con Render / producción
+    COMPORTAMIENTO FINAL (DEFINITIVO):
+    - GET  → redirige al panel
+    - POST → crea salida del día SOLO si es válido
+    - ❌ No permite salidas duplicadas activas
+    - ❌ No permite crear salidas sin ruta
+    - 🔒 Compatible con constraints y clean() del modelo
     """
 
     # -------------------------------------------------
@@ -420,35 +437,58 @@ def buscar_unidad_panel(request):
         return redirect("panel_despachador")
 
     # -------------------------------------------------
-    # 🔥 CERRAR SALIDAS ACTIVAS PREVIAS DEL DÍA
+    # 🔒 BLINDAJE: EVITAR DUPLICADOS DEL DÍA
     # -------------------------------------------------
-    RegistroSalida.objects.filter(
+    salida_existente = RegistroSalida.objects.filter(
         vehiculo=vehiculo,
-        activo=True,
-        fecha=hoy
-    ).update(
-        activo=False,
-        en_cola=False,
-        orden_cola=None
-    )
+        fecha=hoy,
+        activo=True
+    ).first()
+
+    if salida_existente:
+        messages.info(
+            request,
+            f"La unidad {vehiculo.codigo} ya tiene una salida activa hoy."
+        )
+        return redirect("panel_despachador")
 
     # -------------------------------------------------
-    # 🧭 RESOLVER RUTA (SIN SUPOSICIONES)
+    # 🔒 BLINDAJE: VALIDAR RUTA
     # -------------------------------------------------
     ruta = getattr(vehiculo, "ruta", None)
 
+    if not ruta:
+        messages.error(
+            request,
+            "La unidad no tiene una ruta asignada. "
+            "Asigne una ruta antes de crear la salida."
+        )
+        return redirect("panel_despachador")
+
     # -------------------------------------------------
-    # 🟢 CREAR NUEVA SALIDA DEL DÍA
+    # 🟢 CREAR NUEVA SALIDA DEL DÍA (CONTROLADO)
     # -------------------------------------------------
-    RegistroSalida.objects.create(
-        vehiculo=vehiculo,
-        ruta=ruta,                  # ✅ segura (puede ser None)
-        fecha=hoy,
-        hora_llegada=timezone.now(),
-        activo=True,
-        en_cola=False,
-        bloqueado=False
-    )
+    try:
+        salida = RegistroSalida(
+            vehiculo=vehiculo,
+            ruta=ruta,
+            fecha=hoy,
+            hora_llegada=timezone.now(),
+            activo=True,
+            en_cola=False,
+            bloqueado=False
+        )
+
+        # 🔒 Ejecuta validaciones del modelo
+        salida.full_clean()
+        salida.save()
+
+    except ValidationError as e:
+        messages.error(
+            request,
+            f"No se pudo crear la salida: {e.messages[0]}"
+        )
+        return redirect("panel_despachador")
 
     # -------------------------------------------------
     # ✅ MENSAJE FINAL
@@ -459,100 +499,6 @@ def buscar_unidad_panel(request):
     )
 
     return redirect("panel_despachador")
-
-# =================================================
-# 🔍 AJAX — AGREGAR UNIDAD AL PANEL (FIX DEFINITIVO)
-# =================================================
-from django.http import JsonResponse
-from django.utils import timezone
-from django.views.decorators.http import require_POST
-
-@require_POST
-def api_agregar_unidad_panel(request):
-    """
-    API AJAX:
-    - SOLO POST
-    - Devuelve JSON
-    - NO redirige
-    - NO asume que Vehiculo tenga ruta
-    - 100% estable en Render / producción
-    """
-
-    try:
-        # ---------------------------------------------
-        # 📥 LEER Y NORMALIZAR CÓDIGO
-        # ---------------------------------------------
-        codigo = request.POST.get("codigo", "").strip()
-        hoy = timezone.localdate()
-
-        if not codigo:
-            return JsonResponse({
-                "ok": False,
-                "error": "Ingrese un código de unidad"
-            })
-
-        # ---------------------------------------------
-        # 🚍 BUSCAR VEHÍCULO ACTIVO
-        # ---------------------------------------------
-        vehiculo = Vehiculo.objects.filter(
-            codigo=codigo,
-            activo=True
-        ).first()
-
-        if not vehiculo:
-            return JsonResponse({
-                "ok": False,
-                "error": f"No existe unidad activa con código {codigo}"
-            })
-
-        # ---------------------------------------------
-        # 🔥 CERRAR SALIDAS ACTIVAS PREVIAS DEL DÍA
-        # ---------------------------------------------
-        RegistroSalida.objects.filter(
-            vehiculo=vehiculo,
-            activo=True,
-            fecha=hoy
-        ).update(
-            activo=False,
-            en_cola=False,
-            orden_cola=None
-        )
-
-        # ---------------------------------------------
-        # 🟢 CREAR NUEVA SALIDA DEL DÍA (SIN RUTA)
-        # ---------------------------------------------
-        salida = RegistroSalida.objects.create(
-            vehiculo=vehiculo,
-            ruta=None,  # ✅ FIX CLAVE
-            fecha=hoy,
-            hora_llegada=timezone.now(),
-            activo=True,
-            en_cola=False,
-            bloqueado=False
-        )
-
-        # ---------------------------------------------
-        # 📤 RESPUESTA JSON SEGURA PARA EL FRONTEND
-        # ---------------------------------------------
-        return JsonResponse({
-            "ok": True,
-            "salida": {
-                "id": salida.id,
-                "vehiculo": str(vehiculo.codigo),
-                "ruta": "—",
-                "hora_llegada": salida.hora_llegada.strftime("%H:%M"),
-                "hora_salida": "—",
-                "intervalo": "—",
-                "modo": "AUTO",
-            }
-        })
-
-    except Exception as e:
-        # 🔥 NUNCA 500 EN AJAX
-        return JsonResponse({
-            "ok": False,
-            "error": f"Error interno: {str(e)}"
-        })
 
 # =================================================
 # 🗺️ DESPACHADOR — MAPA TIEMPO REAL (VISTA SEPARADA)
