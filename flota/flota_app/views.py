@@ -385,7 +385,7 @@ def panel_despachador(request):
 
 # =================================================
 # 🔍 BUSCAR UNIDAD Y CREAR SALIDA DEL DÍA
-# FIX DEFINITIVO PRODUCCIÓN (BLINDADO PARA CAMPO)
+# FIX DEFINITIVO PRODUCCIÓN (ALINEADO A MODELO REAL)
 # =================================================
 from django.shortcuts import redirect
 from django.contrib import messages
@@ -397,12 +397,12 @@ from flota_app.models import Vehiculo, RegistroSalida
 
 def buscar_unidad_panel(request):
     """
-    COMPORTAMIENTO FINAL (DEFINITIVO):
+    COMPORTAMIENTO FINAL (CORRECTO):
     - GET  → redirige al panel
-    - POST → crea salida del día SOLO si es válido
+    - POST → crea salida del día
     - ❌ No permite salidas duplicadas activas
-    - ❌ No permite crear salidas sin ruta
-    - 🔒 Compatible con constraints y clean() del modelo
+    - ✅ PERMITE crear salida SIN ruta
+    - 🔒 La ruta se exige SOLO al poner en cola (modelo manda)
     """
 
     # -------------------------------------------------
@@ -453,25 +453,13 @@ def buscar_unidad_panel(request):
         return redirect("panel_despachador")
 
     # -------------------------------------------------
-    # 🔒 BLINDAJE: VALIDAR RUTA
-    # -------------------------------------------------
-    ruta = getattr(vehiculo, "ruta", None)
-
-    if not ruta:
-        messages.error(
-            request,
-            "La unidad no tiene una ruta asignada. "
-            "Asigne una ruta antes de crear la salida."
-        )
-        return redirect("panel_despachador")
-
-    # -------------------------------------------------
-    # 🟢 CREAR NUEVA SALIDA DEL DÍA (CONTROLADO)
+    # 🟢 CREAR NUEVA SALIDA DEL DÍA
+    # (SIN RUTA — SE ASIGNARÁ DESPUÉS)
     # -------------------------------------------------
     try:
         salida = RegistroSalida(
             vehiculo=vehiculo,
-            ruta=ruta,
+            ruta=None,                      # ✅ CORRECTO
             fecha=hoy,
             hora_llegada=timezone.now(),
             activo=True,
