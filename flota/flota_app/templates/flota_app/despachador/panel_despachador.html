@@ -17,18 +17,20 @@
 {% endif %}
 
 {# ================================================== #}
-{# ⏰ ALERTA HORA FIJA ASIGNADA (IMAGEN 2)             #}
+{# ⏰ ALERTA HORA FIJA ASIGNADA (SIN break)            #}
 {# ================================================== #}
-{% for s in salidas %}
-    {% if s.bloqueado and s.hora_fija %}
-        <div class="alert alert-success alert-dismissible fade show">
-            ⏰ <strong>Hora fija asignada:</strong>
-            {{ s.hora_fija|date:"H:i" }}
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        </div>
-        {% break %}
-    {% endif %}
-{% endfor %}
+{% if salidas %}
+    {% for s in salidas %}
+        {% if s.bloqueado and s.hora_fija %}
+            <div class="alert alert-success alert-dismissible fade show">
+                ⏰ <strong>Hora fija asignada:</strong>
+                {{ s.hora_fija|date:"H:i" }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+            {% break_not_supported %}
+        {% endif %}
+    {% endfor %}
+{% endif %}
 
 <h2 class="mb-3">Panel del Despachador</h2>
 <hr>
@@ -36,7 +38,6 @@
 {# ================================================== #}
 {# ⚙️ CONFIGURACIÓN DE INTERVALO                      #}
 {# ================================================== #}
-
 {% url 'cambiar_intervalo_global' as url_cambiar_intervalo %}
 
 {% if url_cambiar_intervalo %}
@@ -190,69 +191,38 @@
 
             <td class="text-center">
 
-                {# 🚦 COLA #}
                 {% if not s.en_cola %}
-                    <form method="post"
-                          action="{% url 'poner_en_cola' s.id %}"
-                          class="d-inline">
+                    <form method="post" action="{% url 'poner_en_cola' s.id %}" class="d-inline">
                         {% csrf_token %}
-                        <button class="btn btn-sm btn-outline-success">
-                            🚦 En cola
-                        </button>
+                        <button class="btn btn-sm btn-outline-success">🚦 En cola</button>
                     </form>
                 {% else %}
-                    <form method="post"
-                          action="{% url 'quitar_de_cola' s.id %}"
-                          class="d-inline">
+                    <form method="post" action="{% url 'quitar_de_cola' s.id %}" class="d-inline">
                         {% csrf_token %}
-                        <button class="btn btn-sm btn-outline-danger">
-                            ❌ Quitar cola
-                        </button>
+                        <button class="btn btn-sm btn-outline-danger">❌ Quitar cola</button>
                     </form>
                 {% endif %}
 
-                {# 🔒 BLOQUEO MANUAL #}
                 {% if s.en_cola %}
                     {% if not s.bloqueado %}
-                        <form method="post"
-                              action="{% url 'asignar_hora_fija' s.id %}"
-                              class="d-inline">
+                        <form method="post" action="{% url 'asignar_hora_fija' s.id %}" class="d-inline">
                             {% csrf_token %}
-                            <input type="time"
-                                   name="hora_fija"
+                            <input type="time" name="hora_fija"
                                    class="form-control form-control-sm d-inline"
-                                   style="width:90px"
-                                   required>
-                            <button class="btn btn-sm btn-warning">
-                                🔒 Fijar
-                            </button>
+                                   style="width:90px" required>
+                            <button class="btn btn-sm btn-warning">🔒 Fijar</button>
                         </form>
                     {% else %}
-                        <form method="post"
-                              action="{% url 'desbloquear_hora' s.id %}"
-                              class="d-inline">
+                        <form method="post" action="{% url 'desbloquear_hora' s.id %}" class="d-inline">
                             {% csrf_token %}
-                            <button class="btn btn-sm btn-warning">
-                                🔓 Desbloquear
-                            </button>
+                            <button class="btn btn-sm btn-warning">🔓 Desbloquear</button>
                         </form>
                     {% endif %}
                 {% endif %}
 
-                <a href="{% url 'control_ruta' s.id %}"
-                   class="btn btn-sm btn-outline-primary">
-                    🧭 Control
-                </a>
-
-                <a href="{% url 'detalle_salida' s.id %}"
-                   class="btn btn-sm btn-outline-info">
-                    📍 Puntos
-                </a>
-
-                <a href="{% url 'ver_qr_unidad' s.vehiculo.id %}"
-                   class="btn btn-sm btn-outline-dark">
-                    📦 QR
-                </a>
+                <a href="{% url 'control_ruta' s.id %}" class="btn btn-sm btn-outline-primary">🧭 Control</a>
+                <a href="{% url 'detalle_salida' s.id %}" class="btn btn-sm btn-outline-info">📍 Puntos</a>
+                <a href="{% url 'ver_qr_unidad' s.vehiculo.id %}" class="btn btn-sm btn-outline-dark">📦 QR</a>
             </td>
         </tr>
         {% empty %}
@@ -265,9 +235,6 @@
     </tbody>
 </table>
 
-{# ============================= #}
-{# JS FILTRO LOCAL               #}
-{# ============================= #}
 <script>
 document.getElementById("busquedaUnidad").addEventListener("keyup", function () {
     const filtro = this.value.toLowerCase().trim();
