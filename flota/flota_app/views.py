@@ -621,25 +621,21 @@ def api_gps_conductor(request):
             )
 
     # =============================================
-    # 🚍 SALIDA ACTIVA — SOLO DE HOY (🔥 FIX REAL)
+    # 🚍 SALIDA ACTIVA — SOLO DE HOY
     # =============================================
     salida = (
         RegistroSalida.objects
         .filter(
             vehiculo=sesion.vehiculo,
-            fecha=hoy,          # 🔥 IMPRESCINDIBLE
+            fecha=hoy,
             activo=True
         )
         .order_by("-id")
         .first()
     )
 
-    # 🔕 SIN SALIDA HOY → NO MARCAR
-    if not salida:
-        return JsonResponse({"accion": "ninguna"})
-
-    # 🔕 SALIDA NO INICIADA → NO MARCAR
-    if not salida.hora_real_salida:
+    # 🔕 SIN SALIDA O NO INICIADA → NO MARCAR
+    if not salida or not salida.hora_real_salida:
         return JsonResponse({"accion": "ninguna"})
 
     # =============================================
@@ -647,8 +643,14 @@ def api_gps_conductor(request):
     # =============================================
     marcacion = salida.siguiente_marcacion()
 
+    # =================================================
+    # 🏁 NO HAY MÁS PUNTOS → RUTA COMPLETADA
+    # =================================================
     if not marcacion:
-        # 🔥 RUTA COMPLETADA
+        salida.activo = False
+        salida.en_cola = False
+        salida.save(update_fields=["activo", "en_cola"])
+
         return JsonResponse({
             "accion": "audio",
             "audio": "ruta_completada"
@@ -670,35 +672,22 @@ def api_gps_conductor(request):
         return JsonResponse({"accion": "ninguna"})
 
     # =============================================
-    # ✅ MARCAR PUNTO (UNA SOLA VEZ)
+    # ✅ MARCAR PUNTO (MODELO DECIDE TODO)
     # =============================================
     marcacion.marcar()
 
-    diff = marcacion.diferencia_minutos or 0
-
-    if diff < 0:
-        estado = "adelantado"
-    elif diff > 0:
-        estado = "tarde"
-    else:
-        estado = "atiempo"
-
     # =============================================
-    # 🔊 RESPUESTA FINAL
+    # 🔊 RESPUESTA FINAL (SIN LÓGICA DUPLICADA)
     # =============================================
     return JsonResponse({
         "accion": "audio",
-        "audio": estado,
+        "audio": marcacion.audio_flag,
         "visual": {
             "punto": punto.nombre,
-            "estado": estado.upper(),
-            "diferencia_min": diff
+            "estado": marcacion.estado.upper(),
+            "diferencia_min": marcacion.diferencia_minutos
         }
     })
-
-# =================================================
-# 📡 API GPS — UBICACIÓN EN TIEMPO REAL (MAPA)
-# =================================================
 
 # =================================================
 # 🛑 DETECTOR DE PARADAS (AUTOMÁTICO + FASE 4)

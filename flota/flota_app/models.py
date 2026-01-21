@@ -481,6 +481,14 @@ class MarcacionPunto(models.Model):
         blank=True
     )
 
+    # 🔊 AUDIO A REPRODUCIR (🔥 NUEVO — CLAVE)
+    audio_flag = models.CharField(
+        max_length=50,
+        null=True,
+        blank=True,
+        help_text="Audio que debe reproducir el App Conductor"
+    )
+
     creado_en = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -515,12 +523,12 @@ class MarcacionPunto(models.Model):
         )
 
     # =================================================
-    # 🧮 CÁLCULO DE DIFERENCIA Y ESTADO
+    # 🧮 CÁLCULO DE DIFERENCIA + ESTADO + AUDIO
     # =================================================
     def evaluar_estado(self, tolerancia_min=2):
         """
-        Calcula diferencia en minutos y estado
-        según tolerancia.
+        Calcula diferencia en minutos, estado
+        y audio a reproducir.
         """
         if not self.hora_marcada or not self.hora_programada:
             return
@@ -533,10 +541,15 @@ class MarcacionPunto(models.Model):
 
         if diferencia < -tolerancia_min:
             self.estado = "adelantado"
+            self.audio_flag = "audio_adelantado"
+
         elif diferencia > tolerancia_min:
             self.estado = "tarde"
+            self.audio_flag = "audio_tarde"
+
         else:
             self.estado = "a_tiempo"
+            self.audio_flag = "audio_a_tiempo"
 
     # =================================================
     # 🔥 MÉTODO CLAVE (USADO POR GPS Y DESPACHADOR)
@@ -560,7 +573,7 @@ class MarcacionPunto(models.Model):
         if not self.hora_programada:
             self.hora_programada = self.calcular_hora_programada()
 
-        # 🧮 Evaluar estado y diferencia
+        # 🧮 Evaluar estado + audio
         self.evaluar_estado()
 
         # 💾 Guardar todo junto
@@ -573,7 +586,7 @@ class MarcacionPunto(models.Model):
         """
         Guardado seguro:
         ✔ Calcula hora_programada solo una vez
-        ✔ Evalúa estado solo cuando se marca
+        ✔ Evalúa estado y audio solo cuando se marca
         ✔ No recalcula datos históricos
         """
 
@@ -581,7 +594,7 @@ class MarcacionPunto(models.Model):
         if not self.hora_programada:
             self.hora_programada = self.calcular_hora_programada()
 
-        # 🕓 Si se marca por primera vez, evaluar estado
+        # 🕓 Si se marca por primera vez, evaluar estado + audio
         if self.hora_marcada and not self.estado:
             self.evaluar_estado()
 
