@@ -4,9 +4,6 @@
 
 {% block content %}
 
-<h2 class="mb-3">Panel del Despachador</h2>
-<hr>
-
 {# ================================================== #}
 {# 🔔 MENSAJES DEL SISTEMA                            #}
 {# ================================================== #}
@@ -20,7 +17,24 @@
 {% endif %}
 
 {# ================================================== #}
-{# CONFIGURACIÓN DE INTERVALO                         #}
+{# ⏰ ALERTA HORA FIJA ASIGNADA (IMAGEN 2)             #}
+{# ================================================== #}
+{% for s in salidas %}
+    {% if s.bloqueado and s.hora_fija %}
+        <div class="alert alert-success alert-dismissible fade show">
+            ⏰ <strong>Hora fija asignada:</strong>
+            {{ s.hora_fija|date:"H:i" }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+        {% break %}
+    {% endif %}
+{% endfor %}
+
+<h2 class="mb-3">Panel del Despachador</h2>
+<hr>
+
+{# ================================================== #}
+{# ⚙️ CONFIGURACIÓN DE INTERVALO                      #}
 {# ================================================== #}
 
 {% url 'cambiar_intervalo_global' as url_cambiar_intervalo %}
@@ -42,7 +56,7 @@
 
     {% else %}
         🟢 <strong>Modo automático activo</strong><br>
-        <small>El sistema ajusta el intervalo según unidades en cola</small>
+        <small>El sistema ajusta el intervalo según unidades en cola (5 / 7 / 10 min)</small>
 
         <form method="post"
               action="{{ url_cambiar_intervalo }}"
@@ -102,7 +116,6 @@
            name="codigo"
            class="form-control"
            placeholder="🔍 Buscar unidad por código (ej: 01)"
-           autocomplete="off"
            inputmode="numeric"
            required>
 
@@ -112,17 +125,16 @@
 </form>
 
 {# ============================= #}
-{# 🔍 FILTRO VISUAL (LOCAL)       #}
+{# 🔍 FILTRO VISUAL               #}
 {# ============================= #}
 <input type="text"
        id="busquedaUnidad"
        class="form-control mb-3"
        placeholder="Filtrar unidades visibles"
-       autocomplete="off"
        style="max-width: 320px;">
 
 {# ============================= #}
-{# TABLA PRINCIPAL                #}
+{# 📋 TABLA PRINCIPAL             #}
 {# ============================= #}
 <table class="table table-bordered table-sm align-middle">
     <thead class="table-dark text-center">
@@ -133,7 +145,7 @@
             <th>Hora salida</th>
             <th>Intervalo</th>
             <th>Modo</th>
-            <th>Acciones</th>
+            <th style="min-width:340px">Acciones</th>
         </tr>
     </thead>
 
@@ -141,8 +153,17 @@
         {% for s in salidas %}
         <tr class="fila-unidad" data-unidad="{{ s.vehiculo.numero|lower }}">
             <td class="text-center">{{ s.vehiculo.numero }}</td>
-            <td>{{ s.ruta.nombre }}</td>
+
+            <td>
+                {% if s.ruta %}
+                    {{ s.ruta.nombre }}
+                {% else %}
+                    —
+                {% endif %}
+            </td>
+
             <td class="text-center">{{ s.hora_llegada|date:"H:i" }}</td>
+
             <td class="text-center">
                 {% if s.hora_salida %}
                     {{ s.hora_salida|date:"H:i" }}
@@ -150,7 +171,15 @@
                     —
                 {% endif %}
             </td>
-            <td class="text-center">{{ s.intervalo_minutos|default:"—" }}</td>
+
+            <td class="text-center">
+                {% if s.intervalo_minutos %}
+                    {{ s.intervalo_minutos }} min
+                {% else %}
+                    —
+                {% endif %}
+            </td>
+
             <td class="text-center">
                 {% if s.bloqueado %}
                     <span class="badge bg-warning text-dark">MANUAL</span>
@@ -158,14 +187,70 @@
                     <span class="badge bg-success">AUTO</span>
                 {% endif %}
             </td>
+
             <td class="text-center">
-                <a href="{% url 'control_ruta' s.id %}" class="btn btn-sm btn-outline-primary">
-                    🧭 Control ruta
+
+                {# 🚦 COLA #}
+                {% if not s.en_cola %}
+                    <form method="post"
+                          action="{% url 'poner_en_cola' s.id %}"
+                          class="d-inline">
+                        {% csrf_token %}
+                        <button class="btn btn-sm btn-outline-success">
+                            🚦 En cola
+                        </button>
+                    </form>
+                {% else %}
+                    <form method="post"
+                          action="{% url 'quitar_de_cola' s.id %}"
+                          class="d-inline">
+                        {% csrf_token %}
+                        <button class="btn btn-sm btn-outline-danger">
+                            ❌ Quitar cola
+                        </button>
+                    </form>
+                {% endif %}
+
+                {# 🔒 BLOQUEO MANUAL #}
+                {% if s.en_cola %}
+                    {% if not s.bloqueado %}
+                        <form method="post"
+                              action="{% url 'asignar_hora_fija' s.id %}"
+                              class="d-inline">
+                            {% csrf_token %}
+                            <input type="time"
+                                   name="hora_fija"
+                                   class="form-control form-control-sm d-inline"
+                                   style="width:90px"
+                                   required>
+                            <button class="btn btn-sm btn-warning">
+                                🔒 Fijar
+                            </button>
+                        </form>
+                    {% else %}
+                        <form method="post"
+                              action="{% url 'desbloquear_hora' s.id %}"
+                              class="d-inline">
+                            {% csrf_token %}
+                            <button class="btn btn-sm btn-warning">
+                                🔓 Desbloquear
+                            </button>
+                        </form>
+                    {% endif %}
+                {% endif %}
+
+                <a href="{% url 'control_ruta' s.id %}"
+                   class="btn btn-sm btn-outline-primary">
+                    🧭 Control
                 </a>
-                <a href="{% url 'detalle_salida' s.id %}" class="btn btn-sm btn-outline-info">
-                    📍 Ver puntos
+
+                <a href="{% url 'detalle_salida' s.id %}"
+                   class="btn btn-sm btn-outline-info">
+                    📍 Puntos
                 </a>
-                <a href="{% url 'ver_qr_unidad' s.vehiculo.id %}" class="btn btn-sm btn-outline-dark">
+
+                <a href="{% url 'ver_qr_unidad' s.vehiculo.id %}"
+                   class="btn btn-sm btn-outline-dark">
                     📦 QR
                 </a>
             </td>
@@ -181,7 +266,7 @@
 </table>
 
 {# ============================= #}
-{# JS SOLO FILTRO (NADA DE AJAX)  #}
+{# JS FILTRO LOCAL               #}
 {# ============================= #}
 <script>
 document.getElementById("busquedaUnidad").addEventListener("keyup", function () {
