@@ -57,9 +57,14 @@ button {
   </div>
 </div>
 
-<!-- AUDIO SIMPLE (como antes) -->
+<!-- 🔊 AUDIO AVISO (YA EXISTÍA) -->
 <audio id="audioAviso" preload="auto">
   <source src="{% static 'flota_app/sonidos/aviso_salida.mp3' %}" type="audio/mpeg">
+</audio>
+
+<!-- 🔊 AUDIO SALIDA ACTIVA (✅ AGREGADO) -->
+<audio id="audioSalidaActiva" preload="auto">
+  <source src="{% static 'flota_app/sonidos/inicio_salida.mp3' %}" type="audio/mpeg">
 </audio>
 
 {% endblock %}
@@ -169,18 +174,32 @@ function consultarEstado() {
         if (!avisoActivo) {
           avisoActivo = true;
           horaProgramada = data.hora_salida;
-          iniciarAviso(120); // 2 minutos
+          iniciarAviso(120);
         }
         break;
 
       case "SALIDA_ACTIVA":
         detenerCountdown();
         mostrarEstado("🟢 SALIDA ACTIVA\nHora: " + data.hora_salida, "ok");
+
+        // 🔊 AUDIO SALIDA ACTIVA (✅ AGREGADO)
+        if (!localStorage.getItem("audio_salida_activa")) {
+          const audio = $("audioSalidaActiva");
+          audio.currentTime = 0;
+          audio.play().catch(() => {});
+          localStorage.setItem("audio_salida_activa", "1");
+        }
         break;
 
       case "EN_COLA":
         detenerCountdown();
         mostrarEstado("⏳ EN COLA\nSalida: " + data.hora_salida, "info");
+        break;
+
+      case "SIN_SALIDA":
+        // 🔄 RESET PARA SIGUIENTE VUELTA (✅ AGREGADO)
+        localStorage.removeItem("audio_salida_activa");
+        mostrarEstado("⏳ Espere orden de salida", "info");
         break;
 
       default:
@@ -189,11 +208,10 @@ function consultarEstado() {
   });
 }
 
-/* ================= AVISO + COUNTDOWN (SIMPLE) ================= */
+/* ================= AVISO + COUNTDOWN ================= */
 function iniciarAviso(segundos) {
   segundosRestantes = segundos;
 
-  // 🔊 audio como antes (aunque sea incompleto)
   const audio = $("audioAviso");
   audio.currentTime = 0;
   audio.play().catch(() => {});

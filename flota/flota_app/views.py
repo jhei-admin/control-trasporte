@@ -1321,6 +1321,10 @@ from django.http import JsonResponse
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 
+from flota_app.models import RegistroSalida
+from flota_app.services import validar_sesion, calcular_estado_sesion
+
+
 @csrf_exempt
 def api_app_estado(request):
     if request.method != "POST":
@@ -1357,12 +1361,12 @@ def api_app_estado(request):
     estado_gps = calcular_estado_sesion(sesion)
 
     # =============================================
-    # 📅 FECHA ACTUAL
+    # 📅 FECHA ACTUAL (LOCAL)
     # =============================================
     hoy = timezone.localdate()
 
     # =============================================
-    # 🚍 BUSCAR SALIDA ACTIVA DE HOY
+    # 🚍 BUSCAR SALIDA ACTIVA DEL DÍA
     # =============================================
     salida = (
         RegistroSalida.objects
@@ -1376,7 +1380,7 @@ def api_app_estado(request):
     )
 
     # =============================================
-    # 🚫 SIN SALIDA HOY
+    # 🚫 SIN SALIDA
     # =============================================
     if not salida:
         return JsonResponse({
@@ -1385,11 +1389,11 @@ def api_app_estado(request):
             "estado_gps": estado_gps,
             "bloqueado": False,
             "hora_salida": None,
-            "mensaje": "No tiene salida asignada"
+            "mensaje": "Espere orden de salida"
         })
 
     # =============================================
-    # ⏳ SIN HORA ASIGNADA
+    # ⏳ SIN HORA
     # =============================================
     if not salida.hora_salida:
         return JsonResponse({
@@ -1402,13 +1406,13 @@ def api_app_estado(request):
         })
 
     # =============================================
-    # ⏱️ TIEMPOS (ZONA LOCAL)
+    # ⏱️ TIEMPOS
     # =============================================
     tz = timezone.get_current_timezone()
     ahora = timezone.localtime(timezone.now(), tz)
     hora_salida = timezone.localtime(salida.hora_salida, tz)
 
-    # 🔒 Blindaje por fecha
+    # 🔒 BLINDAJE POR FECHA
     if hora_salida.date() != hoy:
         return JsonResponse({
             "autorizado": True,
@@ -1427,7 +1431,7 @@ def api_app_estado(request):
     # =================================================
     if salida.en_cola:
 
-        # 🟠 AVISO (≤ 2 MIN)
+        # 🟠 AVISO DE SALIDA (≤ 2 MIN)
         if 0 < segundos <= 120:
             return JsonResponse({
                 "autorizado": True,
@@ -1440,7 +1444,7 @@ def api_app_estado(request):
                 "mensaje": f"Tu salida es en {minutos} minutos"
             })
 
-        # 🔥 AUTO-INICIO (HORA = ORDEN)
+        # 🔥 AUTO SALIDA (LA HORA ES LA ORDEN)
         if segundos <= 0:
             salida.iniciar_salida()
 
@@ -1454,7 +1458,7 @@ def api_app_estado(request):
                 "estado_gps": estado_gps,
                 "bloqueado": False,
                 "hora_salida": hora_salida.strftime("%H:%M"),
-                "audio": "salida_autorizada",
+                "audio": "salida_autorizada",  # 🔊 CLAVE
                 "mensaje": "Salida autorizada, puede iniciar ruta"
             })
 
@@ -1470,7 +1474,7 @@ def api_app_estado(request):
         })
 
     # =================================================
-    # 🟢 SALIDA ACTIVA
+    # 🟢 SALIDA ACTIVA (YA INICIADA)
     # =================================================
     if salida.hora_real_salida:
 
