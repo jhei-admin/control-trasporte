@@ -385,34 +385,33 @@ def panel_despachador(request):
 
 # =================================================
 # 🔍 BUSCAR UNIDAD Y CREAR SALIDA DEL DÍA
-# FIX DEFINITIVO PRODUCCIÓN (ALINEADO A MODELO REAL)
+# FIX DEFINITIVO PRODUCCIÓN (OPERATIVO REAL)
 # =================================================
 from django.shortcuts import redirect
 from django.contrib import messages
 from django.utils import timezone
 from django.core.exceptions import ValidationError
 
-from flota_app.models import Vehiculo, RegistroSalida
+from flota_app.models import Vehiculo, RegistroSalida, Ruta
 
 
 def buscar_unidad_panel(request):
     """
-    COMPORTAMIENTO FINAL (CORRECTO):
-    - GET  → redirige al panel
-    - POST → crea salida del día
-    - ❌ No permite salidas duplicadas activas
-    - ✅ PERMITE crear salida SIN ruta
-    - 🔒 La ruta se exige SOLO al poner en cola (modelo manda)
+    COMPORTAMIENTO FINAL (DEFINITIVO Y OPERATIVO):
+    - El despachador agrega la unidad
+    - La salida se crea CON ruta automáticamente
+    - La unidad queda lista para cola
+    - Control de ruta queda solo para ajustes
     """
 
     # -------------------------------------------------
-    # 🚫 SI ES GET → VOLVER AL PANEL
+    # 🚫 SOLO POST
     # -------------------------------------------------
     if request.method != "POST":
         return redirect("panel_despachador")
 
     # -------------------------------------------------
-    # 📥 LEER Y NORMALIZAR CÓDIGO
+    # 📥 LEER CÓDIGO
     # -------------------------------------------------
     codigo = request.POST.get("codigo", "").strip()
     hoy = timezone.localdate()
@@ -437,29 +436,39 @@ def buscar_unidad_panel(request):
         return redirect("panel_despachador")
 
     # -------------------------------------------------
-    # 🔒 BLINDAJE: EVITAR DUPLICADOS DEL DÍA
+    # 🔒 EVITAR DUPLICADO DEL DÍA
     # -------------------------------------------------
-    salida_existente = RegistroSalida.objects.filter(
+    if RegistroSalida.objects.filter(
         vehiculo=vehiculo,
         fecha=hoy,
         activo=True
-    ).first()
-
-    if salida_existente:
+    ).exists():
         messages.info(
             request,
-            f"La unidad {vehiculo.codigo} ya tiene una salida activa hoy."
+            f"La unidad {vehiculo.codigo} ya está registrada hoy."
         )
         return redirect("panel_despachador")
 
     # -------------------------------------------------
-    # 🟢 CREAR NUEVA SALIDA DEL DÍA
-    # (SIN RUTA — SE ASIGNARÁ DESPUÉS)
+    # 🧭 RESOLVER RUTA AUTOMÁTICA (CLAVE)
+    # -------------------------------------------------
+    ruta = Ruta.objects.filter(es_default=True).first()
+
+    if not ruta:
+        messages.error(
+            request,
+            "No hay una ruta por defecto configurada. "
+            "Configure una ruta antes de despachar."
+        )
+        return redirect("panel_despachador")
+
+    # -------------------------------------------------
+    # 🟢 CREAR SALIDA DEL DÍA
     # -------------------------------------------------
     try:
         salida = RegistroSalida(
             vehiculo=vehiculo,
-            ruta=None,                      # ✅ CORRECTO
+            ruta=ruta,                      # ✅ AQUÍ ESTÁ EL FIX
             fecha=hoy,
             hora_llegada=timezone.now(),
             activo=True,
@@ -467,7 +476,6 @@ def buscar_unidad_panel(request):
             bloqueado=False
         )
 
-        # 🔒 Ejecuta validaciones del modelo
         salida.full_clean()
         salida.save()
 
@@ -483,7 +491,7 @@ def buscar_unidad_panel(request):
     # -------------------------------------------------
     messages.success(
         request,
-        f"Unidad {vehiculo.codigo} agregada correctamente al panel del día."
+        f"Unidad {vehiculo.codigo} agregada correctamente al panel."
     )
 
     return redirect("panel_despachador")
