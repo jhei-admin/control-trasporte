@@ -1317,6 +1317,10 @@ def api_escanear_qr(request):
 # =================================================
 # 📱 API APP — ESTADO DE UNIDAD (FIX DEFINITIVO REAL)
 # =================================================
+from django.http import JsonResponse
+from django.utils import timezone
+from django.views.decorators.csrf import csrf_exempt
+
 @csrf_exempt
 def api_app_estado(request):
     if request.method != "POST":
@@ -1353,18 +1357,18 @@ def api_app_estado(request):
     estado_gps = calcular_estado_sesion(sesion)
 
     # =============================================
-    # 📅 FECHA ACTUAL (ZONA LOCAL)
+    # 📅 FECHA ACTUAL
     # =============================================
     hoy = timezone.localdate()
 
     # =============================================
-    # 🚍 BUSCAR SALIDA ACTIVA SOLO DE HOY
+    # 🚍 BUSCAR SALIDA ACTIVA DE HOY
     # =============================================
     salida = (
         RegistroSalida.objects
         .filter(
             vehiculo=sesion.vehiculo,
-            fecha=hoy,          # 🔥 CLAVE ABSOLUTA
+            fecha=hoy,
             activo=True
         )
         .order_by("en_cola", "orden_cola", "hora_salida")
@@ -1381,11 +1385,11 @@ def api_app_estado(request):
             "estado_gps": estado_gps,
             "bloqueado": False,
             "hora_salida": None,
-            "mensaje": "Espere orden de salida"
+            "mensaje": "No tiene salida asignada"
         })
 
     # =============================================
-    # ⏳ SALIDA SIN HORA ASIGNADA
+    # ⏳ SIN HORA ASIGNADA
     # =============================================
     if not salida.hora_salida:
         return JsonResponse({
@@ -1398,17 +1402,13 @@ def api_app_estado(request):
         })
 
     # =============================================
-    # ⏱️ TIEMPOS (AWARE + ZONA LOCAL)
+    # ⏱️ TIEMPOS (ZONA LOCAL)
     # =============================================
     tz = timezone.get_current_timezone()
     ahora = timezone.localtime(timezone.now(), tz)
     hora_salida = timezone.localtime(salida.hora_salida, tz)
 
-    # =================================================
-    # 🔥 BLINDAJE EXTRA (CAMBIO 2)
-    # =================================================
-    # Si por cualquier motivo la hora pertenece a otro día,
-    # NUNCA permitir que pase a SALIDA_ACTIVA
+    # 🔒 Blindaje por fecha
     if hora_salida.date() != hoy:
         return JsonResponse({
             "autorizado": True,
@@ -1423,11 +1423,11 @@ def api_app_estado(request):
     minutos = max(int(segundos // 60), 0)
 
     # =================================================
-    # 🔴 AÚN EN COLA (NO HA SALIDO)
+    # 🔴 EN COLA
     # =================================================
     if salida.en_cola:
 
-        # 🟠 AVISO DE SALIDA (≤ 2 MIN)
+        # 🟠 AVISO (≤ 2 MIN)
         if 0 < segundos <= 120:
             return JsonResponse({
                 "autorizado": True,
@@ -1440,15 +1440,22 @@ def api_app_estado(request):
                 "mensaje": f"Tu salida es en {minutos} minutos"
             })
 
-        # ⏳ YA ES HORA, PERO SIGUE EN COLA
+        # 🔥 AUTO-INICIO (HORA = ORDEN)
         if segundos <= 0:
+            salida.iniciar_salida()
+
+            # sincronizar sesión
+            sesion.salida = salida
+            sesion.save(update_fields=["salida"])
+
             return JsonResponse({
                 "autorizado": True,
-                "estado": "SALIDA_PROGRAMADA",
+                "estado": "SALIDA_ACTIVA",
                 "estado_gps": estado_gps,
                 "bloqueado": False,
                 "hora_salida": hora_salida.strftime("%H:%M"),
-                "mensaje": "Espere orden de salida"
+                "audio": "salida_autorizada",
+                "mensaje": "Salida autorizada, puede iniciar ruta"
             })
 
         # 🟡 COLA NORMAL
@@ -1463,11 +1470,10 @@ def api_app_estado(request):
         })
 
     # =================================================
-    # 🟢 SALIDA ACTIVA (YA SALIÓ)
+    # 🟢 SALIDA ACTIVA
     # =================================================
     if salida.hora_real_salida:
 
-        # 🔄 Sincronizar sesión con la salida real
         if sesion.salida_id != salida.id:
             sesion.salida = salida
             sesion.save(update_fields=["salida"])
@@ -1482,7 +1488,7 @@ def api_app_estado(request):
         })
 
     # =================================================
-    # 🟡 FALLBACK SEGURO
+    # 🟡 FALLBACK
     # =================================================
     return JsonResponse({
         "autorizado": True,
@@ -1494,14 +1500,16 @@ def api_app_estado(request):
     })
 
 # =================================================
-# 🚍 APP CONDUCTOR (DEFINITIVA — SIN LÓGICA)
+# 🚍 APP CONDUCTOR (DEFINITIVA — SOLO UI)
 # =================================================
 from django.shortcuts import render
+from django.views.decorators.cache import never_cache
 
 
+@never_cache
 def app_conductor(request):
     """
-    Vista principal de la App del Conductor.
+    Vista principal de la App del Conductor (PWA).
 
     🔑 REGLA DE ORO (NO ROMPER):
     - ❌ NO consulta modelos
@@ -1510,7 +1518,7 @@ def app_conductor(request):
     - ❌ NO usa sesiones
     - ❌ NO lee salidas
 
-    ✅ SOLO carga la UI (PWA)
+    ✅ SOLO carga la UI
     ✅ TODO el estado viene por APIs:
        - api_app_estado
        - api_gps
@@ -1521,7 +1529,7 @@ def app_conductor(request):
         request,
         "flota_app/app_conductor.html",
         {
-            "modo_pwa": True,  # ✅ requerido para instalación PWA
+            "modo_pwa": True,  # requerido para instalación PWA
         }
     )
 
