@@ -15,7 +15,6 @@ def validar_sesion(token):
     Valida una sesión activa a partir del token.
     Retorna la sesión si es válida o None si no lo es.
     """
-
     try:
         sesion = SesionUnidad.objects.select_related(
             "vehiculo"
@@ -30,6 +29,37 @@ def validar_sesion(token):
         return None
 
     return sesion
+
+
+# =================================================
+# 📡 CALCULAR ESTADO GPS / SESIÓN  ✅ (FALTABA)
+# =================================================
+def calcular_estado_sesion(sesion):
+    """
+    Determina el estado GPS de la unidad.
+    NO decide lógica de salida.
+    SOLO estado técnico de la sesión.
+    """
+
+    if not sesion:
+        return "OFFLINE"
+
+    # Último ping / ubicación
+    ultimo_ping = sesion.ultima_actualizacion
+
+    if not ultimo_ping:
+        return "OFFLINE"
+
+    ahora = timezone.now()
+    diferencia = (ahora - ultimo_ping).total_seconds()
+
+    # ⏱️ Umbrales simples y estables
+    if diferencia <= 30:
+        return "ACTIVO"
+    elif diferencia <= 120:
+        return "INACTIVO"
+    else:
+        return "OFFLINE"
 
 
 # =================================================
