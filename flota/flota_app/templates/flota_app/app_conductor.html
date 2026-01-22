@@ -71,7 +71,6 @@ let qrScanner = null;
 let escaneando = false;
 let estadoInterval = null;
 let gpsInterval = null;
-
 let estadoAnterior = localStorage.getItem("estado_anterior") || null;
 
 /* ================= AUDIO ================= */
@@ -115,9 +114,8 @@ function playAudio(name) {
 
 function reproducirAudioSeguro(audioName) {
   if (!audioName) return;
-  if (audioName === "audio_a_tiempo") return; // solo visual
+  if (audioName === "audio_a_tiempo") return;
   if (ultimoAudioReproducido === audioName) return;
-
   playAudio(audioName);
   ultimoAudioReproducido = audioName;
 }
@@ -143,8 +141,8 @@ window.addEventListener("load", () => {
 
   $("btnEscanear").onclick = async () => {
     await unlockAudio();
-
     if (escaneando) return;
+
     escaneando = true;
     $("btnEscanear").disabled = true;
     $("qr-reader").style.display = "block";
@@ -191,7 +189,7 @@ function iniciarSistema() {
   gpsInterval = setInterval(enviarGPS, 5000);
 }
 
-/* ================= ESTADO (🔥 FIX CLAVE) ================= */
+/* ================= ESTADO ================= */
 function consultarEstado() {
   const token = localStorage.getItem("token");
   if (!token) return;
@@ -207,64 +205,48 @@ function consultarEstado() {
   .then(data => {
     if (!data.autorizado) return;
 
-    const estadoActual = data.estado;
-
-    // 🔊 audio solo al cambiar estado
-    if (estadoAnterior !== estadoActual) {
-      if (estadoActual === "AVISO_SALIDA") playAudio("aviso");
-      if (estadoActual === "SALIDA_ACTIVA") playAudio("salida");
-      estadoAnterior = estadoActual;
-      localStorage.setItem("estado_anterior", estadoActual);
+    if (estadoAnterior !== data.estado) {
+      if (data.estado === "AVISO_SALIDA") playAudio("aviso");
+      if (data.estado === "SALIDA_ACTIVA") playAudio("salida");
+      estadoAnterior = data.estado;
+      localStorage.setItem("estado_anterior", data.estado);
     }
 
-    // 🖥️ ACTUALIZACIÓN VISUAL (ESTO FALTABA)
-    switch (estadoActual) {
-      case "AVISO_SALIDA":
-        mostrarEstado(
-          `🟠 PRÓXIMA SALIDA\nHora: ${data.hora_salida}`,
-          "alerta"
-        );
-        break;
-
-      case "SALIDA_ACTIVA":
-        mostrarEstado(
-          `🟢 SALIDA ACTIVA\nHora: ${data.hora_salida}`,
-          "ok"
-        );
-        break;
-
-      case "EN_COLA":
-        mostrarEstado(
-          `⏳ EN COLA\nSalida: ${data.hora_salida}`,
-          "info"
-        );
-        break;
-
-      case "SIN_SALIDA":
-        mostrarEstado(
-          "⏳ Espere orden de salida",
-          "info"
-        );
-        break;
-
-      default:
-        mostrarEstado(
-          data.mensaje || "Consultando estado...",
-          "info"
-        );
+    if (data.estado === "SALIDA_ACTIVA") {
+      mostrarEstado(`🟢 SALIDA ACTIVA\nHora: ${data.hora_salida}`, "ok");
+    } else if (data.estado === "AVISO_SALIDA") {
+      mostrarEstado(`🟠 PRÓXIMA SALIDA\nHora: ${data.hora_salida}`, "alerta");
+    } else if (data.estado === "EN_COLA") {
+      mostrarEstado(`⏳ EN COLA\nSalida: ${data.hora_salida}`, "info");
+    } else {
+      mostrarEstado(data.mensaje || "Consultando estado...", "info");
     }
-  })
-  .catch(() => {
-    mostrarEstado("📡 Sin conexión…", "error");
   });
 }
 
-/* ================= GPS + MARCACIÓN ================= */
+/* ================= GPS (🔥 FIX DEFINITIVO) ================= */
 function enviarGPS() {
   const token = localStorage.getItem("token");
   if (!token || !navigator.geolocation) return;
 
   navigator.geolocation.getCurrentPosition(pos => {
+
+    /* 🗺️ GPS PARA MAPA */
+    fetch(`${API_BASE}/sistema/api/gps/`, {
+      method: "POST",
+      headers: {
+        "Authorization": "Bearer " + token,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        lat: pos.coords.latitude,
+        lng: pos.coords.longitude,
+        velocidad: pos.coords.speed || 0,
+        precision: pos.coords.accuracy || null
+      })
+    });
+
+    /* 🔊 GPS PARA MARCACIÓN + AUDIOS */
     fetch(`${API_BASE}/sistema/api/gps/conductor/`, {
       method: "POST",
       headers: {
@@ -278,38 +260,20 @@ function enviarGPS() {
     })
     .then(r => r.json())
     .then(data => {
-
       if (data.accion !== "audio") return;
-
       reproducirAudioSeguro(data.audio);
 
       if (data.audio === "ruta_completada") {
         mostrarEstado("🏁 RUTA COMPLETADA", "ok");
-        return;
-      }
-
-      if (data.visual) {
-        const codigo = data.visual.codigo;
-        const diff = data.visual.diferencia_min;
-        const estado = data.visual.estado;
-
-        let texto = `📍 ${codigo}\n`;
-        let clase = "ok";
-
-        if (estado === "ADELANTADO") {
-          texto += `⏩ ${diff} min`;
-          clase = "alerta";
-        } else if (estado === "TARDE") {
-          texto += `⏰ +${diff} min`;
-          clase = "error";
-        } else {
-          texto += `✅ A TIEMPO`;
-          clase = "ok";
-        }
-
-        mostrarEstado(texto, clase);
       }
     });
+
+  }, err => {
+    console.warn("Error GPS:", err);
+  }, {
+    enableHighAccuracy: true,
+    timeout: 10000,
+    maximumAge: 0
   });
 }
 
