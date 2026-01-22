@@ -912,6 +912,16 @@ def api_gps(request):
 # =================================================
 # 🗺️ API — MAPA EN TIEMPO REAL (DESPACHADOR)
 # =================================================
+from datetime import timedelta
+from django.http import JsonResponse
+from django.utils import timezone
+from django.views.decorators.http import require_GET
+
+from flota_app.models import (
+    UbicacionVehiculo,
+    RegistroSalida,
+)
+
 @require_GET
 def api_despachador_mapa(request):
     """
@@ -926,7 +936,14 @@ def api_despachador_mapa(request):
     hoy = timezone.localdate()
     data = []
 
-    for ub in UbicacionVehiculo.objects.select_related("vehiculo").all():
+    # =================================================
+    # 🚍 RECORRER UBICACIONES ACTIVAS
+    # =================================================
+    for ub in (
+        UbicacionVehiculo.objects
+        .select_related("vehiculo")
+        .all()
+    ):
         delta = ahora - ub.updated_at
 
         # =============================================
@@ -951,22 +968,21 @@ def api_despachador_mapa(request):
         # =============================================
         # 🧭 ESTADO OPERATIVO (MAPA)
         # =============================================
-        if tiene_salida_hoy:
-            estado = "ACTIVO"
-        else:
-            estado = "INACTIVO"
+        estado = "ACTIVO" if tiene_salida_hoy else "INACTIVO"
 
         # =============================================
-        # 📤 RESPUESTA
+        # 📤 RESPUESTA FINAL (FIX DEFINITIVO)
         # =============================================
         data.append({
-            "vehiculo": ub.vehiculo.numero,
+            # 🔥 FIX CLAVE — IDENTIFICADOR CORRECTO
+            "vehiculo": str(ub.vehiculo.codigo),  # ✅ NO numero
+
             "lat": ub.latitud,
             "lng": ub.longitud,
             "velocidad": ub.velocidad,
             "precision": ub.precision,
 
-            # 👇 CLAVE
+            # Estados
             "estado": estado,          # ACTIVO / INACTIVO
             "estado_gps": estado_gps,  # ONLINE / LENTO / OFFLINE
 
