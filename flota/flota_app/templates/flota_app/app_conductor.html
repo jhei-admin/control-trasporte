@@ -72,20 +72,14 @@ let escaneando = false;
 let estadoInterval = null;
 let gpsInterval = null;
 
-let avisoActivo = false;
-let countdownInterval = null;
-let segundosRestantes = 0;
-let horaProgramada = null;
-
 let estadoAnterior = localStorage.getItem("estado_anterior") || null;
 
-/* ================= AUDIO CONTROL ================= */
+/* ================= AUDIO ================= */
 let audioContext = null;
 let audioBuffers = {};
 let audioUnlocked = false;
 let ultimoAudioReproducido = null;
 
-/* ================= AUDIO ================= */
 async function initAudio() {
   if (audioContext) return;
   audioContext = new (window.AudioContext || window.webkitAudioContext)();
@@ -121,7 +115,7 @@ function playAudio(name) {
 
 function reproducirAudioSeguro(audioName) {
   if (!audioName) return;
-  if (audioName === "audio_a_tiempo") return; // ❌ solo visual
+  if (audioName === "audio_a_tiempo") return; // solo visual
   if (ultimoAudioReproducido === audioName) return;
 
   playAudio(audioName);
@@ -197,7 +191,7 @@ function iniciarSistema() {
   gpsInterval = setInterval(enviarGPS, 5000);
 }
 
-/* ================= ESTADO ================= */
+/* ================= ESTADO (🔥 FIX CLAVE) ================= */
 function consultarEstado() {
   const token = localStorage.getItem("token");
   if (!token) return;
@@ -215,12 +209,53 @@ function consultarEstado() {
 
     const estadoActual = data.estado;
 
+    // 🔊 audio solo al cambiar estado
     if (estadoAnterior !== estadoActual) {
       if (estadoActual === "AVISO_SALIDA") playAudio("aviso");
       if (estadoActual === "SALIDA_ACTIVA") playAudio("salida");
       estadoAnterior = estadoActual;
       localStorage.setItem("estado_anterior", estadoActual);
     }
+
+    // 🖥️ ACTUALIZACIÓN VISUAL (ESTO FALTABA)
+    switch (estadoActual) {
+      case "AVISO_SALIDA":
+        mostrarEstado(
+          `🟠 PRÓXIMA SALIDA\nHora: ${data.hora_salida}`,
+          "alerta"
+        );
+        break;
+
+      case "SALIDA_ACTIVA":
+        mostrarEstado(
+          `🟢 SALIDA ACTIVA\nHora: ${data.hora_salida}`,
+          "ok"
+        );
+        break;
+
+      case "EN_COLA":
+        mostrarEstado(
+          `⏳ EN COLA\nSalida: ${data.hora_salida}`,
+          "info"
+        );
+        break;
+
+      case "SIN_SALIDA":
+        mostrarEstado(
+          "⏳ Espere orden de salida",
+          "info"
+        );
+        break;
+
+      default:
+        mostrarEstado(
+          data.mensaje || "Consultando estado...",
+          "info"
+        );
+    }
+  })
+  .catch(() => {
+    mostrarEstado("📡 Sin conexión…", "error");
   });
 }
 
@@ -230,7 +265,6 @@ function enviarGPS() {
   if (!token || !navigator.geolocation) return;
 
   navigator.geolocation.getCurrentPosition(pos => {
-
     fetch(`${API_BASE}/sistema/api/gps/conductor/`, {
       method: "POST",
       headers: {
@@ -276,7 +310,6 @@ function enviarGPS() {
         mostrarEstado(texto, clase);
       }
     });
-
   });
 }
 
