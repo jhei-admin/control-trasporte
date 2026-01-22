@@ -71,6 +71,8 @@ let qrScanner = null;
 let escaneando = false;
 let estadoInterval = null;
 let gpsInterval = null;
+let gpsActivo = false;
+
 let estadoAnterior = localStorage.getItem("estado_anterior") || null;
 
 /* ================= AUDIO ================= */
@@ -184,9 +186,11 @@ function iniciarSistema() {
   $("pantallaQR").style.display = "none";
   $("pantallaEstado").style.display = "block";
 
-  consultarEstado();
-  estadoInterval = setInterval(consultarEstado, 5000);
-  gpsInterval = setInterval(enviarGPS, 5000);
+  if (!estadoInterval)
+    estadoInterval = setInterval(consultarEstado, 5000);
+
+  if (!gpsInterval)
+    gpsInterval = setInterval(enviarGPS, 5000);
 }
 
 /* ================= ESTADO ================= */
@@ -224,14 +228,19 @@ function consultarEstado() {
   });
 }
 
-/* ================= GPS (🔥 FIX DEFINITIVO) ================= */
+/* ================= GPS ================= */
 function enviarGPS() {
+  if (gpsActivo) return;
+  gpsActivo = true;
+
   const token = localStorage.getItem("token");
-  if (!token || !navigator.geolocation) return;
+  if (!token || !navigator.geolocation) {
+    gpsActivo = false;
+    return;
+  }
 
   navigator.geolocation.getCurrentPosition(pos => {
 
-    /* 🗺️ GPS PARA MAPA */
     fetch(`${API_BASE}/sistema/api/gps/`, {
       method: "POST",
       headers: {
@@ -246,7 +255,6 @@ function enviarGPS() {
       })
     });
 
-    /* 🔊 GPS PARA MARCACIÓN + AUDIOS */
     fetch(`${API_BASE}/sistema/api/gps/conductor/`, {
       method: "POST",
       headers: {
@@ -260,22 +268,31 @@ function enviarGPS() {
     })
     .then(r => r.json())
     .then(data => {
-      if (data.accion !== "audio") return;
-      reproducirAudioSeguro(data.audio);
-
-      if (data.audio === "ruta_completada") {
-        mostrarEstado("🏁 RUTA COMPLETADA", "ok");
+      if (data.accion === "audio") {
+        reproducirAudioSeguro(data.audio);
+        if (data.audio === "ruta_completada") {
+          mostrarEstado("🏁 RUTA COMPLETADA", "ok");
+        }
       }
-    });
+    })
+    .finally(() => gpsActivo = false);
 
   }, err => {
-    console.warn("Error GPS:", err);
+    console.warn("GPS error:", err);
+    gpsActivo = false;
   }, {
     enableHighAccuracy: true,
     timeout: 10000,
     maximumAge: 0
   });
 }
+
+/* ================= VISIBILIDAD ================= */
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden) {
+    enviarGPS();
+  }
+});
 
 function resetEscaneo() {
   escaneando = false;
