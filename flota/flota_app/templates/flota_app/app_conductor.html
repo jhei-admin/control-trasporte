@@ -131,12 +131,36 @@ function mostrarEstado(texto, clase="info") {
   el.innerText = texto;
 }
 
+/* ================= ESTADO INMEDIATO (UX FIX) ================= */
+function mostrarUltimoEstadoGuardado() {
+  const ultimo = localStorage.getItem("ultimo_estado_visual");
+  if (!ultimo) return;
+
+  try {
+    const u = JSON.parse(ultimo);
+
+    if (u.estado === "SALIDA_ACTIVA") {
+      mostrarEstado(`🟢 SALIDA ACTIVA\nHora: ${u.hora}`, "ok");
+    } else if (u.estado === "AVISO_SALIDA") {
+      mostrarEstado(`🟠 PRÓXIMA SALIDA\nHora: ${u.hora}`, "alerta");
+    } else if (u.estado === "EN_COLA") {
+      mostrarEstado(`⏳ EN COLA\nSalida: ${u.hora}`, "info");
+    }
+  } catch {}
+}
+
 /* ================= QR ================= */
 window.addEventListener("load", () => {
   const token = localStorage.getItem("token");
 
   if (token) {
     unlockAudio();
+    $("pantallaQR").style.display = "none";
+    $("pantallaEstado").style.display = "block";
+
+    // 🔥 Mostrar estado inmediatamente
+    mostrarUltimoEstadoGuardado();
+
     iniciarSistema();
     return;
   }
@@ -183,14 +207,13 @@ function activarUnidad(texto) {
 
 /* ================= SISTEMA ================= */
 function iniciarSistema() {
-  $("pantallaQR").style.display = "none";
-  $("pantallaEstado").style.display = "block";
-
   if (!estadoInterval)
     estadoInterval = setInterval(consultarEstado, 5000);
 
   if (!gpsInterval)
     gpsInterval = setInterval(enviarGPS, 5000);
+
+  consultarEstado();
 }
 
 /* ================= ESTADO ================= */
@@ -209,6 +232,11 @@ function consultarEstado() {
   .then(data => {
     if (!data.autorizado) return;
 
+    localStorage.setItem("ultimo_estado_visual", JSON.stringify({
+      estado: data.estado,
+      hora: data.hora_salida || null
+    }));
+
     if (estadoAnterior !== data.estado) {
       if (data.estado === "AVISO_SALIDA") playAudio("aviso");
       if (data.estado === "SALIDA_ACTIVA") playAudio("salida");
@@ -222,8 +250,6 @@ function consultarEstado() {
       mostrarEstado(`🟠 PRÓXIMA SALIDA\nHora: ${data.hora_salida}`, "alerta");
     } else if (data.estado === "EN_COLA") {
       mostrarEstado(`⏳ EN COLA\nSalida: ${data.hora_salida}`, "info");
-    } else {
-      mostrarEstado(data.mensaje || "Consultando estado...", "info");
     }
   });
 }
@@ -266,21 +292,9 @@ function enviarGPS() {
         lng: pos.coords.longitude
       })
     })
-    .then(r => r.json())
-    .then(data => {
-      if (data.accion === "audio") {
-        reproducirAudioSeguro(data.audio);
-        if (data.audio === "ruta_completada") {
-          mostrarEstado("🏁 RUTA COMPLETADA", "ok");
-        }
-      }
-    })
     .finally(() => gpsActivo = false);
 
-  }, err => {
-    console.warn("GPS error:", err);
-    gpsActivo = false;
-  }, {
+  }, () => gpsActivo = false, {
     enableHighAccuracy: true,
     timeout: 10000,
     maximumAge: 0
@@ -291,6 +305,7 @@ function enviarGPS() {
 document.addEventListener("visibilitychange", () => {
   if (!document.hidden) {
     enviarGPS();
+    consultarEstado();
   }
 });
 
