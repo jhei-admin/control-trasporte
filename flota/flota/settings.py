@@ -20,7 +20,8 @@ SECRET_KEY = os.getenv(
     "django-insecure-fallback-key-solo-local"
 )
 
-DEBUG = os.getenv("DEBUG", "False") == "True"
+# 🔴 DEBUG FORZADO TEMPORALMENTE (PARA VER ERROR 500 EN RENDER)
+DEBUG = True
 
 
 # =========================
@@ -95,12 +96,12 @@ ASGI_APPLICATION = "flota.asgi.application"
 
 
 # =========================
-# TEMPLATES (🔥 CLAVE 🔥)
+# TEMPLATES
 # =========================
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [],  # ❗ NO usar BASE_DIR / "templates"
+        "DIRS": [],  # usamos solo APP_DIRS
         "APP_DIRS": True,
         "OPTIONS": {
             "context_processors": [
@@ -171,6 +172,24 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 STATICFILES_STORAGE = (
     "whitenoise.storage.CompressedManifestStaticFilesStorage"
 )
+
+
+# =========================
+# LOGGING (🔥 CLAVE PARA RENDER FREE 🔥)
+# =========================
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+        },
+    },
+    "root": {
+        "handlers": ["console"],
+        "level": "ERROR",
+    },
+}
 
 
 # =========================
