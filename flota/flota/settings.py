@@ -66,9 +66,9 @@ INSTALLED_APPS = [
 # =========================
 MIDDLEWARE = [
     "corsheaders.middleware.CorsMiddleware",
+    "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
 
-    "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -95,12 +95,12 @@ ASGI_APPLICATION = "flota.asgi.application"
 
 
 # =========================
-# TEMPLATES
+# TEMPLATES (🔥 CLAVE 🔥)
 # =========================
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [BASE_DIR / "templates"],
+        "DIRS": [],  # ❗ NO usar BASE_DIR / "templates"
         "APP_DIRS": True,
         "OPTIONS": {
             "context_processors": [
@@ -120,7 +120,6 @@ TEMPLATES = [
 DATABASE_URL = os.environ.get("DATABASE_URL")
 
 if DATABASE_URL:
-    # 👉 Render / Producción (PostgreSQL)
     DATABASES = {
         "default": dj_database_url.config(
             default=DATABASE_URL,
@@ -129,7 +128,6 @@ if DATABASE_URL:
         )
     }
 else:
-    # 👉 Local (SQLite)
     DATABASES = {
         "default": {
             "ENGINE": "django.db.backends.sqlite3",
