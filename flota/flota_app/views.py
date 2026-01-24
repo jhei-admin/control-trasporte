@@ -403,7 +403,6 @@ def api_gps_conductor(request):
     # =============================================
     auth = request.headers.get("Authorization", "")
     if not auth.startswith("Bearer "):
-        # 🔕 No castigamos, solo ignoramos
         return JsonResponse({"accion": "ignorar"})
 
     token = auth.replace("Bearer ", "").strip()
@@ -419,7 +418,7 @@ def api_gps_conductor(request):
         })
 
     # =============================================
-    # 📅 FECHA ACTUAL (🔥 CLAVE DEL FIX)
+    # 📅 FECHA ACTUAL (LOCAL)
     # =============================================
     hoy = timezone.localdate()
 
@@ -441,10 +440,7 @@ def api_gps_conductor(request):
     try:
         data = json.loads(request.body or "{}")
     except Exception:
-        return JsonResponse(
-            {"error": "JSON inválido"},
-            status=400
-        )
+        return JsonResponse({"error": "JSON inválido"}, status=400)
 
     # =============================================
     # 📍 COORDENADAS GPS
@@ -462,7 +458,7 @@ def api_gps_conductor(request):
         return JsonResponse({"accion": "ninguna"})
 
     # =============================================
-    # 🛰️ GPS HISTÓRICO (ANTI-SPAM REAL)
+    # 🛰️ GPS HISTÓRICO (ANTI-SPAM)
     # =============================================
     ultimo_gps = (
         GPSRegistro.objects
@@ -487,7 +483,7 @@ def api_gps_conductor(request):
             )
 
     # =============================================
-    # 🚍 SALIDA ACTIVA — SOLO DE HOY
+    # 🚍 SALIDA ACTIVA — SOLO HOY
     # =============================================
     salida = (
         RegistroSalida.objects
@@ -500,8 +496,8 @@ def api_gps_conductor(request):
         .first()
     )
 
-    # 🔕 SIN SALIDA O NO INICIADA → NO MARCAR
-    if not salida or not salida.hora_real_salida:
+    # 🔕 SIN SALIDA → NO MARCAR
+    if not salida:
         return JsonResponse({"accion": "ninguna"})
 
     # =============================================
@@ -509,9 +505,9 @@ def api_gps_conductor(request):
     # =============================================
     marcacion = salida.siguiente_marcacion()
 
-    # =================================================
+    # =============================================
     # 🏁 NO HAY MÁS PUNTOS → RUTA COMPLETADA
-    # =================================================
+    # =============================================
     if not marcacion:
         salida.activo = False
         salida.en_cola = False
@@ -537,17 +533,37 @@ def api_gps_conductor(request):
     if distancia > punto.radio_metros:
         return JsonResponse({"accion": "ninguna"})
 
+    # =================================================
+    # 🟢 FIX CLAVE — PRIMER SALI INICIA LA SALIDA REAL
+    # =================================================
+    if not salida.hora_real_salida:
+        salida.hora_real_salida = timezone.now()
+        salida.en_cola = False
+        salida.activo = True
+        salida.save(update_fields=[
+            "hora_real_salida",
+            "en_cola",
+            "activo"
+        ])
+
+        # sincronizar sesión con la salida real
+        if sesion.salida_id != salida.id:
+            sesion.salida = salida
+            sesion.save(update_fields=["salida"])
+
     # =============================================
     # ✅ MARCAR PUNTO (MODELO DECIDE TODO)
     # =============================================
     marcacion.marcar()
 
     # =============================================
-    # 🔊 RESPUESTA FINAL (SIN LÓGICA DUPLICADA)
+    # 🔊 RESPUESTA FINAL (FIX CLAVE 2)
+    # - audio puede ser None
+    # - frontend decide si reproduce o no
     # =============================================
     return JsonResponse({
-        "accion": "audio",
-        "audio": marcacion.audio_flag,
+        "accion": "audio" if marcacion.audio_flag else "visual",
+        "audio": marcacion.audio_flag,  # 👈 puede ser null
         "visual": {
             "codigo": punto.codigo,
             "punto": punto.nombre,
@@ -563,7 +579,6 @@ TIEMPO_MIN_PARADA = 120          # 2 minutos → parada válida
 TIEMPO_PARADA_PROLONGADA = 300   # 🔥 5 minutos → FASE 4
 VEL_DETENIDO = 1                # km/h
 RADIO_METROS = 20               # metros
-
 
 def procesar_parada(vehiculo, lat, lng, velocidad, timestamp):
     """
@@ -1281,40 +1296,19 @@ def api_app_estado(request):
     minutos = max(int(segundos // 60), 0)
 
     # =================================================
-    # 🔴 EN COLA
+    # 🔴 EN COLA (SOLO INFORMATIVO)
     # =================================================
     if salida.en_cola:
 
-        # 🟠 AVISO DE SALIDA (≤ 2 MIN)
-        if 0 < segundos <= 120:
-            return JsonResponse({
-                "autorizado": True,
-                "estado": "AVISO_SALIDA",
-                "estado_gps": estado_gps,
-                "bloqueado": False,
-                "hora_salida": hora_salida.strftime("%H:%M"),
-                "minutos": minutos,
-                "audio": "aviso_salida",
-                "mensaje": f"Tu salida es en {minutos} minutos"
-            })
-
-        # 🔥 LA HORA ES LA ORDEN (AUTO-INICIO)
+        # ⏰ Hora ya alcanzada (NO INICIA SALIDA AQUÍ)
         if segundos <= 0:
-            iniciar_salida_segura(salida)
-
-            # 🔄 sincronizar sesión
-            if sesion.salida_id != salida.id:
-                sesion.salida = salida
-                sesion.save(update_fields=["salida"])
-
             return JsonResponse({
                 "autorizado": True,
                 "estado": "SALIDA_ACTIVA",
                 "estado_gps": estado_gps,
                 "bloqueado": False,
                 "hora_salida": hora_salida.strftime("%H:%M"),
-                "audio": "salida_autorizada",
-                "mensaje": "Salida autorizada, puede iniciar ruta"
+                "mensaje": "Salida activa"
             })
 
         # 🟡 COLA NORMAL
@@ -1329,7 +1323,7 @@ def api_app_estado(request):
         })
 
     # =================================================
-    # 🟢 SALIDA ACTIVA (YA INICIADA)
+    # 🟢 SALIDA ACTIVA (YA INICIADA POR GPS / SALI)
     # =================================================
     if salida.hora_real_salida:
 

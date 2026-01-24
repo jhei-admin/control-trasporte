@@ -4,15 +4,11 @@
 {% block title %}App Conductor{% endblock %}
 
 {% block content %}
-
 <style>
 body.bg-light {
   background-color: #111 !important;
   color: #fff !important;
   text-align: center;
-}
-body.bg-light .container {
-  background-color: #111 !important;
 }
 .container { max-width: 420px; }
 
@@ -52,29 +48,22 @@ button {
 </div>
 
 <div id="pantallaEstado" style="display:none">
-  <div id="estadoConductor" class="estado info">
-    ⏳ Consultando estado...
-  </div>
+  <div id="estadoConductor" class="estado info">⏳ Consultando estado...</div>
 </div>
-
 {% endblock %}
 
 {% block extra_js %}
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 
 <script>
-/* ================= CONFIG ================= */
 const API_BASE = location.origin;
 
 /* ================= GLOBAL ================= */
 let qrScanner = null;
 let escaneando = false;
 let estadoInterval = null;
-
 let watchId = null;
 let ultimoEnvioGPS = 0;
-
-let estadoAnterior = localStorage.getItem("estado_anterior") || null;
 
 /* ================= AUDIO ================= */
 let audioContext = null;
@@ -98,8 +87,7 @@ async function unlockAudio() {
   await initAudio();
   await audioContext.resume();
 
-  await loadAudio("aviso", "{% static 'flota_app/sonidos/aviso_salida.mp3' %}");
-  await loadAudio("salida", "{% static 'flota_app/sonidos/inicio_salida.mp3' %}");
+  await loadAudio("beep", "{% static 'flota_app/sonidos/beep_despacho_pop_pop_pop.wav' %}");
   await loadAudio("audio_adelantado", "{% static 'flota_app/sonidos/adelantado.mp3' %}");
   await loadAudio("audio_tarde", "{% static 'flota_app/sonidos/tarde.mp3' %}");
   await loadAudio("ruta_completada", "{% static 'flota_app/sonidos/ruta_completada.mp3' %}");
@@ -133,22 +121,6 @@ function mostrarEstado(texto, clase="info") {
   el.innerText = texto;
 }
 
-/* ================= ESTADO GUARDADO ================= */
-function mostrarUltimoEstadoGuardado() {
-  const ultimo = localStorage.getItem("ultimo_estado_visual");
-  if (!ultimo) return;
-
-  try {
-    const u = JSON.parse(ultimo);
-    if (u.estado === "SALIDA_ACTIVA")
-      mostrarEstado(`🟢 SALIDA ACTIVA\nHora: ${u.hora}`, "ok");
-    else if (u.estado === "AVISO_SALIDA")
-      mostrarEstado(`🟠 PRÓXIMA SALIDA\nHora: ${u.hora}`, "alerta");
-    else if (u.estado === "EN_COLA")
-      mostrarEstado(`⏳ EN COLA\nSalida: ${u.hora}`, "info");
-  } catch {}
-}
-
 /* ================= LOAD ================= */
 window.addEventListener("load", () => {
   const token = localStorage.getItem("token");
@@ -157,7 +129,7 @@ window.addEventListener("load", () => {
     unlockAudio();
     $("pantallaQR").style.display = "none";
     $("pantallaEstado").style.display = "block";
-    mostrarUltimoEstadoGuardado();
+    mostrarEstadoGuardado();
     iniciarSistema();
     return;
   }
@@ -227,28 +199,26 @@ function consultarEstado() {
   .then(data => {
     if (!data.autorizado) return;
 
-    localStorage.setItem("ultimo_estado_visual", JSON.stringify({
-      estado: data.estado,
-      hora: data.hora_salida || null
-    }));
-
-    if (estadoAnterior !== data.estado) {
-      if (data.estado === "AVISO_SALIDA") playAudio("aviso");
-      if (data.estado === "SALIDA_ACTIVA") playAudio("salida");
-      estadoAnterior = data.estado;
-      localStorage.setItem("estado_anterior", data.estado);
+    // 🔔 beep SOLO si cambia la hora asignada
+    const horaPrev = localStorage.getItem("hora_salida");
+    if (horaPrev && data.hora_salida && data.hora_salida !== horaPrev) {
+      playAudio("beep");
     }
+    if (data.hora_salida)
+      localStorage.setItem("hora_salida", data.hora_salida);
+
+    localStorage.setItem("estado_visual", JSON.stringify(data));
 
     if (data.estado === "SALIDA_ACTIVA")
       mostrarEstado(`🟢 SALIDA ACTIVA\nHora: ${data.hora_salida}`, "ok");
-    else if (data.estado === "AVISO_SALIDA")
-      mostrarEstado(`🟠 PRÓXIMA SALIDA\nHora: ${data.hora_salida}`, "alerta");
     else if (data.estado === "EN_COLA")
       mostrarEstado(`⏳ EN COLA\nSalida: ${data.hora_salida}`, "info");
+    else if (data.estado === "SIN_HORA")
+      mostrarEstado("⏳ ESPERANDO HORA DE SALIDA", "info");
   });
 }
 
-/* ================= GPS CONTINUO ================= */
+/* ================= GPS ================= */
 function iniciarGPSContinuo() {
   if (!navigator.geolocation || watchId) return;
 
@@ -261,25 +231,16 @@ function iniciarGPSContinuo() {
       const token = localStorage.getItem("token");
       if (!token) return;
 
-      const lat = pos.coords.latitude;
-      const lng = pos.coords.longitude;
-
-      fetch(`${API_BASE}/sistema/api/gps/`, {
-        method: "POST",
-        headers: {
-          "Authorization": "Bearer " + token,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({ lat, lng })
-      });
-
       fetch(`${API_BASE}/sistema/api/gps/conductor/`, {
         method: "POST",
         headers: {
           "Authorization": "Bearer " + token,
           "Content-Type": "application/json"
         },
-        body: JSON.stringify({ lat, lng })
+        body: JSON.stringify({
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude
+        })
       })
       .then(r => r.json())
       .then(resp => {
@@ -293,12 +254,17 @@ function iniciarGPSContinuo() {
   );
 }
 
-/* ================= VISIBILIDAD ================= */
-document.addEventListener("visibilitychange", () => {
-  if (!document.hidden) {
-    consultarEstado();
-  }
-});
+function mostrarEstadoGuardado() {
+  const data = localStorage.getItem("estado_visual");
+  if (!data) return;
+  try {
+    const d = JSON.parse(data);
+    if (d.estado === "SALIDA_ACTIVA")
+      mostrarEstado(`🟢 SALIDA ACTIVA\nHora: ${d.hora_salida}`, "ok");
+    else if (d.estado === "EN_COLA")
+      mostrarEstado(`⏳ EN COLA\nSalida: ${d.hora_salida}`, "info");
+  } catch {}
+}
 
 function resetEscaneo() {
   escaneando = false;

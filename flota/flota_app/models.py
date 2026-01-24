@@ -286,13 +286,22 @@ class MarcacionPunto(models.Model):
         blank=True
     )
 
-    audio_flag = models.CharField(max_length=50, null=True, blank=True)
+    # 🔊 SOLO PARA ADELANTADO / TARDE
+    audio_flag = models.CharField(
+        max_length=50,
+        null=True,
+        blank=True
+    )
+
     creado_en = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         unique_together = ("registro_salida", "punto")
         ordering = ["punto__orden"]
 
+    # -------------------------------------------------
+    # ⏱ HORA PROGRAMADA SEGÚN SALIDA + OFFSET
+    # -------------------------------------------------
     def calcular_hora_programada(self):
         if not self.registro_salida.hora_salida:
             return None
@@ -302,6 +311,9 @@ class MarcacionPunto(models.Model):
             timedelta(minutes=self.punto.offset_minutos)
         )
 
+    # -------------------------------------------------
+    # 🧠 EVALUAR ESTADO (REGLA FINAL DEL SISTEMA)
+    # -------------------------------------------------
     def evaluar_estado(self, tolerancia_min=2):
         if not self.hora_marcada or not self.hora_programada:
             return
@@ -313,17 +325,26 @@ class MarcacionPunto(models.Model):
 
         self.diferencia_minutos = diff
 
+        # 🔴 ADELANTADO
         if diff < -tolerancia_min:
             self.estado = "adelantado"
             self.audio_flag = "audio_adelantado"
+
+        # 🔴 TARDE
         elif diff > tolerancia_min:
             self.estado = "tarde"
             self.audio_flag = "audio_tarde"
+
+        # 🟢 A TIEMPO → SOLO VISUAL (SIN AUDIO)
         else:
             self.estado = "a_tiempo"
-            self.audio_flag = "audio_a_tiempo"
+            self.audio_flag = None   # 👈 FIX CLAVE
 
+    # -------------------------------------------------
+    # ✅ MARCAR PUNTO (IDEMPOTENTE)
+    # -------------------------------------------------
     def marcar(self, hora=None):
+        # No se puede marcar dos veces
         if self.hora_marcada:
             return
 
@@ -335,7 +356,11 @@ class MarcacionPunto(models.Model):
         self.evaluar_estado()
         self.save()
 
+    # -------------------------------------------------
+    # 💾 SAVE SEGURO
+    # -------------------------------------------------
     def save(self, *args, **kwargs):
+
         if not self.hora_programada:
             self.hora_programada = self.calcular_hora_programada()
 
@@ -346,7 +371,6 @@ class MarcacionPunto(models.Model):
 
     def __str__(self):
         return f"{self.registro_salida} - {self.punto.codigo}"
-
 
 # =========================
 # SESIÓN DE UNIDAD
