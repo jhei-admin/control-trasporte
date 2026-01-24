@@ -70,8 +70,9 @@ const API_BASE = location.origin;
 let qrScanner = null;
 let escaneando = false;
 let estadoInterval = null;
-let gpsInterval = null;
-let gpsActivo = false;
+
+let watchId = null;
+let ultimoEnvioGPS = 0;
 
 let estadoAnterior = localStorage.getItem("estado_anterior") || null;
 
@@ -132,25 +133,23 @@ function mostrarEstado(texto, clase="info") {
   el.innerText = texto;
 }
 
-/* ================= ESTADO INMEDIATO ================= */
+/* ================= ESTADO GUARDADO ================= */
 function mostrarUltimoEstadoGuardado() {
   const ultimo = localStorage.getItem("ultimo_estado_visual");
   if (!ultimo) return;
 
   try {
     const u = JSON.parse(ultimo);
-
-    if (u.estado === "SALIDA_ACTIVA") {
+    if (u.estado === "SALIDA_ACTIVA")
       mostrarEstado(`🟢 SALIDA ACTIVA\nHora: ${u.hora}`, "ok");
-    } else if (u.estado === "AVISO_SALIDA") {
+    else if (u.estado === "AVISO_SALIDA")
       mostrarEstado(`🟠 PRÓXIMA SALIDA\nHora: ${u.hora}`, "alerta");
-    } else if (u.estado === "EN_COLA") {
+    else if (u.estado === "EN_COLA")
       mostrarEstado(`⏳ EN COLA\nSalida: ${u.hora}`, "info");
-    }
   } catch {}
 }
 
-/* ================= QR ================= */
+/* ================= LOAD ================= */
 window.addEventListener("load", () => {
   const token = localStorage.getItem("token");
 
@@ -208,9 +207,7 @@ function iniciarSistema() {
   if (!estadoInterval)
     estadoInterval = setInterval(consultarEstado, 5000);
 
-  if (!gpsInterval)
-    gpsInterval = setInterval(enviarGPS, 5000);
-
+  iniciarGPSContinuo();
   consultarEstado();
 }
 
@@ -242,75 +239,63 @@ function consultarEstado() {
       localStorage.setItem("estado_anterior", data.estado);
     }
 
-    if (data.estado === "SALIDA_ACTIVA") {
+    if (data.estado === "SALIDA_ACTIVA")
       mostrarEstado(`🟢 SALIDA ACTIVA\nHora: ${data.hora_salida}`, "ok");
-    } else if (data.estado === "AVISO_SALIDA") {
+    else if (data.estado === "AVISO_SALIDA")
       mostrarEstado(`🟠 PRÓXIMA SALIDA\nHora: ${data.hora_salida}`, "alerta");
-    } else if (data.estado === "EN_COLA") {
+    else if (data.estado === "EN_COLA")
       mostrarEstado(`⏳ EN COLA\nSalida: ${data.hora_salida}`, "info");
-    }
   });
 }
 
-/* ================= GPS ================= */
-function enviarGPS() {
-  if (gpsActivo) return;
-  gpsActivo = true;
+/* ================= GPS CONTINUO ================= */
+function iniciarGPSContinuo() {
+  if (!navigator.geolocation || watchId) return;
 
-  const token = localStorage.getItem("token");
-  if (!token || !navigator.geolocation) {
-    gpsActivo = false;
-    return;
-  }
+  watchId = navigator.geolocation.watchPosition(
+    pos => {
+      const ahora = Date.now();
+      if (ahora - ultimoEnvioGPS < 5000) return;
+      ultimoEnvioGPS = ahora;
 
-  navigator.geolocation.getCurrentPosition(pos => {
+      const token = localStorage.getItem("token");
+      if (!token) return;
 
-    // GPS técnico (mapa)
-    fetch(`${API_BASE}/sistema/api/gps/`, {
-      method: "POST",
-      headers: {
-        "Authorization": "Bearer " + token,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        lat: pos.coords.latitude,
-        lng: pos.coords.longitude,
-        velocidad: pos.coords.speed || 0,
-        precision: pos.coords.accuracy || null
+      const lat = pos.coords.latitude;
+      const lng = pos.coords.longitude;
+
+      fetch(`${API_BASE}/sistema/api/gps/`, {
+        method: "POST",
+        headers: {
+          "Authorization": "Bearer " + token,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ lat, lng })
+      });
+
+      fetch(`${API_BASE}/sistema/api/gps/conductor/`, {
+        method: "POST",
+        headers: {
+          "Authorization": "Bearer " + token,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ lat, lng })
       })
-    });
+      .then(r => r.json())
+      .then(resp => {
+        if (resp.accion === "audio")
+          reproducirAudioSeguro(resp.audio);
+      });
 
-    // 🔥 GPS conductor (marca + audio)
-    fetch(`${API_BASE}/sistema/api/gps/conductor/`, {
-      method: "POST",
-      headers: {
-        "Authorization": "Bearer " + token,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        lat: pos.coords.latitude,
-        lng: pos.coords.longitude
-      })
-    })
-    .then(r => r.json())
-    .then(resp => {
-      if (resp.accion === "audio") {
-        reproducirAudioSeguro(resp.audio);
-      }
-    })
-    .finally(() => gpsActivo = false);
-
-  }, () => gpsActivo = false, {
-    enableHighAccuracy: true,
-    timeout: 10000,
-    maximumAge: 0
-  });
+    },
+    err => console.log("GPS error:", err.message),
+    { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 }
+  );
 }
 
 /* ================= VISIBILIDAD ================= */
 document.addEventListener("visibilitychange", () => {
   if (!document.hidden) {
-    enviarGPS();
     consultarEstado();
   }
 });
