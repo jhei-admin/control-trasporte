@@ -118,6 +118,7 @@ function reproducirAudioSeguro(audioName) {
   if (!audioName) return;
   if (audioName === "audio_a_tiempo") return;
   if (ultimoAudioReproducido === audioName) return;
+
   playAudio(audioName);
   ultimoAudioReproducido = audioName;
 }
@@ -131,7 +132,7 @@ function mostrarEstado(texto, clase="info") {
   el.innerText = texto;
 }
 
-/* ================= ESTADO INMEDIATO (UX FIX) ================= */
+/* ================= ESTADO INMEDIATO ================= */
 function mostrarUltimoEstadoGuardado() {
   const ultimo = localStorage.getItem("ultimo_estado_visual");
   if (!ultimo) return;
@@ -157,10 +158,7 @@ window.addEventListener("load", () => {
     unlockAudio();
     $("pantallaQR").style.display = "none";
     $("pantallaEstado").style.display = "block";
-
-    // 🔥 Mostrar estado inmediatamente
     mostrarUltimoEstadoGuardado();
-
     iniciarSistema();
     return;
   }
@@ -267,6 +265,7 @@ function enviarGPS() {
 
   navigator.geolocation.getCurrentPosition(pos => {
 
+    // GPS técnico (mapa)
     fetch(`${API_BASE}/sistema/api/gps/`, {
       method: "POST",
       headers: {
@@ -281,6 +280,7 @@ function enviarGPS() {
       })
     });
 
+    // 🔥 GPS conductor (marca + audio)
     fetch(`${API_BASE}/sistema/api/gps/conductor/`, {
       method: "POST",
       headers: {
@@ -291,6 +291,12 @@ function enviarGPS() {
         lat: pos.coords.latitude,
         lng: pos.coords.longitude
       })
+    })
+    .then(r => r.json())
+    .then(resp => {
+      if (resp.accion === "audio") {
+        reproducirAudioSeguro(resp.audio);
+      }
     })
     .finally(() => gpsActivo = false);
 

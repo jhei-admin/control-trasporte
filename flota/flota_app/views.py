@@ -1,20 +1,25 @@
 # =================================================
-# 📦 IMPORTS ÚNICOS Y LIMPIOS
+# 📦 IMPORTS ÚNICOS Y LIMPIOS (FIX DEFINITIVO)
 # =================================================
 
 from datetime import datetime, date, timedelta
 import json
 from io import BytesIO
 
-from django.shortcuts import render, redirect, get_object_or_404
+from django.shortcuts import (
+    render, redirect, get_object_or_404
+)
 from django.http import JsonResponse, HttpResponse
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST, require_GET
+from django.views.decorators.cache import never_cache
 from django.contrib import messages
+from django.core.exceptions import ValidationError
 
 import qrcode
 
+# ================= MODELS =================
 from .models import (
     RegistroSalida,
     Ruta,
@@ -28,136 +33,16 @@ from .models import (
     Parada,
 )
 
-from .utils import (
-    distancia_metros,
+# ================= SERVICES (🔥 FIX CLAVE) =================
+from .services import (
     validar_sesion,
     calcular_estado_sesion,
+    iniciar_salida_segura,
+    recalcular_cola,   # ✅ FALTABA ESTO
 )
 
-# =================================================
-# INTERVALO AUTOMÁTICO
-# =================================================
-def obtener_intervalo(cantidad):
-    if cantidad <= 3:
-        return 10
-    elif cantidad <= 6:
-        return 7
-    return 5
-
-
-# =================================================
-# 🔥 RECALCULAR COLA COMPLETA (FIX DEFINITIVO)
-# =================================================
-def recalcular_cola():
-    """
-    Recalcula la cola de salidas por ruta.
-
-    REGLAS DEFINITIVAS:
-    - ✔ Respeta SIEMPRE la hora fija manual (bloqueado)
-    - ✔ Nunca convierte 05:10 → 17:10
-    - ✔ Nunca pisa horas manuales con timezone.now()
-    - ✔ Evita horas en el pasado SOLO en modo automático
-    - ✔ Funciona igual en local y en Render
-    """
-
-    tz = timezone.get_current_timezone()
-    ahora = timezone.localtime(timezone.now(), tz)
-
-    for ruta in Ruta.objects.all():
-
-        cola = (
-            RegistroSalida.objects
-            .filter(
-                ruta=ruta,
-                en_cola=True,
-                activo=True
-            )
-            .order_by("orden_cola")
-        )
-
-        if not cola.exists():
-            continue
-
-        # =============================================
-        # ⏱️ INTERVALO DE DESPACHO
-        # =============================================
-        config = ConfiguracionDespacho.objects.filter(
-            activa=True
-        ).first()
-
-        if config and config.intervalo_fijo:
-            intervalo = config.intervalo_fijo
-        else:
-            intervalo = obtener_intervalo(cola.count())
-
-        hora_actual = None
-
-        for salida in cola:
-
-            # =============================================
-            # 🔒 HORA FIJA MANUAL (MANDATO ABSOLUTO)
-            # =============================================
-            if salida.bloqueado and salida.hora_fija:
-                # ⚠️ FIX CLAVE:
-                # Nunca tocar ni comparar contra "ahora"
-                # La hora fija MANDA siempre
-                hora_fija = timezone.localtime(salida.hora_fija, tz)
-
-                salida.hora_salida = hora_fija
-                salida.intervalo_minutos = intervalo
-
-                salida.save(
-                    update_fields=[
-                        "hora_salida",
-                        "intervalo_minutos"
-                    ]
-                )
-
-                hora_actual = hora_fija
-                continue
-
-            # =============================================
-            # 🧮 MODO AUTOMÁTICO (SIN HORA FIJA)
-            # =============================================
-            if hora_actual:
-                nueva_hora = hora_actual + timedelta(minutes=intervalo)
-            else:
-                nueva_hora = ahora.replace(
-                    second=0,
-                    microsecond=0
-                )
-
-            # =============================================
-            # 🔥 FIX: SOLO EN AUTOMÁTICO EVITAR PASADO
-            # =============================================
-            if nueva_hora < ahora:
-                nueva_hora = ahora.replace(
-                    second=0,
-                    microsecond=0
-                )
-
-            salida.hora_salida = nueva_hora
-            salida.intervalo_minutos = intervalo
-
-            salida.save(
-                update_fields=[
-                    "hora_salida",
-                    "intervalo_minutos"
-                ]
-            )
-
-            hora_actual = nueva_hora
-
-from datetime import date
-from django.shortcuts import render, get_object_or_404
-from django.utils import timezone
-
-from flota_app.models import (
-    RegistroSalida,
-    Vehiculo,
-    PuntoControl,
-    Parada,
-)
+# ================= UTILS =================
+from .utils import distancia_metros
 
 def reporte_salidas_diarias(request, vehiculo_id):
     """
@@ -316,17 +201,6 @@ def reporte_salidas_diarias(request, vehiculo_id):
 # 🧭 PANEL DESPACHADOR
 # FIX DEFINITIVO PRODUCCIÓN (POR FECHA + ESTABLE)
 # =================================================
-from django.shortcuts import render
-from django.utils import timezone
-
-from flota_app.models import (
-    RegistroSalida,
-    Vehiculo,
-    Ruta,
-    ConfiguracionDespacho
-)
-
-
 def panel_despachador(request):
     """
     PANEL PRINCIPAL DEL DESPACHADOR
@@ -387,14 +261,6 @@ def panel_despachador(request):
 # 🔍 BUSCAR UNIDAD Y CREAR SALIDA DEL DÍA
 # SOLUCIÓN DEFINITIVA (SIN es_default / SIN 500)
 # =================================================
-from django.shortcuts import redirect
-from django.contrib import messages
-from django.utils import timezone
-from django.core.exceptions import ValidationError
-
-from flota_app.models import Vehiculo, RegistroSalida, Ruta
-
-
 def buscar_unidad_panel(request):
     if request.method != "POST":
         return redirect("panel_despachador")
@@ -511,7 +377,7 @@ def recorrido_vehiculo(request):
     (Usa Leaflet + API de recorrido)
     """
 
-    vehiculos = Vehiculo.objects.all().order_by("numero")
+    vehiculos = Vehiculo.objects.all().order_by("codigo")
 
     return render(
         request,
@@ -912,16 +778,6 @@ def api_gps(request):
 # =================================================
 # 🗺️ API — MAPA EN TIEMPO REAL (DESPACHADOR)
 # =================================================
-from datetime import timedelta
-from django.http import JsonResponse
-from django.utils import timezone
-from django.views.decorators.http import require_GET
-
-from flota_app.models import (
-    UbicacionVehiculo,
-    RegistroSalida,
-)
-
 @require_GET
 def api_despachador_mapa(request):
     """
@@ -1311,7 +1167,7 @@ def api_escanear_qr(request):
             "ok": True,
             "token": str(sesion.token),
             "vehiculo_id": vehiculo.id,
-            "unidad": vehiculo.numero,
+            "unidad": vehiculo.codigo,
         },
         status=200,
         headers={
@@ -1323,18 +1179,6 @@ def api_escanear_qr(request):
 # =================================================
 # 📱 API APP — ESTADO DE UNIDAD (FIX DEFINITIVO REAL)
 # =================================================
-from django.http import JsonResponse
-from django.utils import timezone
-from django.views.decorators.csrf import csrf_exempt
-
-from flota_app.models import RegistroSalida
-from flota_app.services import (
-    validar_sesion,
-    calcular_estado_sesion,
-    iniciar_salida_segura
-)
-
-
 @csrf_exempt
 def api_app_estado(request):
     if request.method != "POST":
@@ -1517,10 +1361,6 @@ def api_app_estado(request):
 # =================================================
 # 🚍 APP CONDUCTOR (DEFINITIVA — SOLO UI)
 # =================================================
-from django.shortcuts import render
-from django.views.decorators.cache import never_cache
-
-
 @never_cache
 def app_conductor(request):
     """
@@ -1977,45 +1817,16 @@ def marcar_paso(request, salida_id, punto_id):
     salida = get_object_or_404(RegistroSalida, id=salida_id)
     punto = get_object_or_404(PuntoControl, id=punto_id)
 
-    if not salida.hora_salida:
-        messages.error(
-            request,
-            "La salida no tiene hora base asignada."
-        )
-        return redirect("control_ruta", salida_id=salida.id)
-
-    ahora = timezone.now()
-
-    # Hora programada = hora salida + offset
-    hora_programada = salida.hora_salida + timedelta(
-        minutes=punto.offset_minutos
-    )
-
-    diferencia_min = int(
-        (ahora - hora_programada).total_seconds() / 60
-    )
-
-    if diferencia_min < 0:
-        estado = "adelantado"
-    elif diferencia_min > 0:
-        estado = "tarde"
-    else:
-        estado = "a_tiempo"
-
-    MarcacionPunto.objects.update_or_create(
+    marcacion, _ = MarcacionPunto.objects.get_or_create(
         registro_salida=salida,
-        punto=punto,
-        defaults={
-            "hora_programada": hora_programada,
-            "hora_marcada": ahora,
-            "diferencia_minutos": diferencia_min,
-            "estado": estado,
-        }
+        punto=punto
     )
+
+    marcacion.marcar()   # 🔥 UNA SOLA FUENTE DE VERDAD
 
     messages.success(
         request,
-        f"Punto {punto.nombre} marcado ({estado})."
+        f"Punto {punto.nombre} marcado ({marcacion.estado})."
     )
 
     return redirect("control_ruta", salida_id=salida.id)
@@ -2025,91 +1836,45 @@ def marcar_paso(request, salida_id, punto_id):
 # =================================================
 @require_POST
 def marcar_siguiente_punto(request, salida_id):
-    """
-    Marca el siguiente punto pendiente de la ruta
-    (uso manual desde Control de Ruta).
-    """
     salida = get_object_or_404(RegistroSalida, id=salida_id)
 
-    # 🛑 Validación básica
-    if not salida.hora_salida:
-        messages.error(
-            request,
-            "La salida no tiene hora base asignada."
-        )
-        return redirect("control_ruta", salida_id=salida.id)
-
-    # =================================================
-    # ✅ USAMOS EL MÉTODO CORRECTO DE TU MODELO
-    # =================================================
     punto = salida.siguiente_punto()
-
     if not punto:
-        messages.info(
-            request,
-            "No hay más puntos pendientes por marcar."
-        )
+        messages.info(request, "No hay más puntos pendientes.")
         return redirect("control_ruta", salida_id=salida.id)
 
-    ahora = timezone.now()
-
-    # Hora programada = hora salida + offset del punto
-    hora_programada = salida.hora_salida + timedelta(
-        minutes=punto.offset_minutos
-    )
-
-    diferencia_min = int(
-        (ahora - hora_programada).total_seconds() / 60
-    )
-
-    if diferencia_min < 0:
-        estado = "adelantado"
-    elif diferencia_min > 0:
-        estado = "tarde"
-    else:
-        estado = "a_tiempo"
-
-    # Crear o actualizar marcación
-    MarcacionPunto.objects.update_or_create(
+    marcacion, _ = MarcacionPunto.objects.get_or_create(
         registro_salida=salida,
-        punto=punto,
-        defaults={
-            "hora_programada": hora_programada,
-            "hora_marcada": ahora,
-            "diferencia_minutos": diferencia_min,
-            "estado": estado,
-        }
+        punto=punto
     )
 
-    # =================================================
-    # 🔥 NUEVO: CIERRE AUTOMÁTICO SI ES ÚLTIMO PUNTO
-    # =================================================
-    ultimo_punto = (
+    marcacion.marcar()
+
+    # 🔚 ¿Último punto?
+    ultimo = (
         PuntoControl.objects
         .filter(ruta=salida.ruta, activo=True)
         .order_by("-orden")
         .first()
     )
 
-    if ultimo_punto and punto.id == ultimo_punto.id:
+    if ultimo and punto.id == ultimo.id:
         salida.activo = False
         salida.en_cola = False
         salida.save(update_fields=["activo", "en_cola"])
 
         messages.success(
             request,
-            "Último punto marcado. La salida fue finalizada y enviada al historial."
+            "Último punto marcado. Ruta finalizada."
         )
         return redirect("detalle_salida", salida_id=salida.id)
 
-    # Mensaje normal si no es el último
     messages.success(
         request,
-        f"Punto {punto.nombre} marcado ({estado})."
+        f"Punto {punto.nombre} marcado ({marcacion.estado})."
     )
 
     return redirect("control_ruta", salida_id=salida.id)
-
 
 # =================================================
 # 🔁 ALIAS: MARCAR SIGUIENTE PUNTO (AUTO / LEGACY)

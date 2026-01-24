@@ -79,7 +79,6 @@
            name="codigo"
            class="form-control"
            placeholder="🔍 Buscar unidad por código (ej: 01)"
-           inputmode="numeric"
            autocomplete="off"
            required>
     <button class="btn btn-success">➕ Agregar</button>
@@ -109,8 +108,8 @@
 
 <tbody>
 {% for s in salidas %}
-<tr class="fila-unidad" data-unidad="{{ s.vehiculo.numero|lower }}">
-    <td class="text-center">{{ s.vehiculo.numero }}</td>
+<tr class="fila-unidad" data-unidad="{{ s.vehiculo.codigo|lower }}">
+    <td class="text-center">{{ s.vehiculo.codigo }}</td>
     <td>{% if s.ruta %}{{ s.ruta.nombre }}{% else %}—{% endif %}</td>
     <td class="text-center">{{ s.hora_llegada|date:"H:i" }}</td>
     <td class="text-center">
