@@ -37,6 +37,59 @@ button {
   margin: 20px auto;
   display: none;
 }
+
+/* ================= TOAST MARCACIÓN (OPCIÓN A) ================= */
+.toast-marcacion {
+  position: fixed;
+  bottom: 30px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #1e1e1e;
+  color: #fff;
+  padding: 18px 22px;
+  border-radius: 14px;
+  min-width: 240px;
+  text-align: center;
+  box-shadow: 0 8px 25px rgba(0,0,0,0.6);
+  z-index: 9999;
+  animation: slideUp 0.3s ease;
+}
+
+.toast-titulo {
+  font-size: 18px;
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+
+.toast-tiempo {
+  font-size: 16px;
+  opacity: 0.9;
+  margin-bottom: 8px;
+}
+
+.toast-estado {
+  font-size: 15px;
+  font-weight: 700;
+  padding: 6px 14px;
+  border-radius: 20px;
+  display: inline-block;
+}
+
+/* Estados */
+.toast-estado.adelantado { background: #0277bd; }
+.toast-estado.a_tiempo { background: #2e7d32; }
+.toast-estado.tarde { background: #c62828; }
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 20px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
 </style>
 
 <h1 class="mb-4">🚍 Control de Ruta</h1>
@@ -50,6 +103,14 @@ button {
 <div id="pantallaEstado" style="display:none">
   <div id="estadoConductor" class="estado info">⏳ Consultando estado...</div>
 </div>
+
+<!-- 📍 TOAST MARCACIÓN -->
+<div id="toastMarcacion" class="toast-marcacion" style="display:none">
+  <div id="toastTitulo" class="toast-titulo">SALI</div>
+  <div id="toastTiempo" class="toast-tiempo">-2 min</div>
+  <div id="toastEstado" class="toast-estado adelantado">ADELANTADO</div>
+</div>
+
 {% endblock %}
 
 {% block extra_js %}
@@ -71,6 +132,10 @@ let audioBuffers = {};
 let audioUnlocked = false;
 let ultimoAudioReproducido = null;
 
+/* ================= TOAST ================= */
+let toastTimeout = null;
+
+/* ================= AUDIO ================= */
 async function initAudio() {
   if (audioContext) return;
   audioContext = new (window.AudioContext || window.webkitAudioContext)();
@@ -105,9 +170,7 @@ function playAudio(name) {
 
 function reproducirAudioSeguro(audioName) {
   if (!audioName) return;
-  if (audioName === "audio_a_tiempo") return;
   if (ultimoAudioReproducido === audioName) return;
-
   playAudio(audioName);
   ultimoAudioReproducido = audioName;
 }
@@ -119,6 +182,26 @@ function mostrarEstado(texto, clase="info") {
   const el = $("estadoConductor");
   el.className = "estado " + clase;
   el.innerText = texto;
+}
+
+/* ================= TOAST MARCACIÓN ================= */
+function mostrarMarcacionVisual(data) {
+  if (!data) return;
+
+  $("toastTitulo").innerText = data.codigo;
+  $("toastTiempo").innerText =
+    (data.diferencia_min > 0 ? "+" : "") + data.diferencia_min + " min";
+
+  const estadoEl = $("toastEstado");
+  estadoEl.innerText = data.estado;
+  estadoEl.className = "toast-estado " + data.estado.toLowerCase();
+
+  $("toastMarcacion").style.display = "block";
+
+  if (toastTimeout) clearTimeout(toastTimeout);
+  toastTimeout = setTimeout(() => {
+    $("toastMarcacion").style.display = "none";
+  }, 6000);
 }
 
 /* ================= LOAD ================= */
@@ -137,7 +220,7 @@ window.addEventListener("load", () => {
   $("btnEscanear").onclick = iniciarEscaneoQR;
 });
 
-/* ================= QR FIX DEFINITIVO ================= */
+/* ================= QR ================= */
 function iniciarEscaneoQR() {
   unlockAudio();
   if (escaneando) return;
@@ -149,34 +232,18 @@ function iniciarEscaneoQR() {
   qrScanner = new Html5Qrcode("qr-reader");
 
   Html5Qrcode.getCameras().then(cameras => {
-    if (!cameras || cameras.length === 0) {
-      alert("❌ No se detectó cámara");
-      resetEscaneo();
-      return;
-    }
-
-    // 👉 cámara trasera real
     const camaraId = cameras[cameras.length - 1].id;
 
     qrScanner.start(
       camaraId,
       { fps: 10, qrbox: { width: 250, height: 250 } },
       async texto => {
-        try {
-          await qrScanner.stop();
-          await qrScanner.clear();
-        } catch {}
-
+        await qrScanner.stop();
+        await qrScanner.clear();
         $("qr-reader").style.display = "none";
         activarUnidad(texto);
       }
-    ).catch(err => {
-      alert("❌ Error cámara: " + err);
-      resetEscaneo();
-    });
-  }).catch(err => {
-    alert("❌ No se pudo acceder a la cámara");
-    resetEscaneo();
+    );
   });
 }
 
@@ -187,7 +254,6 @@ function activarUnidad(texto) {
     vehiculoId = JSON.parse(texto).vehiculo_id;
   } catch {
     alert("❌ QR inválido");
-    resetEscaneo();
     return;
   }
 
@@ -198,12 +264,7 @@ function activarUnidad(texto) {
   })
   .then(r => r.json())
   .then(d => {
-    if (!d.ok || !d.token) {
-      alert("❌ No autorizado");
-      resetEscaneo();
-      return;
-    }
-
+    if (!d.ok) return;
     localStorage.setItem("token", d.token);
     iniciarSistema();
   });
@@ -211,9 +272,6 @@ function activarUnidad(texto) {
 
 /* ================= SISTEMA ================= */
 function iniciarSistema() {
-  $("pantallaQR").style.display = "none";
-  $("pantallaEstado").style.display = "block";
-
   if (!estadoInterval)
     estadoInterval = setInterval(consultarEstado, 5000);
 
@@ -228,23 +286,11 @@ function consultarEstado() {
 
   fetch(`${API_BASE}/sistema/api/app/estado/`, {
     method: "POST",
-    headers: {
-      "Authorization": "Bearer " + token,
-      "Content-Type": "application/json"
-    }
+    headers: { "Authorization": "Bearer " + token }
   })
   .then(r => r.json())
   .then(data => {
     if (!data.autorizado) return;
-
-    const horaPrev = localStorage.getItem("hora_salida");
-    if (horaPrev && data.hora_salida && data.hora_salida !== horaPrev)
-      playAudio("beep");
-
-    if (data.hora_salida)
-      localStorage.setItem("hora_salida", data.hora_salida);
-
-    localStorage.setItem("estado_visual", JSON.stringify(data));
 
     if (data.estado === "SALIDA_ACTIVA")
       mostrarEstado(`🟢 SALIDA ACTIVA\nHora: ${data.hora_salida}`, "ok");
@@ -283,6 +329,9 @@ function iniciarGPSContinuo() {
       .then(resp => {
         if (resp.accion === "audio")
           reproducirAudioSeguro(resp.audio);
+
+        if (resp.visual)
+          mostrarMarcacionVisual(resp.visual);
       });
     },
     err => console.log("GPS error:", err.message),
@@ -298,12 +347,6 @@ function mostrarEstadoGuardado() {
     if (d.estado === "SALIDA_ACTIVA")
       mostrarEstado(`🟢 SALIDA ACTIVA\nHora: ${d.hora_salida}`, "ok");
   } catch {}
-}
-
-function resetEscaneo() {
-  escaneando = false;
-  $("btnEscanear").disabled = false;
-  $("qr-reader").style.display = "none";
 }
 </script>
 {% endblock %}
