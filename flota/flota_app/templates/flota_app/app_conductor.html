@@ -75,20 +75,13 @@ button {
   display: inline-block;
 }
 
-/* Estados */
 .toast-estado.adelantado { background: #0277bd; }
 .toast-estado.a_tiempo { background: #2e7d32; }
 .toast-estado.tarde { background: #c62828; }
 
 @keyframes slideUp {
-  from {
-    opacity: 0;
-    transform: translate(-50%, 20px);
-  }
-  to {
-    opacity: 1;
-    transform: translate(-50%, 0);
-  }
+  from { opacity: 0; transform: translate(-50%, 20px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
 }
 </style>
 
@@ -291,6 +284,15 @@ function consultarEstado() {
   .then(r => r.json())
   .then(data => {
     if (!data.autorizado) return;
+
+    /* 🔔 BEEP AL CAMBIAR / ASIGNAR HORA */
+    const horaPrev = localStorage.getItem("hora_salida");
+    if (data.hora_salida && data.hora_salida !== horaPrev) {
+      playAudio("beep");
+      localStorage.setItem("hora_salida", data.hora_salida);
+    }
+
+    localStorage.setItem("estado_visual", JSON.stringify(data));
 
     if (data.estado === "SALIDA_ACTIVA")
       mostrarEstado(`🟢 SALIDA ACTIVA\nHora: ${data.hora_salida}`, "ok");
