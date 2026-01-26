@@ -87,7 +87,7 @@ async function unlockAudio() {
   await initAudio();
   await audioContext.resume();
 
-  await loadAudio("beep", "{% static 'flota_app/sonidos/beep_despacho_pop_pop_pop.wav' %}");
+  await loadAudio("beep", "{% static 'flota_app/sonidos/beep_despacho.wav' %}");
   await loadAudio("audio_adelantado", "{% static 'flota_app/sonidos/adelantado.mp3' %}");
   await loadAudio("audio_tarde", "{% static 'flota_app/sonidos/tarde.mp3' %}");
   await loadAudio("ruta_completada", "{% static 'flota_app/sonidos/ruta_completada.mp3' %}");
@@ -134,32 +134,62 @@ window.addEventListener("load", () => {
     return;
   }
 
-  $("btnEscanear").onclick = async () => {
-    await unlockAudio();
-    if (escaneando) return;
+  $("btnEscanear").onclick = iniciarEscaneoQR;
+});
 
-    escaneando = true;
-    $("btnEscanear").disabled = true;
-    $("qr-reader").style.display = "block";
+/* ================= QR FIX DEFINITIVO ================= */
+function iniciarEscaneoQR() {
+  unlockAudio();
+  if (escaneando) return;
 
-    qrScanner = new Html5Qrcode("qr-reader");
+  escaneando = true;
+  $("btnEscanear").disabled = true;
+  $("qr-reader").style.display = "block";
+
+  qrScanner = new Html5Qrcode("qr-reader");
+
+  Html5Qrcode.getCameras().then(cameras => {
+    if (!cameras || cameras.length === 0) {
+      alert("❌ No se detectó cámara");
+      resetEscaneo();
+      return;
+    }
+
+    // 👉 cámara trasera real
+    const camaraId = cameras[cameras.length - 1].id;
+
     qrScanner.start(
-      { facingMode: "environment" },
-      { fps: 10, qrbox: 250 },
+      camaraId,
+      { fps: 10, qrbox: { width: 250, height: 250 } },
       async texto => {
-        try { await qrScanner.stop(); await qrScanner.clear(); } catch {}
+        try {
+          await qrScanner.stop();
+          await qrScanner.clear();
+        } catch {}
+
         $("qr-reader").style.display = "none";
         activarUnidad(texto);
       }
-    );
-  };
-});
+    ).catch(err => {
+      alert("❌ Error cámara: " + err);
+      resetEscaneo();
+    });
+  }).catch(err => {
+    alert("❌ No se pudo acceder a la cámara");
+    resetEscaneo();
+  });
+}
 
 /* ================= ACTIVAR ================= */
 function activarUnidad(texto) {
   let vehiculoId;
-  try { vehiculoId = JSON.parse(texto).vehiculo_id; }
-  catch { alert("❌ QR inválido"); resetEscaneo(); return; }
+  try {
+    vehiculoId = JSON.parse(texto).vehiculo_id;
+  } catch {
+    alert("❌ QR inválido");
+    resetEscaneo();
+    return;
+  }
 
   fetch(`${API_BASE}/sistema/api/app/escanear-qr/`, {
     method: "POST",
@@ -168,7 +198,12 @@ function activarUnidad(texto) {
   })
   .then(r => r.json())
   .then(d => {
-    if (!d.ok || !d.token) return;
+    if (!d.ok || !d.token) {
+      alert("❌ No autorizado");
+      resetEscaneo();
+      return;
+    }
+
     localStorage.setItem("token", d.token);
     iniciarSistema();
   });
@@ -176,6 +211,9 @@ function activarUnidad(texto) {
 
 /* ================= SISTEMA ================= */
 function iniciarSistema() {
+  $("pantallaQR").style.display = "none";
+  $("pantallaEstado").style.display = "block";
+
   if (!estadoInterval)
     estadoInterval = setInterval(consultarEstado, 5000);
 
@@ -199,11 +237,10 @@ function consultarEstado() {
   .then(data => {
     if (!data.autorizado) return;
 
-    // 🔔 beep SOLO si cambia la hora asignada
     const horaPrev = localStorage.getItem("hora_salida");
-    if (horaPrev && data.hora_salida && data.hora_salida !== horaPrev) {
+    if (horaPrev && data.hora_salida && data.hora_salida !== horaPrev)
       playAudio("beep");
-    }
+
     if (data.hora_salida)
       localStorage.setItem("hora_salida", data.hora_salida);
 
@@ -213,7 +250,7 @@ function consultarEstado() {
       mostrarEstado(`🟢 SALIDA ACTIVA\nHora: ${data.hora_salida}`, "ok");
     else if (data.estado === "EN_COLA")
       mostrarEstado(`⏳ EN COLA\nSalida: ${data.hora_salida}`, "info");
-    else if (data.estado === "SIN_HORA")
+    else
       mostrarEstado("⏳ ESPERANDO HORA DE SALIDA", "info");
   });
 }
@@ -247,10 +284,9 @@ function iniciarGPSContinuo() {
         if (resp.accion === "audio")
           reproducirAudioSeguro(resp.audio);
       });
-
     },
     err => console.log("GPS error:", err.message),
-    { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 }
+    { enableHighAccuracy: true }
   );
 }
 
@@ -261,14 +297,13 @@ function mostrarEstadoGuardado() {
     const d = JSON.parse(data);
     if (d.estado === "SALIDA_ACTIVA")
       mostrarEstado(`🟢 SALIDA ACTIVA\nHora: ${d.hora_salida}`, "ok");
-    else if (d.estado === "EN_COLA")
-      mostrarEstado(`⏳ EN COLA\nSalida: ${d.hora_salida}`, "info");
   } catch {}
 }
 
 function resetEscaneo() {
   escaneando = false;
   $("btnEscanear").disabled = false;
+  $("qr-reader").style.display = "none";
 }
 </script>
 {% endblock %}
