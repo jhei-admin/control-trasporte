@@ -1447,7 +1447,7 @@ def ver_qr_unidad(request, vehiculo_id):
     )
 
 # =================================================
-# 🚦 COLA DE SALIDA (FIX DEFINITIVO REAL)
+# 🚦 COLA DE SALIDA (FIX DEFINITIVO PROFESIONAL)
 # =================================================
 @require_POST
 def poner_en_cola(request, salida_id):
@@ -1476,7 +1476,7 @@ def poner_en_cola(request, salida_id):
         )
 
     # ------------------------------------------------
-    # 🔒 VALIDACIÓN CLAVE (FIX DEFINITIVO)
+    # 🔒 VALIDACIÓN CLAVE
     # NO SE PUEDE PONER EN COLA SIN HORA DE SALIDA
     # ------------------------------------------------
     if not salida.hora_salida:
@@ -1490,7 +1490,10 @@ def poner_en_cola(request, salida_id):
     # VALIDACIÓN NORMAL
     # ------------------------------------------------
     if salida.en_cola:
-        messages.info(request, "La unidad ya está en la cola.")
+        messages.info(
+            request,
+            "La unidad ya está en la cola."
+        )
         return redirect("panel_despachador")
 
     # ------------------------------------------------
@@ -1511,19 +1514,21 @@ def poner_en_cola(request, salida_id):
     salida.en_cola = True
     salida.orden_cola = (ultimo.orden_cola + 1) if ultimo else 1
 
-    # ⚠️ IMPORTANTE:
-    # - NO tocamos hora_salida
-    # - NO tocamos hora_fija
-    # - NO tocamos hora_real_salida
+    # ⚠️ REGLA DE ORO:
+    # - NO tocar hora_salida
+    # - NO tocar hora_fija
+    # - NO tocar hora_real_salida
     salida.save(update_fields=[
         "en_cola",
         "orden_cola"
     ])
 
     # ------------------------------------------------
-    # 🔁 RECALCULAR COLA (RESPETA HORAS FIJAS)
+    # 🔁 RECALCULAR COLA
+    # 👉 SOLO SI NO ESTÁ BLOQUEADA
     # ------------------------------------------------
-    recalcular_cola()
+    if not salida.bloqueado:
+        recalcular_cola()
 
     messages.success(
         request,
