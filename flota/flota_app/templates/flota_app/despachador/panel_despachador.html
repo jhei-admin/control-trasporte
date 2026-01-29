@@ -50,18 +50,9 @@
 {# 🔘 BOTONES SUPERIORES                              #}
 {# ================================================== #}
 <div class="mb-3 d-flex gap-2 flex-wrap">
-
-    {% if salidas %}
-        <a href="{% url 'reporte_salidas_diarias' salidas.0.vehiculo.id %}"
-           class="btn btn-primary btn-sm">
-            📱 Salidas del día
-        </a>
-    {% endif %}
-
     <a href="{% url 'historial_salidas' %}" class="btn btn-dark btn-sm">
         🧾 Historial de salidas
     </a>
-
     <a href="{% url 'despachador_mapa' %}" class="btn btn-outline-primary btn-sm">
         🗺️ Ver mapa en tiempo real
     </a>
@@ -91,7 +82,7 @@
        style="max-width: 320px;">
 
 {# ================================================== #}
-{# 📋 TABLA PRINCIPAL (ORDEN BLOQUEADO CORRECTO)      #}
+{# 📋 TABLA PRINCIPAL                                 #}
 {# ================================================== #}
 <table class="table table-bordered table-sm align-middle">
 <thead class="table-dark text-center">
@@ -102,7 +93,7 @@
     <th>Hora salida</th>
     <th>Intervalo</th>
     <th>Modo</th>
-    <th style="min-width:360px">Acciones</th>
+    <th style="min-width:380px">Acciones</th>
 </tr>
 </thead>
 
@@ -110,7 +101,7 @@
 {% for s in salidas %}
 <tr class="fila-unidad" data-unidad="{{ s.vehiculo.codigo|lower }}">
     <td class="text-center">{{ s.vehiculo.codigo }}</td>
-    <td>{% if s.ruta %}{{ s.ruta.nombre }}{% else %}—{% endif %}</td>
+    <td>{{ s.ruta.nombre }}</td>
     <td class="text-center">{{ s.hora_llegada|date:"H:i" }}</td>
 
     <td class="text-center">
@@ -139,54 +130,45 @@
 
     <td class="text-center">
 
-        <a href="{% url 'control_ruta' s.id %}" class="btn btn-sm btn-outline-primary">🧭 Control</a>
-        <a href="{% url 'detalle_salida' s.id %}" class="btn btn-sm btn-outline-info">📍 Puntos</a>
-        <a href="{% url 'ver_qr_unidad' s.vehiculo.id %}" class="btn btn-sm btn-outline-dark">📦 QR</a>
+        <a href="{% url 'control_ruta' s.id %}" class="btn btn-sm btn-outline-primary">🧭</a>
+        <a href="{% url 'detalle_salida' s.id %}" class="btn btn-sm btn-outline-info">📍</a>
+        <a href="{% url 'ver_qr_unidad' s.vehiculo.id %}" class="btn btn-sm btn-outline-dark">📦</a>
 
-        {# =============================== #}
-        {# 1️⃣ NO TIENE HORA → FIJAR HORA   #}
-        {# =============================== #}
+        {# 🔒 1️⃣ FIJAR HORA (SI NO TIENE) #}
         {% if not s.hora_salida %}
-            <form method="post" action="{% url 'asignar_hora_fija' s.id %}" class="d-inline">
-                {% csrf_token %}
-                <input type="time"
-                       name="hora_fija"
-                       class="form-control form-control-sm d-inline"
-                       style="width:90px"
-                       required>
-                <button class="btn btn-sm btn-warning">🔒 Fijar</button>
-            </form>
+        <form method="post" action="{% url 'asignar_hora_fija' s.id %}" class="d-inline">
+            {% csrf_token %}
+            <input type="time" name="hora_fija"
+                   class="form-control form-control-sm d-inline"
+                   style="width:90px" required>
+            <button class="btn btn-sm btn-warning">🔒 Fijar</button>
+        </form>
         {% endif %}
 
-        {# ====================================== #}
-        {# 2️⃣ TIENE HORA Y NO ESTÁ EN COLA → COLA #}
-        {# ====================================== #}
+        {# 🚦 2️⃣ PONER EN COLA (SOLO SI YA TIENE HORA) #}
         {% if s.hora_salida and not s.en_cola %}
-            <form method="post" action="{% url 'poner_en_cola' s.id %}" class="d-inline">
-                {% csrf_token %}
-                <button class="btn btn-sm btn-outline-success">🚦 En cola</button>
-            </form>
+        <form method="post" action="{% url 'poner_en_cola' s.id %}" class="d-inline">
+            {% csrf_token %}
+            <button class="btn btn-sm btn-outline-success">🚦 En cola</button>
+        </form>
         {% endif %}
 
-        {# ========================== #}
-        {# 3️⃣ EN COLA → QUITAR COLA  #}
-        {# ========================== #}
+        {# ❌ 3️⃣ QUITAR COLA #}
         {% if s.en_cola %}
-            <form method="post" action="{% url 'quitar_de_cola' s.id %}" class="d-inline">
-                {% csrf_token %}
-                <button class="btn btn-sm btn-outline-danger">❌ Quitar cola</button>
-            </form>
+        <form method="post" action="{% url 'quitar_de_cola' s.id %}" class="d-inline">
+            {% csrf_token %}
+            <button class="btn btn-sm btn-outline-danger">❌ Quitar</button>
+        </form>
         {% endif %}
 
-        {# ============================ #}
-        {# 4️⃣ DESBLOQUEAR HORA MANUAL  #}
-        {# ============================ #}
+        {# 🔓 4️⃣ DESBLOQUEAR HORA #}
         {% if s.bloqueado %}
-            <form method="post" action="{% url 'desbloquear_hora' s.id %}" class="d-inline">
-                {% csrf_token %}
-                <button class="btn btn-sm btn-warning">🔓</button>
-            </form>
+        <form method="post" action="{% url 'desbloquear_hora' s.id %}" class="d-inline">
+            {% csrf_token %}
+            <button class="btn btn-sm btn-warning">🔓</button>
+        </form>
         {% endif %}
+
     </td>
 </tr>
 {% empty %}

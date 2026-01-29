@@ -1612,22 +1612,15 @@ def cambiar_intervalo_global(request):
     return redirect("panel_despachador")
 
 # =================================================
-# 🔒 ASIGNAR HORA FIJA A SALIDA (FIX DEFINITIVO FECHA + TZ)
+# 🔒 ASIGNAR HORA FIJA A SALIDA (FIX DEFINITIVO REAL)
 # =================================================
 @require_POST
 def asignar_hora_fija(request, salida_id):
     salida = get_object_or_404(RegistroSalida, id=salida_id)
 
     # -------------------------
-    # VALIDACIONES
+    # VALIDACIÓN ÚNICA CORRECTA
     # -------------------------
-    if not salida.en_cola:
-        messages.error(
-            request,
-            "No se puede fijar una hora si la unidad no está en cola."
-        )
-        return redirect("panel_despachador")
-
     if salida.bloqueado:
         messages.info(
             request,
@@ -1641,7 +1634,7 @@ def asignar_hora_fija(request, salida_id):
         return redirect("panel_despachador")
 
     # -------------------------
-    # 🔥 FIX CLAVE: FECHA = HOY (SIEMPRE)
+    # 🔥 FECHA OPERATIVA = HOY
     # -------------------------
     hoy = timezone.localdate()
     salida.fecha = hoy
@@ -1656,7 +1649,7 @@ def asignar_hora_fija(request, salida_id):
         return redirect("panel_despachador")
 
     # -------------------------
-    # 🔑 DATETIME AWARE EN ZONA LOCAL
+    # 🔑 DATETIME AWARE (ZONA LOCAL)
     # -------------------------
     hora_fija_dt = timezone.make_aware(
         datetime.combine(hoy, hora_time),
@@ -1678,7 +1671,8 @@ def asignar_hora_fija(request, salida_id):
     ])
 
     # -------------------------
-    # RECALCULAR COLA (RESPETA HORA FIJA)
+    # 🔁 RECALCULAR COLA
+    # (aunque aún no esté en cola)
     # -------------------------
     recalcular_cola()
 
@@ -1687,6 +1681,7 @@ def asignar_hora_fija(request, salida_id):
         f"Hora fija asignada correctamente: {hora_str}"
     )
     return redirect("panel_despachador")
+
 
 # =================================================
 # 🔓 DESBLOQUEAR HORA FIJA (VOLVER A AUTOMÁTICO)
