@@ -16,6 +16,8 @@ from django.views.decorators.http import require_POST, require_GET
 from django.views.decorators.cache import never_cache
 from django.contrib import messages
 from django.core.exceptions import ValidationError
+from django.db import models
+
 
 import qrcode
 
@@ -198,62 +200,58 @@ def reporte_salidas_diarias(request, vehiculo_id):
     )
 
 # =================================================
-# 🧭 PANEL DESPACHADOR
-# FIX DEFINITIVO PRODUCCIÓN (POR FECHA + ESTABLE)
+# 🧭 PANEL DESPACHADOR (REFORMADO Y COHERENTE)
 # =================================================
 def panel_despachador(request):
     """
-    PANEL PRINCIPAL DEL DESPACHADOR
+    PANEL PRINCIPAL DEL DESPACHADOR (REFORMADO)
 
-    - Muestra SOLO salidas activas del día
-    - Fecha local real (America/Lima)
-    - Tabla completa (vehículo, ruta, horas, modo, acciones)
-    - Compatible con Render / producción
+    REGLAS:
+    - El despachador SOLO fija hora
+    - No existe poner en cola desde el panel
+    - No se recalculan horas
+    - El orden es por hora de salida
+    - Compatible con producción
     """
 
     # -------------------------------------------------
-    # 📅 FECHA OPERATIVA REAL
+    # 📅 FECHA OPERATIVA REAL (ZONA LOCAL)
     # -------------------------------------------------
     hoy = timezone.localdate()
 
     # -------------------------------------------------
-    # 🔥 SALIDAS ACTIVAS DEL DÍA (OPTIMIZADO)
+    # 🔥 SALIDAS ACTIVAS DEL DÍA
+    # ORDEN REAL DE DESPACHO:
+    #   1️⃣ Primero las que tienen hora
+    #   2️⃣ Ordenadas por hora_salida
+    #   3️⃣ Luego las que no tienen hora
     # -------------------------------------------------
     salidas = (
         RegistroSalida.objects
-        .select_related("vehiculo", "ruta")  # 🔑 FIX CLAVE
+        .select_related("vehiculo", "ruta")
         .filter(
             activo=True,
             fecha=hoy
         )
         .order_by(
-            "-en_cola",      # primero los que están en cola
-            "orden_cola",    # orden real de cola
-            "hora_llegada"   # llegada a terminal
+            models.Case(
+                models.When(hora_salida__isnull=False, then=0),
+                models.When(hora_salida__isnull=True, then=1),
+                output_field=models.IntegerField(),
+            ),
+            "hora_salida",
+            "hora_llegada",
         )
     )
 
     # -------------------------------------------------
-    # ⚙️ CONFIGURACIÓN DE DESPACHO ACTIVA
-    # -------------------------------------------------
-    config_despacho = (
-        ConfiguracionDespacho.objects
-        .filter(activa=True)
-        .first()
-    )
-
-    # -------------------------------------------------
-    # 📤 RENDER FINAL
+    # 📤 RENDER FINAL (SOLO LO NECESARIO)
     # -------------------------------------------------
     return render(
         request,
         "flota_app/despachador/panel_despachador.html",
         {
             "salidas": salidas,
-            "config_despacho": config_despacho,
-            # 👇 útiles para formularios / selects / futuro
-            "rutas": Ruta.objects.all(),
-            "vehiculos": Vehiculo.objects.all(),
         }
     )
 

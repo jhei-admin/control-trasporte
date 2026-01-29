@@ -8,45 +8,6 @@
 <hr>
 
 {# ================================================== #}
-{# ⚙️ CONFIGURACIÓN DE INTERVALO                      #}
-{# ================================================== #}
-{% url 'cambiar_intervalo_global' as url_cambiar_intervalo %}
-{% if url_cambiar_intervalo %}
-<div class="alert alert-info mb-3">
-    {% if config_despacho and config_despacho.intervalo_fijo %}
-        🟡 <strong>Intervalo fijo activo:</strong>
-        {{ config_despacho.intervalo_fijo }} minutos
-        <form method="post" action="{{ url_cambiar_intervalo }}" class="mt-2">
-            {% csrf_token %}
-            <input type="hidden" name="accion" value="automatico">
-            <button class="btn btn-sm btn-outline-dark">
-                🔄 Volver a automático
-            </button>
-        </form>
-    {% else %}
-        🟢 <strong>Modo automático activo</strong><br>
-        <small>El sistema ajusta el intervalo según unidades en cola</small>
-        <form method="post"
-              action="{{ url_cambiar_intervalo }}"
-              class="mt-2 d-flex gap-2 align-items-center">
-            {% csrf_token %}
-            <input type="hidden" name="accion" value="manual">
-            <input type="number"
-                   name="intervalo"
-                   class="form-control form-control-sm"
-                   placeholder="min"
-                   min="1"
-                   required
-                   style="max-width: 90px;">
-            <button class="btn btn-sm btn-primary">
-                Aplicar intervalo fijo
-            </button>
-        </form>
-    {% endif %}
-</div>
-{% endif %}
-
-{# ================================================== #}
 {# 🔘 BOTONES SUPERIORES                              #}
 {# ================================================== #}
 <div class="mb-3 d-flex gap-2 flex-wrap">
@@ -82,7 +43,7 @@
        style="max-width: 320px;">
 
 {# ================================================== #}
-{# 📋 TABLA PRINCIPAL                                 #}
+{# 📋 TABLA PRINCIPAL (SIMPLE Y REAL)                 #}
 {# ================================================== #}
 <table class="table table-bordered table-sm align-middle">
 <thead class="table-dark text-center">
@@ -91,16 +52,15 @@
     <th>Ruta</th>
     <th>Hora llegada</th>
     <th>Hora salida</th>
-    <th>Intervalo</th>
-    <th>Modo</th>
-    <th style="min-width:380px">Acciones</th>
+    <th>Estado</th>
+    <th style="min-width:320px">Acciones</th>
 </tr>
 </thead>
 
 <tbody>
 {% for s in salidas %}
 <tr class="fila-unidad" data-unidad="{{ s.vehiculo.codigo|lower }}">
-    <td class="text-center">{{ s.vehiculo.codigo }}</td>
+    <td class="text-center fw-bold">{{ s.vehiculo.codigo }}</td>
     <td>{{ s.ruta.nombre }}</td>
     <td class="text-center">{{ s.hora_llegada|date:"H:i" }}</td>
 
@@ -112,19 +72,17 @@
         {% endif %}
     </td>
 
+    {# ================= ESTADO SOLO VISUAL ================= #}
     <td class="text-center">
-        {% if s.intervalo_minutos %}
-            {{ s.intervalo_minutos }} min
+        {% if not s.hora_salida %}
+            <span class="badge bg-secondary">SIN HORA</span>
         {% else %}
-            —
-        {% endif %}
-    </td>
-
-    <td class="text-center">
-        {% if s.bloqueado %}
-            <span class="badge bg-warning text-dark">MANUAL</span>
-        {% else %}
-            <span class="badge bg-success">AUTO</span>
+            {% now "Y-m-d H:i" as ahora %}
+            {% if s.hora_salida|date:"Y-m-d H:i" > ahora %}
+                <span class="badge bg-info text-dark">PROGRAMADO</span>
+            {% else %}
+                <span class="badge bg-danger">ATRASADO</span>
+            {% endif %}
         {% endif %}
     </td>
 
@@ -134,38 +92,28 @@
         <a href="{% url 'detalle_salida' s.id %}" class="btn btn-sm btn-outline-info">📍</a>
         <a href="{% url 'ver_qr_unidad' s.vehiculo.id %}" class="btn btn-sm btn-outline-dark">📦</a>
 
-        {# 🔒 1️⃣ FIJAR HORA (SI NO TIENE) #}
-        {% if not s.hora_salida %}
-        <form method="post" action="{% url 'asignar_hora_fija' s.id %}" class="d-inline">
+        {# 🔒 FIJAR / EDITAR HORA #}
+        <form method="post"
+              action="{% url 'asignar_hora_fija' s.id %}"
+              class="d-inline ms-1">
             {% csrf_token %}
-            <input type="time" name="hora_fija"
+            <input type="time"
+                   name="hora_fija"
                    class="form-control form-control-sm d-inline"
-                   style="width:90px" required>
-            <button class="btn btn-sm btn-warning">🔒 Fijar</button>
+                   style="width:90px"
+                   required>
+            <button class="btn btn-sm btn-warning">
+                {% if s.hora_salida %}✏️ Cambiar{% else %}🔒 Fijar{% endif %}
+            </button>
         </form>
-        {% endif %}
 
-        {# 🚦 2️⃣ PONER EN COLA (SOLO SI YA TIENE HORA) #}
-        {% if s.hora_salida and not s.en_cola %}
-        <form method="post" action="{% url 'poner_en_cola' s.id %}" class="d-inline">
+        {# 🔓 QUITAR HORA (VOLVER A SIN HORA) #}
+        {% if s.hora_salida %}
+        <form method="post"
+              action="{% url 'desbloquear_hora' s.id %}"
+              class="d-inline">
             {% csrf_token %}
-            <button class="btn btn-sm btn-outline-success">🚦 En cola</button>
-        </form>
-        {% endif %}
-
-        {# ❌ 3️⃣ QUITAR COLA #}
-        {% if s.en_cola %}
-        <form method="post" action="{% url 'quitar_de_cola' s.id %}" class="d-inline">
-            {% csrf_token %}
-            <button class="btn btn-sm btn-outline-danger">❌ Quitar</button>
-        </form>
-        {% endif %}
-
-        {# 🔓 4️⃣ DESBLOQUEAR HORA #}
-        {% if s.bloqueado %}
-        <form method="post" action="{% url 'desbloquear_hora' s.id %}" class="d-inline">
-            {% csrf_token %}
-            <button class="btn btn-sm btn-warning">🔓</button>
+            <button class="btn btn-sm btn-outline-secondary">❌</button>
         </form>
         {% endif %}
 
@@ -173,7 +121,7 @@
 </tr>
 {% empty %}
 <tr>
-    <td colspan="7" class="text-center text-muted">
+    <td colspan="6" class="text-center text-muted">
         No hay salidas registradas
     </td>
 </tr>
