@@ -2044,17 +2044,14 @@ from django.http import JsonResponse
 from .models import UbicacionVehiculo
 
 def debug_gps(request):
-    u = UbicacionVehiculo.objects.select_related("vehiculo").first()
+    data = []
 
-    if not u:
-        return JsonResponse({
-            "ok": False,
-            "msg": "No hay ubicación registrada aún"
+    for u in UbicacionVehiculo.objects.select_related("vehiculo").all():
+        data.append({
+            "vehiculo": u.vehiculo.codigo,
+            "lat": u.latitud,
+            "lng": u.longitud,
+            "updated_at": u.updated_at
         })
 
-    return JsonResponse({
-        "vehiculo": u.vehiculo.codigo,
-        "lat": u.latitud,
-        "lng": u.longitud,
-        "updated_at": u.updated_at
-    })
+    return JsonResponse(data, safe=False)
