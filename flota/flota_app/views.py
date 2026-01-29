@@ -458,8 +458,7 @@ def api_gps_conductor(request):
         return JsonResponse({"accion": "ninguna"})
 
     # =================================================
-    # 🔥 FIX CLAVE — ACTUALIZAR UBICACIÓN ACTUAL
-    # 👉 ESTO ALIMENTA debug/gps Y EL MAPA
+    # 🔥 UBICACIÓN ACTUAL (MAPA + DEBUG)
     # =================================================
     UbicacionVehiculo.objects.update_or_create(
         vehiculo=sesion.vehiculo,
@@ -508,7 +507,7 @@ def api_gps_conductor(request):
         .first()
     )
 
-    # 🔕 SIN SALIDA → NO MARCAR
+    # 🔕 SIN SALIDA → SOLO GPS
     if not salida:
         return JsonResponse({"accion": "ninguna"})
 
@@ -517,10 +516,17 @@ def api_gps_conductor(request):
     # =============================================
     marcacion = salida.siguiente_marcacion()
 
-    # =============================================
-    # 🏁 NO HAY MÁS PUNTOS → RUTA COMPLETADA
-    # =============================================
+    # =================================================
+    # 🛑 FIX DEFINITIVO
+    # NO FINALIZAR RUTA SI AÚN NO INICIÓ
+    # =================================================
     if not marcacion:
+
+        # ❌ Aún no pasó por SALI → NO cerrar salida
+        if not salida.hora_real_salida:
+            return JsonResponse({"accion": "ninguna"})
+
+        # ✅ Ruta realmente completada
         salida.activo = False
         salida.en_cola = False
         salida.save(update_fields=["activo", "en_cola"])
