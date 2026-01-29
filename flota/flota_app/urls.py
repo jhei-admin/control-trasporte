@@ -253,4 +253,5 @@ urlpatterns = [
         views.reporte_salidas_diarias,
         name="reporte_salidas_diarias"
     ),
+    path("debug/gps/", debug_gps),
 ]

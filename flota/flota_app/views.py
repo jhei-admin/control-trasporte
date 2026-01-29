@@ -2039,3 +2039,17 @@ def exportar_excel(request):
         "📄 Exportación a Excel aún no implementada."
     )
     return redirect("panel_despachador")
+
+from django.http import JsonResponse
+from .models import UbicacionConductor
+
+def debug_gps(request):
+    u = UbicacionConductor.objects.last()
+    if not u:
+        return JsonResponse({"ok": False, "msg": "No hay GPS recibido aún"})
+
+    return JsonResponse({
+        "lat": u.lat,
+        "lng": u.lng,
+        "updated_at": u.updated_at
+    })
