@@ -2041,15 +2041,20 @@ def exportar_excel(request):
     return redirect("panel_despachador")
 
 from django.http import JsonResponse
-from .models import UbicacionConductor
+from .models import UbicacionVehiculo
 
 def debug_gps(request):
-    u = UbicacionConductor.objects.last()
+    u = UbicacionVehiculo.objects.select_related("vehiculo").first()
+
     if not u:
-        return JsonResponse({"ok": False, "msg": "No hay GPS recibido aún"})
+        return JsonResponse({
+            "ok": False,
+            "msg": "No hay ubicación registrada aún"
+        })
 
     return JsonResponse({
-        "lat": u.lat,
-        "lng": u.lng,
+        "vehiculo": u.vehiculo.codigo,
+        "lat": u.latitud,
+        "lng": u.longitud,
         "updated_at": u.updated_at
     })
