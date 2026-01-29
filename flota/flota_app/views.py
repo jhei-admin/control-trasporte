@@ -1266,12 +1266,12 @@ def api_app_estado(request):
     estado_gps = calcular_estado_sesion(sesion)
 
     # =============================================
-    # 📅 FECHA ACTUAL (LOCAL)
+    # 📅 FECHA OPERATIVA
     # =============================================
     hoy = timezone.localdate()
 
     # =============================================
-    # 🚍 BUSCAR SALIDA ACTIVA DEL DÍA
+    # 🚍 SALIDA ACTIVA CORRECTA (ORDEN CLAVE)
     # =============================================
     salida = (
         RegistroSalida.objects
@@ -1280,7 +1280,11 @@ def api_app_estado(request):
             fecha=hoy,
             activo=True
         )
-        .order_by("en_cola", "orden_cola", "hora_salida")
+        .order_by(
+            "-en_cola",      # 🔥 PRIORIDAD REAL
+            "orden_cola",
+            "hora_salida"
+        )
         .first()
     )
 
@@ -1298,7 +1302,7 @@ def api_app_estado(request):
         })
 
     # =============================================
-    # ⏳ SIN HORA ASIGNADA
+    # ⏳ SIN HORA
     # =============================================
     if not salida.hora_salida:
         return JsonResponse({
@@ -1317,7 +1321,7 @@ def api_app_estado(request):
     ahora = timezone.localtime(timezone.now(), tz)
     hora_salida = timezone.localtime(salida.hora_salida, tz)
 
-    # 🔒 BLINDAJE POR FECHA
+    # 🔒 BLINDAJE DE FECHA
     if hora_salida.date() != hoy:
         return JsonResponse({
             "autorizado": True,
@@ -1331,12 +1335,10 @@ def api_app_estado(request):
     segundos = (hora_salida - ahora).total_seconds()
     minutos = max(int(segundos // 60), 0)
 
-    # =================================================
-    # 🔴 EN COLA (SOLO INFORMATIVO)
-    # =================================================
+    # =============================================
+    # 🔴 EN COLA
+    # =============================================
     if salida.en_cola:
-
-        # ⏰ Hora ya alcanzada (NO INICIA SALIDA AQUÍ)
         if segundos <= 0:
             return JsonResponse({
                 "autorizado": True,
@@ -1347,7 +1349,6 @@ def api_app_estado(request):
                 "mensaje": "Salida activa"
             })
 
-        # 🟡 COLA NORMAL
         return JsonResponse({
             "autorizado": True,
             "estado": "EN_COLA",
@@ -1358,9 +1359,9 @@ def api_app_estado(request):
             "mensaje": "Unidad en cola"
         })
 
-    # =================================================
-    # 🟢 SALIDA ACTIVA (YA INICIADA POR GPS / SALI)
-    # =================================================
+    # =============================================
+    # 🟢 SALIDA YA INICIADA
+    # =============================================
     if salida.hora_real_salida:
 
         if sesion.salida_id != salida.id:
@@ -1376,9 +1377,9 @@ def api_app_estado(request):
             "mensaje": "Salida activa"
         })
 
-    # =================================================
+    # =============================================
     # 🟡 FALLBACK SEGURO
-    # =================================================
+    # =============================================
     return JsonResponse({
         "autorizado": True,
         "estado": "EN_COLA",
@@ -1624,7 +1625,7 @@ def asignar_hora_fija(request, salida_id):
     salida = get_object_or_404(RegistroSalida, id=salida_id)
 
     # -------------------------
-    # VALIDACIÓN ÚNICA CORRECTA
+    # 🔒 VALIDACIÓN
     # -------------------------
     if salida.bloqueado:
         messages.info(
@@ -1639,13 +1640,12 @@ def asignar_hora_fija(request, salida_id):
         return redirect("panel_despachador")
 
     # -------------------------
-    # 🔥 FECHA OPERATIVA = HOY
+    # 📅 FECHA OPERATIVA = HOY
     # -------------------------
     hoy = timezone.localdate()
-    salida.fecha = hoy
 
     # -------------------------
-    # PARSE DE HORA
+    # ⏱ PARSE DE HORA
     # -------------------------
     try:
         hora_time = datetime.strptime(hora_str, "%H:%M").time()
@@ -1654,7 +1654,7 @@ def asignar_hora_fija(request, salida_id):
         return redirect("panel_despachador")
 
     # -------------------------
-    # 🔑 DATETIME AWARE (ZONA LOCAL)
+    # 🌎 DATETIME AWARE (ZONA LOCAL)
     # -------------------------
     hora_fija_dt = timezone.make_aware(
         datetime.combine(hoy, hora_time),
@@ -1662,8 +1662,9 @@ def asignar_hora_fija(request, salida_id):
     )
 
     # -------------------------
-    # ASIGNACIÓN FINAL
+    # ✅ ASIGNACIÓN FINAL (INTOCABLE)
     # -------------------------
+    salida.fecha = hoy
     salida.hora_fija = hora_fija_dt
     salida.hora_salida = hora_fija_dt
     salida.bloqueado = True
@@ -1675,18 +1676,14 @@ def asignar_hora_fija(request, salida_id):
         "bloqueado"
     ])
 
-    # -------------------------
-    # 🔁 RECALCULAR COLA
-    # (aunque aún no esté en cola)
-    # -------------------------
-    recalcular_cola()
+    # 🚫 NO RECALCULAR COLA AQUÍ
+    # La cola se recalcula SOLO al poner / quitar de cola
 
     messages.success(
         request,
         f"Hora fija asignada correctamente: {hora_str}"
     )
     return redirect("panel_despachador")
-
 
 # =================================================
 # 🔓 DESBLOQUEAR HORA FIJA (VOLVER A AUTOMÁTICO)
