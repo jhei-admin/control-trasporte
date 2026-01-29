@@ -1455,7 +1455,8 @@ def poner_en_cola(request, salida_id):
     hoy = timezone.localdate()
 
     # ------------------------------------------------
-    # 🔥 SI LA SALIDA NO ES DE HOY → CREAR UNA NUEVA
+    # 🔥 SI LA SALIDA NO ES DE HOY → CREAR NUEVA
+    # (pero SIN poner en cola aún)
     # ------------------------------------------------
     if salida.fecha != hoy:
         # cerrar salida vieja
@@ -1470,11 +1471,23 @@ def poner_en_cola(request, salida_id):
             fecha=hoy,
             hora_llegada=timezone.now(),
             activo=True,
-            en_cola=False
+            en_cola=False,
+            bloqueado=False
         )
 
     # ------------------------------------------------
-    # VALIDACIONES NORMALES
+    # 🔒 VALIDACIÓN CLAVE (FIX DEFINITIVO)
+    # NO SE PUEDE PONER EN COLA SIN HORA DE SALIDA
+    # ------------------------------------------------
+    if not salida.hora_salida:
+        messages.error(
+            request,
+            "❌ Primero debe fijar la hora de salida antes de poner en cola."
+        )
+        return redirect("panel_despachador")
+
+    # ------------------------------------------------
+    # VALIDACIÓN NORMAL
     # ------------------------------------------------
     if salida.en_cola:
         messages.info(request, "La unidad ya está en la cola.")
@@ -1497,17 +1510,25 @@ def poner_en_cola(request, salida_id):
 
     salida.en_cola = True
     salida.orden_cola = (ultimo.orden_cola + 1) if ultimo else 1
-    salida.bloqueado = False
 
+    # ⚠️ IMPORTANTE:
+    # - NO tocamos hora_salida
+    # - NO tocamos hora_fija
+    # - NO tocamos hora_real_salida
     salida.save(update_fields=[
         "en_cola",
-        "orden_cola",
-        "bloqueado"
+        "orden_cola"
     ])
 
+    # ------------------------------------------------
+    # 🔁 RECALCULAR COLA (RESPETA HORAS FIJAS)
+    # ------------------------------------------------
     recalcular_cola()
 
-    messages.success(request, "Unidad puesta en cola para el día de hoy.")
+    messages.success(
+        request,
+        "✅ Unidad puesta en cola correctamente."
+    )
     return redirect("panel_despachador")
 
 # =================================================
