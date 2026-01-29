@@ -755,6 +755,26 @@ def api_gps(request):
         timestamp=timezone.now()
     )
 
+    # =====================================================
+    # 🔴 AGREGADO — FILTRO GPS BASURA (CLAVE REAL)
+    # =====================================================
+    # Si la precisión es mala (>100m), NO actualizamos mapa
+    # Esto evita ubicaciones falsas (Lima, capital, red)
+    if precision is not None and precision > 100:
+        # Aún así reforzamos heartbeat
+        sesion.last_heartbeat = timezone.now()
+        sesion.save(update_fields=["last_heartbeat"])
+
+        return JsonResponse({
+            "ok": True,
+            "vehiculo": sesion.vehiculo.codigo,
+            "lat": lat,
+            "lng": lng,
+            "precision": precision,
+            "descartado": True,
+            "motivo": "GPS con baja precisión"
+        })
+
     # ---------------------------------------------
     # 📍 UBICACIÓN ACTUAL (MAPA EN TIEMPO REAL)
     # ---------------------------------------------
@@ -787,6 +807,7 @@ def api_gps(request):
         "vehiculo": sesion.vehiculo.codigo,
         "lat": lat,
         "lng": lng,
+        "precision": precision,
         "timestamp": timezone.now().isoformat()
     })
 
