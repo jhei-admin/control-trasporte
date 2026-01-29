@@ -457,6 +457,18 @@ def api_gps_conductor(request):
     except (TypeError, ValueError):
         return JsonResponse({"accion": "ninguna"})
 
+    # =================================================
+    # 🔥 FIX CLAVE — ACTUALIZAR UBICACIÓN ACTUAL
+    # 👉 ESTO ALIMENTA debug/gps Y EL MAPA
+    # =================================================
+    UbicacionVehiculo.objects.update_or_create(
+        vehiculo=sesion.vehiculo,
+        defaults={
+            "latitud": lat,
+            "longitud": lng,
+        }
+    )
+
     # =============================================
     # 🛰️ GPS HISTÓRICO (ANTI-SPAM)
     # =============================================
@@ -534,7 +546,7 @@ def api_gps_conductor(request):
         return JsonResponse({"accion": "ninguna"})
 
     # =================================================
-    # 🟢 FIX CLAVE — PRIMER SALI INICIA LA SALIDA REAL
+    # 🟢 PRIMER SALI INICIA LA SALIDA REAL
     # =================================================
     if not salida.hora_real_salida:
         salida.hora_real_salida = timezone.now()
@@ -546,24 +558,21 @@ def api_gps_conductor(request):
             "activo"
         ])
 
-        # sincronizar sesión con la salida real
         if sesion.salida_id != salida.id:
             sesion.salida = salida
             sesion.save(update_fields=["salida"])
 
     # =============================================
-    # ✅ MARCAR PUNTO (MODELO DECIDE TODO)
+    # ✅ MARCAR PUNTO
     # =============================================
     marcacion.marcar()
 
     # =============================================
-    # 🔊 RESPUESTA FINAL (FIX CLAVE 2)
-    # - audio puede ser None
-    # - frontend decide si reproduce o no
+    # 🔊 RESPUESTA FINAL
     # =============================================
     return JsonResponse({
         "accion": "audio" if marcacion.audio_flag else "visual",
-        "audio": marcacion.audio_flag,  # 👈 puede ser null
+        "audio": marcacion.audio_flag,
         "visual": {
             "codigo": punto.codigo,
             "punto": punto.nombre,
