@@ -31,6 +31,9 @@ ALLOWED_HOSTS = [
     "127.0.0.1",
     "localhost",
     ".onrender.com",
+
+    # 🔥 AGREGADO PARA CLOUDFLARE TUNNEL
+    ".trycloudflare.com",
 ]
 
 
@@ -39,6 +42,9 @@ ALLOWED_HOSTS = [
 # =========================
 CSRF_TRUSTED_ORIGINS = [
     "https://*.onrender.com",
+
+    # 🔥 AGREGADO PARA CLOUDFLARE TUNNEL
+    "https://*.trycloudflare.com",
 ]
 
 
