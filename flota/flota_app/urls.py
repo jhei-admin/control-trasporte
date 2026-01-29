@@ -32,10 +32,24 @@ urlpatterns = [
         name="api_app_estado"
     ),
 
+    # ✔️ GPS CONDUCTOR (ruta original)
     path(
         "api/app/gps/",
         views.api_gps_conductor,
         name="api_gps_conductor"
+    ),
+
+    # =================================================
+    # 🔥 FIX CLAVE — ALIAS PARA APP CONDUCTOR
+    # 👉 ESTO ES LO QUE FALTABA
+    # =================================================
+    path(
+        "api/gps/conductor/",
+        views.api_gps_conductor
+    ),
+    path(
+        "api/gps/conductor",
+        views.api_gps_conductor
     ),
 
     # =========================
@@ -151,7 +165,7 @@ urlpatterns = [
     ),
 
     # =========================
-    # 🔍 BUSCADOR CLÁSICO (FORM POST)
+    # 🔍 BUSCADOR CLÁSICO
     # =========================
     path(
         "despachador/buscar-unidad/",
@@ -254,5 +268,9 @@ urlpatterns = [
         views.reporte_salidas_diarias,
         name="reporte_salidas_diarias"
     ),
+
+    # =========================
+    # 🧪 DEBUG
+    # =========================
     path("debug/gps/", debug_gps),
 ]
