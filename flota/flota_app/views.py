@@ -1676,7 +1676,20 @@ def asignar_hora_fija(request, salida_id):
     ])
 
     # -------------------------------------------------
-    # 🔁 SINCRONIZAR TODAS LAS MARCACIONES EXISTENTES
+    # 🧱 CREAR MARCACIONES DE TODOS LOS PUNTOS DE LA RUTA
+    # -------------------------------------------------
+    puntos = PuntoControl.objects.filter(
+        ruta=salida.ruta
+    ).order_by("orden")
+
+    for punto in puntos:
+        MarcacionPunto.objects.get_or_create(
+            registro_salida=salida,
+            punto=punto
+        )
+
+    # -------------------------------------------------
+    # 🔁 SINCRONIZAR TODAS LAS MARCACIONES (NUEVAS Y EXISTENTES)
     # -------------------------------------------------
     for m in salida.marcaciones.all():
         m.hora_programada = m.calcular_hora_programada()
