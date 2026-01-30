@@ -1910,22 +1910,31 @@ def marcar_paso(request, salida_id, punto_id):
 def marcar_siguiente_punto(request, salida_id):
     salida = get_object_or_404(RegistroSalida, id=salida_id)
 
-    punto = salida.siguiente_punto()
-    if not punto:
-        messages.info(request, "No hay más puntos pendientes.")
-        return redirect("control_ruta", salida_id=salida.id)
+    # 🔑 FUENTE ÚNICA DE VERDAD
+    marcacion = salida.siguiente_marcacion()
 
-    marcacion, _ = MarcacionPunto.objects.get_or_create(
-        registro_salida=salida,
-        punto=punto
-    )
+    if not marcacion:
+        messages.info(
+            request,
+            "No hay más puntos pendientes."
+        )
+        return redirect(
+            "control_ruta",
+            salida_id=salida.id
+        )
 
+    # ✅ MARCAR
     marcacion.marcar()
 
-    # 🔚 ¿Último punto?
+    punto = marcacion.punto
+
+    # 🔚 ¿ES EL ÚLTIMO PUNTO?
     ultimo = (
         PuntoControl.objects
-        .filter(ruta=salida.ruta, activo=True)
+        .filter(
+            ruta=salida.ruta,
+            activo=True
+        )
         .order_by("-orden")
         .first()
     )
@@ -1933,20 +1942,30 @@ def marcar_siguiente_punto(request, salida_id):
     if ultimo and punto.id == ultimo.id:
         salida.activo = False
         salida.en_cola = False
-        salida.save(update_fields=["activo", "en_cola"])
+        salida.save(update_fields=[
+            "activo",
+            "en_cola"
+        ])
 
         messages.success(
             request,
             "Último punto marcado. Ruta finalizada."
         )
-        return redirect("detalle_salida", salida_id=salida.id)
+
+        return redirect(
+            "detalle_salida",
+            salida_id=salida.id
+        )
 
     messages.success(
         request,
         f"Punto {punto.nombre} marcado ({marcacion.estado})."
     )
 
-    return redirect("control_ruta", salida_id=salida.id)
+    return redirect(
+        "control_ruta",
+        salida_id=salida.id
+    )
 
 # =================================================
 # 🔁 ALIAS: MARCAR SIGUIENTE PUNTO (AUTO / LEGACY)
