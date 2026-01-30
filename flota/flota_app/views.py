@@ -1616,21 +1616,11 @@ def cambiar_intervalo_global(request):
     return redirect("panel_despachador")
 
 # =================================================
-# 🔒 ASIGNAR HORA FIJA A SALIDA (FIX DEFINITIVO REAL)
+# 🔒 ASIGNAR / REPROGRAMAR HORA FIJA A SALIDA
 # =================================================
 @require_POST
 def asignar_hora_fija(request, salida_id):
     salida = get_object_or_404(RegistroSalida, id=salida_id)
-
-    # -------------------------
-    # 🔒 VALIDACIÓN
-    # -------------------------
-    if salida.bloqueado:
-        messages.info(
-            request,
-            "Esta unidad ya tiene una hora fija asignada."
-        )
-        return redirect("panel_despachador")
 
     hora_str = request.POST.get("hora_fija")
     if not hora_str:
@@ -1660,7 +1650,18 @@ def asignar_hora_fija(request, salida_id):
     )
 
     # -------------------------
-    # ✅ ASIGNACIÓN FINAL (INTOCABLE)
+    # 🔒 VALIDACIÓN OPERATIVA
+    # No permitir cambiar hora si ya salió
+    # -------------------------
+    if salida.hora_real_salida:
+        messages.error(
+            request,
+            "No se puede reprogramar la hora: la unidad ya inició la ruta."
+        )
+        return redirect("panel_despachador")
+
+    # -------------------------
+    # ✅ ASIGNAR / REPROGRAMAR
     # -------------------------
     salida.fecha = hoy
     salida.hora_fija = hora_fija_dt
@@ -1674,12 +1675,16 @@ def asignar_hora_fija(request, salida_id):
         "bloqueado"
     ])
 
-    # 🚫 NO RECALCULAR COLA AQUÍ
-    # La cola se recalcula SOLO al poner / quitar de cola
+    # -------------------------------------------------
+    # 🔁 SINCRONIZAR TODAS LAS MARCACIONES EXISTENTES
+    # -------------------------------------------------
+    for m in salida.marcaciones.all():
+        m.hora_programada = m.calcular_hora_programada()
+        m.save(update_fields=["hora_programada"])
 
     messages.success(
         request,
-        f"Hora fija asignada correctamente: {hora_str}"
+        f"Hora de salida programada correctamente: {hora_str}"
     )
     return redirect("panel_despachador")
 

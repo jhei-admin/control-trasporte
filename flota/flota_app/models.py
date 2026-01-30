@@ -270,6 +270,7 @@ class MarcacionPunto(models.Model):
 
     punto = models.ForeignKey(PuntoControl, on_delete=models.CASCADE)
 
+    # ⚠️ Cache / auditoría (NO fuente de verdad)
     hora_programada = models.DateTimeField(null=True, blank=True)
     hora_marcada = models.DateTimeField(null=True, blank=True)
 
@@ -300,10 +301,10 @@ class MarcacionPunto(models.Model):
         ordering = ["punto__orden"]
 
     # -------------------------------------------------
-    # ⏱ HORA PROGRAMADA SEGÚN SALIDA + OFFSET
+    # ⏱ HORA PROGRAMADA = SALIDA + OFFSET
     # -------------------------------------------------
     def calcular_hora_programada(self):
-        if not self.registro_salida.hora_salida:
+        if not self.registro_salida or not self.registro_salida.hora_salida:
             return None
 
         return (
@@ -312,7 +313,7 @@ class MarcacionPunto(models.Model):
         )
 
     # -------------------------------------------------
-    # 🧠 EVALUAR ESTADO (REGLA FINAL DEL SISTEMA)
+    # 🧠 EVALUAR ESTADO (REGLA ÚNICA)
     # -------------------------------------------------
     def evaluar_estado(self, tolerancia_min=2):
         if not self.hora_marcada or not self.hora_programada:
@@ -325,43 +326,40 @@ class MarcacionPunto(models.Model):
 
         self.diferencia_minutos = diff
 
-        # 🔴 ADELANTADO
         if diff < -tolerancia_min:
             self.estado = "adelantado"
             self.audio_flag = "audio_adelantado"
 
-        # 🔴 TARDE
         elif diff > tolerancia_min:
             self.estado = "tarde"
             self.audio_flag = "audio_tarde"
 
-        # 🟢 A TIEMPO → SOLO VISUAL (SIN AUDIO)
         else:
             self.estado = "a_tiempo"
-            self.audio_flag = None   # 👈 FIX CLAVE
+            self.audio_flag = None
 
     # -------------------------------------------------
-    # ✅ MARCAR PUNTO (IDEMPOTENTE)
+    # ✅ MARCAR PUNTO (FUENTE ÚNICA DE VERDAD)
     # -------------------------------------------------
     def marcar(self, hora=None):
-        # No se puede marcar dos veces
         if self.hora_marcada:
             return
 
         self.hora_marcada = hora or timezone.now()
 
-        if not self.hora_programada:
-            self.hora_programada = self.calcular_hora_programada()
+        # 🔥 SIEMPRE recalcular desde la salida actual
+        self.hora_programada = self.calcular_hora_programada()
 
         self.evaluar_estado()
         self.save()
 
     # -------------------------------------------------
-    # 💾 SAVE SEGURO
+    # 💾 SAVE BLINDADO (ANTI-INCOHERENCIAS)
     # -------------------------------------------------
     def save(self, *args, **kwargs):
 
-        if not self.hora_programada:
+        # 🔑 Mantener sincronizada la hora programada
+        if self.registro_salida and self.registro_salida.hora_salida:
             self.hora_programada = self.calcular_hora_programada()
 
         if self.hora_marcada and not self.estado:
