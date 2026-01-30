@@ -86,40 +86,52 @@ class ConfiguracionDespacho(models.Model):
             else "Automático"
         )
 
-
-# =========================
-# REGISTRO DE SALIDA
-# =========================
 class RegistroSalida(models.Model):
 
-    vehiculo = models.ForeignKey(Vehiculo, on_delete=models.CASCADE)
+    vehiculo = models.ForeignKey(
+        "Vehiculo",
+        on_delete=models.CASCADE
+    )
 
     ruta = models.ForeignKey(
-        Ruta,
+        "Ruta",
         on_delete=models.SET_NULL,
         null=True,
         blank=True
     )
 
+    # =========================
+    # FECHAS Y HORAS
+    # =========================
     fecha = models.DateField(default=timezone.localdate)
     hora_llegada = models.DateTimeField(default=timezone.now)
 
-    activo = models.BooleanField(default=True)
-    en_cola = models.BooleanField(default=False)
-
-    orden_cola = models.PositiveIntegerField(null=True, blank=True)
-
     hora_salida = models.DateTimeField(null=True, blank=True)
     hora_fija = models.DateTimeField(null=True, blank=True)
+    hora_real_salida = models.DateTimeField(null=True, blank=True)
 
-    intervalo_minutos = models.PositiveIntegerField(null=True, blank=True)
+    # =========================
+    # ESTADOS
+    # =========================
+    activo = models.BooleanField(default=True)
+    en_cola = models.BooleanField(default=False)
     bloqueado = models.BooleanField(default=False)
 
-    hora_real_salida = models.DateTimeField(null=True, blank=True)
-    diferencia_minutos = models.IntegerField(null=True, blank=True)
+    # =========================
+    # COLA
+    # =========================
+    orden_cola = models.PositiveIntegerField(null=True, blank=True)
+    intervalo_minutos = models.PositiveIntegerField(null=True, blank=True)
 
+    # =========================
+    # AUDITORÍA
+    # =========================
+    diferencia_minutos = models.IntegerField(null=True, blank=True)
     creado_en = models.DateTimeField(auto_now_add=True)
 
+    # =========================
+    # REGLAS DE INTEGRIDAD
+    # =========================
     class Meta:
         constraints = [
             models.UniqueConstraint(
@@ -130,6 +142,9 @@ class RegistroSalida(models.Model):
         ]
         ordering = ["fecha", "creado_en"]
 
+    # =========================
+    # VALIDACIONES
+    # =========================
     def clean(self):
 
         if not self.en_cola and self.orden_cola is not None:
@@ -146,11 +161,18 @@ class RegistroSalida(models.Model):
             and self.hora_salida
             and self.hora_fija != self.hora_salida
         ):
-            raise ValidationError("Hora fija y hora salida deben coincidir.")
+            raise ValidationError(
+                "Hora fija y hora salida deben coincidir."
+            )
 
         if self.en_cola and not self.ruta:
-            raise ValidationError("No se puede poner en cola sin ruta.")
+            raise ValidationError(
+                "No se puede poner en cola sin ruta."
+            )
 
+    # =========================
+    # SAVE CENTRAL
+    # =========================
     def save(self, *args, **kwargs):
 
         if not self.en_cola:
@@ -166,6 +188,9 @@ class RegistroSalida(models.Model):
 
         super().save(*args, **kwargs)
 
+    # =========================
+    # FLUJO OPERATIVO
+    # =========================
     def iniciar_salida(self):
         if self.hora_real_salida:
             return
@@ -174,49 +199,52 @@ class RegistroSalida(models.Model):
         self.en_cola = False
         self.activo = True
 
-        self.save(update_fields=["hora_real_salida", "en_cola", "activo"])
+        self.save(update_fields=[
+            "hora_real_salida",
+            "en_cola",
+            "activo"
+        ])
 
     def finalizar_salida(self):
         self.activo = False
         self.en_cola = False
-        self.save(update_fields=["activo", "en_cola"])
 
-    def siguiente_punto(self):
-        if not self.ruta:
-            return None
+        self.save(update_fields=[
+            "activo",
+            "en_cola"
+        ])
 
-        from django.apps import apps
-        PuntoControl = apps.get_model("flota_app", "PuntoControl")
-        MarcacionPunto = apps.get_model("flota_app", "MarcacionPunto")
-
-        puntos = PuntoControl.objects.filter(
-            ruta=self.ruta,
-            activo=True
-        ).order_by("orden")
-
-        for punto in puntos:
-            if not MarcacionPunto.objects.filter(
-                registro_salida=self,
-                punto=punto
-            ).exists():
-                return punto
-
-        return None
-
+    # =========================
+    # 🔥 PUNTO CORRECTO (FIX CLAVE)
+    # =========================
     def siguiente_marcacion(self):
-        punto = self.siguiente_punto()
-        if not punto:
-            return None
+        """
+        Devuelve la siguiente marcación pendiente.
+        NO usa hora.
+        NO depende de existencia.
+        SOLO estado real.
+        """
 
         from django.apps import apps
-        MarcacionPunto = apps.get_model("flota_app", "MarcacionPunto")
-
-        marcacion, _ = MarcacionPunto.objects.get_or_create(
-            registro_salida=self,
-            punto=punto
+        MarcacionPunto = apps.get_model(
+            "flota_app",
+            "MarcacionPunto"
         )
-        return marcacion
 
+        return (
+            MarcacionPunto.objects
+            .filter(
+                registro_salida=self,
+                hora_marcada__isnull=True
+            )
+            .select_related("punto")
+            .order_by("punto__orden")
+            .first()
+        )
+
+    # =========================
+    # UTILIDAD
+    # =========================
     @property
     def modo(self):
         return "MANUAL" if self.bloqueado else "AUTOMÁTICO"
@@ -224,7 +252,6 @@ class RegistroSalida(models.Model):
     def __str__(self):
         ruta = self.ruta.nombre if self.ruta else "SIN RUTA"
         return f"{self.vehiculo} - {ruta} ({self.fecha})"
-
 
 # =========================
 # PUNTO DE CONTROL

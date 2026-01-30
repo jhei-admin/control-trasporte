@@ -391,10 +391,7 @@ def recorrido_vehiculo(request):
 @csrf_exempt
 def api_gps_conductor(request):
     if request.method != "POST":
-        return JsonResponse(
-            {"error": "Método no permitido"},
-            status=405
-        )
+        return JsonResponse({"error": "Método no permitido"}, status=405)
 
     # =============================================
     # 🔑 LEER TOKEN DESDE HEADER
@@ -456,7 +453,7 @@ def api_gps_conductor(request):
         return JsonResponse({"accion": "ninguna"})
 
     # =================================================
-    # 🔥 UBICACIÓN ACTUAL (MAPA + DEBUG)
+    # 📍 UBICACIÓN ACTUAL (MAPA)
     # =================================================
     UbicacionVehiculo.objects.update_or_create(
         vehiculo=sesion.vehiculo,
@@ -505,9 +502,24 @@ def api_gps_conductor(request):
         .first()
     )
 
-    # 🔕 SIN SALIDA → SOLO GPS
     if not salida:
         return JsonResponse({"accion": "ninguna"})
+
+    # =================================================
+    # 🧱 FIX CLAVE — ASEGURAR MARCACIONES
+    # (ESTE ERA EL BUG REAL)
+    # =================================================
+    if salida.ruta and not salida.marcaciones.exists():
+        puntos = PuntoControl.objects.filter(
+            ruta=salida.ruta,
+            activo=True
+        ).order_by("orden")
+
+        for punto in puntos:
+            MarcacionPunto.objects.get_or_create(
+                registro_salida=salida,
+                punto=punto
+            )
 
     # =============================================
     # 📍 SIGUIENTE MARCACIÓN PENDIENTE
@@ -515,16 +527,12 @@ def api_gps_conductor(request):
     marcacion = salida.siguiente_marcacion()
 
     # =================================================
-    # 🛑 FIX DEFINITIVO
-    # NO FINALIZAR RUTA SI AÚN NO INICIÓ
+    # 🛑 NO FINALIZAR SI AÚN NO INICIÓ
     # =================================================
     if not marcacion:
-
-        # ❌ Aún no pasó por SALI → NO cerrar salida
         if not salida.hora_real_salida:
             return JsonResponse({"accion": "ninguna"})
 
-        # ✅ Ruta realmente completada
         salida.activo = False
         salida.en_cola = False
         salida.save(update_fields=["activo", "en_cola"])
@@ -537,7 +545,7 @@ def api_gps_conductor(request):
     punto = marcacion.punto
 
     # =============================================
-    # 📏 DISTANCIA GPS
+    # 📏 DISTANCIA GPS (METROS)
     # =============================================
     distancia = distancia_metros(
         lat,
@@ -567,7 +575,7 @@ def api_gps_conductor(request):
             sesion.save(update_fields=["salida"])
 
     # =============================================
-    # ✅ MARCAR PUNTO
+    # ✅ MARCAR PUNTO (FUENTE ÚNICA)
     # =============================================
     marcacion.marcar()
 
