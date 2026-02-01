@@ -152,31 +152,43 @@ let qrScanner = null;
 let escaneando = false;
 let estadoInterval = null;
 let watchId = null;
-let ultimoEnvioGPS = 0;
 
 /* ================= AUDIO ================= */
 let audioContext = null;
 let audioBuffers = {};
 let audioUnlocked = false;
+let audioReproduciendo = false;
 
 async function unlockAudio() {
   if (audioUnlocked) return;
+
   audioContext = new (window.AudioContext || window.webkitAudioContext)();
   await audioContext.resume();
 
-  const load = async (n,u)=>audioBuffers[n]=await audioContext.decodeAudioData(await (await fetch(u)).arrayBuffer());
-  await load("beep","{% static 'flota_app/sonidos/beep_despacho.wav' %}");
-  await load("audio_adelantado","{% static 'flota_app/sonidos/adelantado.mp3' %}");
-  await load("audio_tarde","{% static 'flota_app/sonidos/tarde.mp3' %}");
+  async function load(name, url) {
+    const res = await fetch(url);
+    const buf = await res.arrayBuffer();
+    audioBuffers[name] = await audioContext.decodeAudioData(buf);
+  }
+
+  await load("beep", "{% static 'flota_app/sonidos/beep_despacho.wav' %}");
+  await load("audio_adelantado", "{% static 'flota_app/sonidos/adelantado.mp3' %}");
+  await load("audio_tarde", "{% static 'flota_app/sonidos/tarde.mp3' %}");
+
   audioUnlocked = true;
 }
 
-function playAudio(n){
-  if(!audioBuffers[n]) return;
-  const s = audioContext.createBufferSource();
-  s.buffer = audioBuffers[n];
-  s.connect(audioContext.destination);
-  s.start();
+function playAudio(name) {
+  if (!audioUnlocked || !audioBuffers[name]) return;
+  if (audioReproduciendo) return;
+
+  audioReproduciendo = true;
+  const src = audioContext.createBufferSource();
+  src.buffer = audioBuffers[name];
+  src.connect(audioContext.destination);
+
+  src.onended = () => audioReproduciendo = false;
+  src.start(0);
 }
 
 /* ================= QR ================= */
@@ -199,18 +211,15 @@ function iniciarEscaneoQR() {
       async texto => {
         await qrScanner.stop();
         await qrScanner.clear();
-        escaneando = false;
 
         $("qr-reader").style.display = "none";
         $("pantallaQR").style.display = "none";
         $("pantallaEstado").style.display = "block";
 
+        escaneando = false;
         activarUnidad(texto);
       }
     );
-  }).catch(() => {
-    escaneando = false;
-    $("btnEscanear").disabled = false;
   });
 }
 
@@ -241,6 +250,7 @@ function activarUnidad(texto) {
 function iniciarSistema() {
   if (!estadoInterval)
     estadoInterval = setInterval(consultarEstado, 5000);
+
   iniciarGPSContinuo();
   consultarEstado();
 }
@@ -258,7 +268,15 @@ function consultarEstado() {
   .then(data => {
     if (!data.autorizado) return;
 
-    if (data.hora_salida) $("gpsHora").innerText = data.hora_salida;
+    /* 🔔 BEEP CUANDO SE ASIGNA O CAMBIA HORA */
+    const horaPrev = localStorage.getItem("hora_salida");
+    if (data.hora_salida && data.hora_salida !== horaPrev) {
+      playAudio("beep");
+      localStorage.setItem("hora_salida", data.hora_salida);
+    }
+
+    if (data.hora_salida)
+      $("gpsHora").innerText = data.hora_salida;
 
     if (data.estado === "SALIDA_ACTIVA") {
       $("gpsEstado").innerText = "A TIEMPO";
@@ -294,7 +312,7 @@ function iniciarGPSContinuo() {
 window.addEventListener("load", () => {
   const token = localStorage.getItem("token");
   if (token) {
-    unlockAudio(); // 👈 ESTO ES CLAVE
+    unlockAudio();   // 👈 obligatorio en PWA
     $("pantallaQR").style.display = "none";
     $("pantallaEstado").style.display = "block";
     iniciarSistema();
