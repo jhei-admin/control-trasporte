@@ -32,6 +32,13 @@ urlpatterns = [
         name="api_app_estado"
     ),
 
+    # 🆕 CONTEXTO DE COLA (GPS IDEOVAL)
+    path(
+        "api/app/cola-contexto/",
+        views.api_app_cola_contexto,
+        name="api_app_cola_contexto"
+    ),
+
     # ✔️ GPS CONDUCTOR (ruta original)
     path(
         "api/app/gps/",
@@ -41,7 +48,6 @@ urlpatterns = [
 
     # =================================================
     # 🔥 FIX CLAVE — ALIAS PARA APP CONDUCTOR
-    # 👉 ESTO ES LO QUE FALTABA
     # =================================================
     path(
         "api/gps/conductor/",

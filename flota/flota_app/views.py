@@ -1396,6 +1396,121 @@ def api_app_estado(request):
     })
 
 # =================================================
+# 🚍 API APP — CONTEXTO DE COLA (GPS IDEOVAL)
+# =================================================
+from django.views.decorators.http import require_GET
+
+@require_GET
+def api_app_cola_contexto(request):
+    """
+    Devuelve el contexto de cola para la App Conductor:
+    - 2 buses atrás
+    - bus actual
+    - 2 buses adelante
+
+    🔒 Solo lectura
+    🔒 Misma ruta
+    🔒 Misma fecha operativa
+    """
+
+    # =============================================
+    # 🔑 VALIDAR TOKEN
+    # =============================================
+    auth = request.headers.get("Authorization", "")
+    if not auth.startswith("Bearer "):
+        return JsonResponse(
+            {"ok": False, "motivo": "TOKEN_REQUERIDO"},
+            status=401
+        )
+
+    token = auth.replace("Bearer ", "").strip()
+
+    sesion = validar_sesion(token)
+    if not sesion:
+        return JsonResponse(
+            {"ok": False, "motivo": "SESION_INVALIDA"},
+            status=403
+        )
+
+    hoy = timezone.localdate()
+
+    # =============================================
+    # 🚍 SALIDA ACTUAL DEL CONDUCTOR
+    # =============================================
+    salida_actual = (
+        RegistroSalida.objects
+        .select_related("vehiculo", "ruta")
+        .filter(
+            vehiculo=sesion.vehiculo,
+            fecha=hoy,
+            activo=True,
+            en_cola=True
+        )
+        .first()
+    )
+
+    if not salida_actual or not salida_actual.orden_cola:
+        return JsonResponse(
+            {"ok": False, "motivo": "NO_EN_COLA"}
+        )
+
+    # =============================================
+    # 🚦 COLA COMPLETA (MISMA RUTA)
+    # =============================================
+    cola = list(
+        RegistroSalida.objects
+        .select_related("vehiculo")
+        .filter(
+            fecha=hoy,
+            activo=True,
+            en_cola=True,
+            ruta=salida_actual.ruta
+        )
+        .order_by("orden_cola")
+    )
+
+    # =============================================
+    # 📍 POSICIÓN ACTUAL EN COLA
+    # =============================================
+    try:
+        index_actual = next(
+            i for i, s in enumerate(cola)
+            if s.id == salida_actual.id
+        )
+    except StopIteration:
+        return JsonResponse(
+            {"ok": False, "motivo": "FUERA_DE_COLA"}
+        )
+
+    # =============================================
+    # 🔎 CONTEXTO (2 ATRÁS / 2 ADELANTE)
+    # =============================================
+    atras = cola[max(0, index_actual - 2):index_actual]
+    adelante = cola[index_actual + 1:index_actual + 3]
+
+    def formatear(s):
+        return {
+            "codigo": s.vehiculo.codigo,
+            "orden": s.orden_cola,
+            "hora_salida": (
+                timezone.localtime(s.hora_salida)
+                .strftime("%H:%M")
+                if s.hora_salida else None
+            )
+        }
+
+    # =============================================
+    # 📤 RESPUESTA FINAL
+    # =============================================
+    return JsonResponse({
+        "ok": True,
+        "ruta": salida_actual.ruta.nombre if salida_actual.ruta else None,
+        "actual": formatear(salida_actual),
+        "atras": [formatear(s) for s in atras],
+        "adelante": [formatear(s) for s in adelante],
+    })
+
+# =================================================
 # 🚍 APP CONDUCTOR (DEFINITIVA — SOLO UI)
 # =================================================
 @never_cache
