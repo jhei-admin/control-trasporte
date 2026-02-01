@@ -36,7 +36,11 @@ urlpatterns = [
     path(
         "api/app/cola-contexto/",
         views.api_app_cola_contexto,
-        name="api_app_cola_contexto"
+        name="api_app_cola_contexto"    
+    ),
+    path(
+        "api/app/cola-contexto",
+        views.api_app_cola_contexto
     ),
 
     # ✔️ GPS CONDUCTOR (ruta original)
