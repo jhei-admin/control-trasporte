@@ -10,7 +10,12 @@ body.bg-light {
   color: #fff !important;
   text-align: center;
 }
-.container { max-width: 420px; }
+
+/* ❌ ELIMINADO max-width: 420px (rompía horizontal) */
+.container {
+  max-width: none !important;
+  padding: 0 !important;
+}
 
 .estado {
   margin-top: 25px;
@@ -38,7 +43,7 @@ button {
   display: none;
 }
 
-/* ================= TOAST MARCACIÓN (OPCIÓN A) ================= */
+/* ================= TOAST MARCACIÓN ================= */
 .toast-marcacion {
   position: fixed;
   bottom: 30px;
@@ -55,18 +60,8 @@ button {
   animation: slideUp 0.3s ease;
 }
 
-.toast-titulo {
-  font-size: 18px;
-  font-weight: 700;
-  margin-bottom: 6px;
-}
-
-.toast-tiempo {
-  font-size: 16px;
-  opacity: 0.9;
-  margin-bottom: 8px;
-}
-
+.toast-titulo { font-size: 18px; font-weight: 700; margin-bottom: 6px; }
+.toast-tiempo { font-size: 16px; opacity: 0.9; margin-bottom: 8px; }
 .toast-estado {
   font-size: 15px;
   font-weight: 700;
@@ -74,7 +69,6 @@ button {
   border-radius: 20px;
   display: inline-block;
 }
-
 .toast-estado.adelantado { background: #0277bd; }
 .toast-estado.a_tiempo { background: #2e7d32; }
 .toast-estado.tarde { background: #c62828; }
@@ -83,21 +77,118 @@ button {
   from { opacity: 0; transform: translate(-50%, 20px); }
   to { opacity: 1; transform: translate(-50%, 0); }
 }
+
+/* ================= GPS SCREEN ================= */
+.gps-screen {
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.gps-header,
+.gps-footer {
+  padding: 10px 16px;
+  font-size: 14px;
+  background: #000;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.gps-body {
+  flex: 1;
+  display: flex;
+  text-align: center;
+}
+
+.gps-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.gps-title {
+  font-size: 14px;
+  opacity: 0.7;
+  margin-bottom: 8px;
+}
+
+.gps-desvio {
+  font-size: 48px;
+  font-weight: bold;
+}
+
+.gps-estado {
+  margin-top: 8px;
+  padding: 8px 18px;
+  border-radius: 20px;
+  font-size: 16px;
+  display: inline-block;
+}
+
+.gps-bus {
+  margin-top: 10px;
+  font-size: 20px;
+  opacity: 0.9;
+}
+
+/* ================= COLORES ================= */
+.gps-estado.ok { background: #2e7d32; }
+.gps-estado.alerta { background: #0277bd; }
+.gps-estado.error { background: #c62828; }
+
+/* ================= ORIENTACIÓN ================= */
+@media (orientation: portrait) {
+  .gps-body { flex-direction: column; }
+  .gps-atras,
+  .gps-adelante { display: none; }
+  .gps-desvio { font-size: 56px; }
+}
 </style>
 
-<h1 class="mb-4">🚍 Control de Ruta</h1>
-
+<!-- ================= QR ================= -->
 <div id="pantallaQR">
   <div class="estado info">📷 Escanee el QR de la unidad</div>
   <button id="btnEscanear" class="btn btn-primary">📷 Escanear QR</button>
   <div id="qr-reader"></div>
 </div>
 
-<div id="pantallaEstado" style="display:none">
-  <div id="estadoConductor" class="estado info">⏳ Consultando estado...</div>
+<!-- ================= GPS ================= -->
+<div id="pantallaEstado" class="gps-screen" style="display:none">
+
+  <div class="gps-header">
+    <span>🟢 Control de Ruta</span>
+    <span id="gpsHora">--:--</span>
+  </div>
+
+  <div class="gps-body">
+
+    <div class="gps-col gps-atras">
+      <div class="gps-title">⬇ ATRÁS</div>
+      <div id="gpsAtras"><div>—</div><div>—</div></div>
+    </div>
+
+    <div class="gps-col gps-centro">
+      <div id="gpsDesvio" class="gps-desvio">0 min</div>
+      <div id="gpsEstado" class="gps-estado ok">A TIEMPO</div>
+      <div id="gpsBus" class="gps-bus">BUS</div>
+    </div>
+
+    <div class="gps-col gps-adelante">
+      <div class="gps-title">⬆ ADELANTE</div>
+      <div id="gpsAdelante"><div>—</div><div>—</div></div>
+    </div>
+
+  </div>
+
+  <div class="gps-footer">
+    Punto actual: <span id="gpsPunto">—</span>
+  </div>
 </div>
 
-<!-- 📍 TOAST MARCACIÓN -->
+<!-- ================= TOAST ================= -->
 <div id="toastMarcacion" class="toast-marcacion" style="display:none">
   <div id="toastTitulo" class="toast-titulo">SALI</div>
   <div id="toastTiempo" class="toast-tiempo">-2 min</div>
@@ -111,166 +202,29 @@ button {
 
 <script>
 const API_BASE = location.origin;
-
-/* ================= GLOBAL ================= */
-let qrScanner = null;
-let escaneando = false;
-let estadoInterval = null;
-let watchId = null;
-let ultimoEnvioGPS = 0;
-
-/* ================= AUDIO ================= */
-let audioContext = null;
-let audioBuffers = {};
-let audioUnlocked = false;
-let ultimoAudioReproducido = null;
-
-/* ================= TOAST ================= */
-let toastTimeout = null;
-
-/* ================= AUDIO ================= */
-async function initAudio() {
-  if (audioContext) return;
-  audioContext = new (window.AudioContext || window.webkitAudioContext)();
-}
-
-async function loadAudio(name, url) {
-  const res = await fetch(url);
-  const buffer = await res.arrayBuffer();
-  audioBuffers[name] = await audioContext.decodeAudioData(buffer);
-}
-
-async function unlockAudio() {
-  if (audioUnlocked) return;
-  await initAudio();
-  await audioContext.resume();
-
-  await loadAudio("beep", "{% static 'flota_app/sonidos/beep_despacho.wav' %}");
-  await loadAudio("audio_adelantado", "{% static 'flota_app/sonidos/adelantado.mp3' %}");
-  await loadAudio("audio_tarde", "{% static 'flota_app/sonidos/tarde.mp3' %}");
-  await loadAudio("ruta_completada", "{% static 'flota_app/sonidos/ruta_completada.mp3' %}");
-
-  audioUnlocked = true;
-}
-
-function playAudio(name) {
-  if (!audioUnlocked || !audioBuffers[name]) return;
-  const src = audioContext.createBufferSource();
-  src.buffer = audioBuffers[name];
-  src.connect(audioContext.destination);
-  src.start(0);
-}
-
-function reproducirAudioSeguro(audioName) {
-  if (!audioName) return;
-  if (ultimoAudioReproducido === audioName) return;
-  playAudio(audioName);
-  ultimoAudioReproducido = audioName;
-}
-
-/* ================= UTIL ================= */
 const $ = id => document.getElementById(id);
 
-function mostrarEstado(texto, clase="info") {
-  const el = $("estadoConductor");
-  el.className = "estado " + clase;
-  el.innerText = texto;
-}
-
-/* ================= TOAST MARCACIÓN ================= */
-function mostrarMarcacionVisual(data) {
-  if (!data) return;
-
-  $("toastTitulo").innerText = data.codigo;
-  $("toastTiempo").innerText =
-    (data.diferencia_min > 0 ? "+" : "") + data.diferencia_min + " min";
-
-  const estadoEl = $("toastEstado");
-  estadoEl.innerText = data.estado;
-  estadoEl.className = "toast-estado " + data.estado.toLowerCase();
-
-  $("toastMarcacion").style.display = "block";
-
-  if (toastTimeout) clearTimeout(toastTimeout);
-  toastTimeout = setTimeout(() => {
-    $("toastMarcacion").style.display = "none";
-  }, 6000);
+/* ================= MOSTRAR ESTADO (CORREGIDO) ================= */
+function mostrarEstado(texto, clase="ok") {
+  const estado = $("gpsEstado");
+  if (!estado) return;
+  estado.innerText = texto.includes("SALIDA") ? "A TIEMPO" : texto;
+  estado.className = "gps-estado " + clase;
 }
 
 /* ================= LOAD ================= */
 window.addEventListener("load", () => {
   const token = localStorage.getItem("token");
-
   if (token) {
     unlockAudio();
     $("pantallaQR").style.display = "none";
     $("pantallaEstado").style.display = "block";
     mostrarEstadoGuardado();
     iniciarSistema();
-    return;
+  } else {
+    $("btnEscanear").onclick = iniciarEscaneoQR;
   }
-
-  $("btnEscanear").onclick = iniciarEscaneoQR;
 });
-
-/* ================= QR ================= */
-function iniciarEscaneoQR() {
-  unlockAudio();
-  if (escaneando) return;
-
-  escaneando = true;
-  $("btnEscanear").disabled = true;
-  $("qr-reader").style.display = "block";
-
-  qrScanner = new Html5Qrcode("qr-reader");
-
-  Html5Qrcode.getCameras().then(cameras => {
-    const camaraId = cameras[cameras.length - 1].id;
-
-    qrScanner.start(
-      camaraId,
-      { fps: 10, qrbox: { width: 250, height: 250 } },
-      async texto => {
-        await qrScanner.stop();
-        await qrScanner.clear();
-        $("qr-reader").style.display = "none";
-        activarUnidad(texto);
-      }
-    );
-  });
-}
-
-/* ================= ACTIVAR ================= */
-function activarUnidad(texto) {
-  let vehiculoId;
-  try {
-    vehiculoId = JSON.parse(texto).vehiculo_id;
-  } catch {
-    alert("❌ QR inválido");
-    return;
-  }
-
-  fetch(`${API_BASE}/sistema/api/app/escanear-qr/`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ vehiculo_id: vehiculoId })
-  })
-  .then(r => r.json())
-  .then(d => {
-    if (!d.ok) return;
-    localStorage.setItem("token", d.token);
-    iniciarSistema();
-  });
-}
-
-/* ================= SISTEMA ================= */
-function iniciarSistema() {
-  if (!estadoInterval)
-    estadoInterval = setInterval(consultarEstado, 5000);
-
-  iniciarGPSContinuo();
-  consultarEstado();
-}
 
 /* ================= ESTADO ================= */
 function consultarEstado() {
@@ -285,7 +239,10 @@ function consultarEstado() {
   .then(data => {
     if (!data.autorizado) return;
 
-    /* 🔔 BEEP AL CAMBIAR / ASIGNAR HORA */
+    if (data.hora_salida) {
+      $("gpsHora").innerText = data.hora_salida;
+    }
+
     const horaPrev = localStorage.getItem("hora_salida");
     if (data.hora_salida && data.hora_salida !== horaPrev) {
       playAudio("beep");
@@ -295,64 +252,12 @@ function consultarEstado() {
     localStorage.setItem("estado_visual", JSON.stringify(data));
 
     if (data.estado === "SALIDA_ACTIVA")
-      mostrarEstado(`🟢 SALIDA ACTIVA\nHora: ${data.hora_salida}`, "ok");
+      mostrarEstado("SALIDA ACTIVA", "ok");
     else if (data.estado === "EN_COLA")
-      mostrarEstado(`⏳ EN COLA\nSalida: ${data.hora_salida}`, "info");
+      mostrarEstado("EN COLA", "info");
     else
-      mostrarEstado("⏳ ESPERANDO HORA DE SALIDA", "info");
+      mostrarEstado("ESPERANDO", "info");
   });
-}
-
-/* ================= GPS ================= */
-function iniciarGPSContinuo() {
-  if (!navigator.geolocation || watchId) return;
-
-  watchId = navigator.geolocation.watchPosition(
-    pos => {
-      const ahora = Date.now();
-      if (ahora - ultimoEnvioGPS < 5000) return;
-      ultimoEnvioGPS = ahora;
-
-      const token = localStorage.getItem("token");
-      if (!token) return;
-
-      fetch(`${API_BASE}/sistema/api/gps/conductor/`, {
-        method: "POST",
-        headers: {
-          "Authorization": "Bearer " + token,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          lat: pos.coords.latitude,
-          lng: pos.coords.longitude,
-          precision: pos.coords.accuracy   // 👈 AGREGADO
-        })
-      })
-      .then(r => r.json())
-      .then(resp => {
-        if (resp.accion === "audio")
-          reproducirAudioSeguro(resp.audio);
-
-        if (resp.visual)
-          mostrarMarcacionVisual(resp.visual);
-      });
-    },
-    err => console.log("GPS error:", err.message),
-    { enableHighAccuracy: true,  // 🔴 AGREGADO
-      maximumAge: 0,             // 🔴 AGREGADO
-      timeout: 20000             // 🔴 AGREGADO
-    }
-  );
-}
-
-function mostrarEstadoGuardado() {
-  const data = localStorage.getItem("estado_visual");
-  if (!data) return;
-  try {
-    const d = JSON.parse(data);
-    if (d.estado === "SALIDA_ACTIVA")
-      mostrarEstado(`🟢 SALIDA ACTIVA\nHora: ${d.hora_salida}`, "ok");
-  } catch {}
 }
 </script>
 {% endblock %}
