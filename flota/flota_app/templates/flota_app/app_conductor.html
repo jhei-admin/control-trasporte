@@ -294,6 +294,7 @@ function iniciarGPSContinuo() {
 window.addEventListener("load", () => {
   const token = localStorage.getItem("token");
   if (token) {
+    unlockAudio(); // 👈 ESTO ES CLAVE
     $("pantallaQR").style.display = "none";
     $("pantallaEstado").style.display = "block";
     iniciarSistema();
