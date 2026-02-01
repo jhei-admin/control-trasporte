@@ -11,7 +11,7 @@ body.bg-light {
   text-align: center;
 }
 
-/* ❌ ELIMINADO max-width: 420px (rompía horizontal) */
+/* Contenedor libre (necesario para horizontal) */
 .container {
   max-width: none !important;
   padding: 0 !important;
@@ -43,7 +43,7 @@ button {
   display: none;
 }
 
-/* ================= TOAST MARCACIÓN ================= */
+/* ================= TOAST ================= */
 .toast-marcacion {
   position: fixed;
   bottom: 30px;
@@ -57,28 +57,13 @@ button {
   text-align: center;
   box-shadow: 0 8px 25px rgba(0,0,0,0.6);
   z-index: 9999;
-  animation: slideUp 0.3s ease;
 }
 
-.toast-titulo { font-size: 18px; font-weight: 700; margin-bottom: 6px; }
-.toast-tiempo { font-size: 16px; opacity: 0.9; margin-bottom: 8px; }
-.toast-estado {
-  font-size: 15px;
-  font-weight: 700;
-  padding: 6px 14px;
-  border-radius: 20px;
-  display: inline-block;
-}
 .toast-estado.adelantado { background: #0277bd; }
 .toast-estado.a_tiempo { background: #2e7d32; }
 .toast-estado.tarde { background: #c62828; }
 
-@keyframes slideUp {
-  from { opacity: 0; transform: translate(-50%, 20px); }
-  to { opacity: 1; transform: translate(-50%, 0); }
-}
-
-/* ================= GPS SCREEN ================= */
+/* ================= GPS ================= */
 .gps-screen {
   width: 100vw;
   height: 100vh;
@@ -86,20 +71,16 @@ button {
   flex-direction: column;
 }
 
-.gps-header,
-.gps-footer {
+.gps-header, .gps-footer {
   padding: 10px 16px;
-  font-size: 14px;
   background: #000;
   display: flex;
   justify-content: space-between;
-  align-items: center;
 }
 
 .gps-body {
   flex: 1;
   display: flex;
-  text-align: center;
 }
 
 .gps-col {
@@ -109,42 +90,11 @@ button {
   justify-content: center;
 }
 
-.gps-title {
-  font-size: 14px;
-  opacity: 0.7;
-  margin-bottom: 8px;
-}
+.gps-desvio { font-size: 48px; font-weight: bold; }
 
-.gps-desvio {
-  font-size: 48px;
-  font-weight: bold;
-}
-
-.gps-estado {
-  margin-top: 8px;
-  padding: 8px 18px;
-  border-radius: 20px;
-  font-size: 16px;
-  display: inline-block;
-}
-
-.gps-bus {
-  margin-top: 10px;
-  font-size: 20px;
-  opacity: 0.9;
-}
-
-/* ================= COLORES ================= */
-.gps-estado.ok { background: #2e7d32; }
-.gps-estado.alerta { background: #0277bd; }
-.gps-estado.error { background: #c62828; }
-
-/* ================= ORIENTACIÓN ================= */
 @media (orientation: portrait) {
   .gps-body { flex-direction: column; }
-  .gps-atras,
-  .gps-adelante { display: none; }
-  .gps-desvio { font-size: 56px; }
+  .gps-atras, .gps-adelante { display: none; }
 }
 </style>
 
@@ -157,16 +107,13 @@ button {
 
 <!-- ================= GPS ================= -->
 <div id="pantallaEstado" class="gps-screen" style="display:none">
-
   <div class="gps-header">
     <span>🟢 Control de Ruta</span>
     <span id="gpsHora">--:--</span>
   </div>
 
   <div class="gps-body">
-
     <div class="gps-col gps-atras">
-      <div class="gps-title">⬇ ATRÁS</div>
       <div id="gpsAtras"><div>—</div><div>—</div></div>
     </div>
 
@@ -177,10 +124,8 @@ button {
     </div>
 
     <div class="gps-col gps-adelante">
-      <div class="gps-title">⬆ ADELANTE</div>
       <div id="gpsAdelante"><div>—</div><div>—</div></div>
     </div>
-
   </div>
 
   <div class="gps-footer">
@@ -190,8 +135,8 @@ button {
 
 <!-- ================= TOAST ================= -->
 <div id="toastMarcacion" class="toast-marcacion" style="display:none">
-  <div id="toastTitulo" class="toast-titulo">SALI</div>
-  <div id="toastTiempo" class="toast-tiempo">-2 min</div>
+  <div id="toastTitulo">SALI</div>
+  <div id="toastTiempo">-2 min</div>
   <div id="toastEstado" class="toast-estado adelantado">ADELANTADO</div>
 </div>
 
@@ -199,65 +144,80 @@ button {
 
 {% block extra_js %}
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
-
 <script>
 const API_BASE = location.origin;
 const $ = id => document.getElementById(id);
 
-/* ================= MOSTRAR ESTADO (CORREGIDO) ================= */
-function mostrarEstado(texto, clase="ok") {
-  const estado = $("gpsEstado");
-  if (!estado) return;
-  estado.innerText = texto.includes("SALIDA") ? "A TIEMPO" : texto;
-  estado.className = "gps-estado " + clase;
+/* ================= QR ================= */
+let qrScanner = null;
+let escaneando = false;
+
+function iniciarEscaneoQR() {
+  unlockAudio();
+  if (escaneando) return;
+
+  escaneando = true;
+  $("btnEscanear").disabled = true;
+  $("qr-reader").style.display = "block";
+
+  qrScanner = new Html5Qrcode("qr-reader");
+
+  Html5Qrcode.getCameras().then(cameras => {
+    const camaraId = cameras[cameras.length - 1].id;
+
+    qrScanner.start(
+      camaraId,
+      { fps: 10, qrbox: 250 },
+      async texto => {
+        await qrScanner.stop();
+        await qrScanner.clear();
+        escaneando = false;
+        $("qr-reader").style.display = "none";
+        activarUnidad(texto);
+      }
+    );
+  }).catch(err => {
+    console.error(err);
+    escaneando = false;
+    $("btnEscanear").disabled = false;
+  });
+}
+
+/* ================= AUDIO ================= */
+let audioContext = null;
+let audioBuffers = {};
+let audioUnlocked = false;
+
+async function unlockAudio() {
+  if (audioUnlocked) return;
+  audioContext = new (window.AudioContext || window.webkitAudioContext)();
+  await audioContext.resume();
+
+  const load = async (n,u)=>audioBuffers[n]=await audioContext.decodeAudioData(await (await fetch(u)).arrayBuffer());
+  await load("beep","{% static 'flota_app/sonidos/beep_despacho.wav' %}");
+  await load("audio_adelantado","{% static 'flota_app/sonidos/adelantado.mp3' %}");
+  await load("audio_tarde","{% static 'flota_app/sonidos/tarde.mp3' %}");
+  audioUnlocked = true;
+}
+
+function playAudio(n){
+  if(!audioBuffers[n])return;
+  const s=audioContext.createBufferSource();
+  s.buffer=audioBuffers[n];
+  s.connect(audioContext.destination);
+  s.start();
 }
 
 /* ================= LOAD ================= */
-window.addEventListener("load", () => {
-  const token = localStorage.getItem("token");
-  if (token) {
-    unlockAudio();
-    $("pantallaQR").style.display = "none";
-    $("pantallaEstado").style.display = "block";
-    mostrarEstadoGuardado();
+window.addEventListener("load",()=>{
+  const token=localStorage.getItem("token");
+  if(token){
+    $("pantallaQR").style.display="none";
+    $("pantallaEstado").style.display="block";
     iniciarSistema();
-  } else {
-    $("btnEscanear").onclick = iniciarEscaneoQR;
+  }else{
+    $("btnEscanear").onclick=iniciarEscaneoQR;
   }
 });
-
-/* ================= ESTADO ================= */
-function consultarEstado() {
-  const token = localStorage.getItem("token");
-  if (!token) return;
-
-  fetch(`${API_BASE}/sistema/api/app/estado/`, {
-    method: "POST",
-    headers: { "Authorization": "Bearer " + token }
-  })
-  .then(r => r.json())
-  .then(data => {
-    if (!data.autorizado) return;
-
-    if (data.hora_salida) {
-      $("gpsHora").innerText = data.hora_salida;
-    }
-
-    const horaPrev = localStorage.getItem("hora_salida");
-    if (data.hora_salida && data.hora_salida !== horaPrev) {
-      playAudio("beep");
-      localStorage.setItem("hora_salida", data.hora_salida);
-    }
-
-    localStorage.setItem("estado_visual", JSON.stringify(data));
-
-    if (data.estado === "SALIDA_ACTIVA")
-      mostrarEstado("SALIDA ACTIVA", "ok");
-    else if (data.estado === "EN_COLA")
-      mostrarEstado("EN COLA", "info");
-    else
-      mostrarEstado("ESPERANDO", "info");
-  });
-}
 </script>
 {% endblock %}
