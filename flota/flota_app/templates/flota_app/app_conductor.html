@@ -268,7 +268,6 @@ function consultarEstado() {
   .then(data => {
     if (!data.autorizado) return;
 
-    /* 🔔 BEEP CUANDO SE ASIGNA O CAMBIA HORA */
     const horaPrev = localStorage.getItem("hora_salida");
     if (data.hora_salida && data.hora_salida !== horaPrev) {
       playAudio("beep");
@@ -312,7 +311,7 @@ function iniciarGPSContinuo() {
 window.addEventListener("load", () => {
   const token = localStorage.getItem("token");
   if (token) {
-    unlockAudio();   // 👈 obligatorio en PWA
+    unlockAudio();
     $("pantallaQR").style.display = "none";
     $("pantallaEstado").style.display = "block";
     iniciarSistema();
@@ -320,5 +319,34 @@ window.addEventListener("load", () => {
     $("btnEscanear").onclick = iniciarEscaneoQR;
   }
 });
+
+/* ============================================================
+   🔥 BLOQUE AGREGADO — CONTEXTO DE COLA (NO SE BORRA NADA)
+   ============================================================ */
+
+function cargarColaContexto() {
+  const token = localStorage.getItem("token");
+  if (!token) return;
+
+  fetch(`${API_BASE}/sistema/api/app/cola-contexto/`, {
+    headers: { "Authorization": "Bearer " + token }
+  })
+  .then(r => r.json())
+  .then(d => {
+    if (!d.ok) return;
+
+    $("gpsBus").innerText = d.actual.codigo;
+
+    $("gpsAtras").innerHTML = d.atras.length
+      ? d.atras.map(b => `<div>${b.codigo}</div>`).join("")
+      : "<div>—</div>";
+
+    $("gpsAdelante").innerHTML = d.adelante.length
+      ? d.adelante.map(b => `<div>${b.codigo}</div>`).join("")
+      : "<div>—</div>";
+  });
+}
+
+setInterval(cargarColaContexto, 5000);
 </script>
 {% endblock %}
