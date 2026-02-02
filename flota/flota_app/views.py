@@ -1453,7 +1453,7 @@ def api_app_cola_contexto(request):
         )
 
     # =============================================
-    # 📍 UBICACIÓN GPS ACTUAL
+    # 📍 GPS ACTUAL DEL CONDUCTOR
     # =============================================
     try:
         ub_actual = UbicacionVehiculo.objects.get(
@@ -1464,8 +1464,15 @@ def api_app_cola_contexto(request):
             {"ok": False, "motivo": "SIN_GPS"}
         )
 
+    # 🔒 GPS VIEJO = NO CONFIABLE
+    GPS_MAX_DELAY = timedelta(seconds=60)
+    if timezone.now() - ub_actual.updated_at > GPS_MAX_DELAY:
+        return JsonResponse(
+            {"ok": False, "motivo": "GPS_NO_ACTUAL"}
+        )
+
     # =============================================
-    # 🚦 COLA COMPLETA (MISMA RUTA)
+    # 🚦 COLA COMPLETA (MISMA RUTA / MISMO DÍA)
     # =============================================
     cola = list(
         RegistroSalida.objects
@@ -1480,7 +1487,7 @@ def api_app_cola_contexto(request):
     )
 
     # =============================================
-    # 📍 POSICIÓN EN COLA
+    # 📍 POSICIÓN ACTUAL EN COLA
     # =============================================
     try:
         index_actual = next(
@@ -1496,9 +1503,9 @@ def api_app_cola_contexto(request):
     adelante = cola[index_actual + 1:index_actual + 3]
 
     # =============================================
-    # ⏱️ CÁLCULO DE MINUTOS REALES POR GPS
+    # ⏱️ CÁLCULO DE MINUTOS REALES (GPS)
     # =============================================
-    VELOCIDAD_PROMEDIO_KMH = 25  # ajustable
+    VELOCIDAD_PROMEDIO_KMH = 25  # fallback seguro
 
     def calcular_minutos_reales(salida):
         try:
@@ -1508,6 +1515,10 @@ def api_app_cola_contexto(request):
         except UbicacionVehiculo.DoesNotExist:
             return None
 
+        # GPS viejo → ignorar
+        if timezone.now() - ub.updated_at > GPS_MAX_DELAY:
+            return None
+
         distancia = distancia_metros(
             ub_actual.latitud,
             ub_actual.longitud,
@@ -1515,15 +1526,22 @@ def api_app_cola_contexto(request):
             ub.longitud
         )
 
-        metros_por_minuto = (VELOCIDAD_PROMEDIO_KMH * 1000) / 60
+        # Usar velocidad real si existe
+        vel_kmh = ub.velocidad or VELOCIDAD_PROMEDIO_KMH
+        if vel_kmh < 5:  # evita divisiones raras
+            vel_kmh = VELOCIDAD_PROMEDIO_KMH
+
+        metros_por_minuto = (vel_kmh * 1000) / 60
         minutos = distancia / metros_por_minuto
 
         return max(int(round(minutos)), 0)
 
-    def formatear(s):
+    def formatear(s, signo):
+        minutos = calcular_minutos_reales(s)
         return {
             "codigo": s.vehiculo.codigo,
-            "minutos": calcular_minutos_reales(s)
+            "minutos": minutos,
+            "signo": signo
         }
 
     # =============================================
@@ -1536,10 +1554,9 @@ def api_app_cola_contexto(request):
             "codigo": salida_actual.vehiculo.codigo,
             "minutos": 0
         },
-        "atras": [formatear(s) for s in atras],
-        "adelante": [formatear(s) for s in adelante],
+        "atras": [formatear(s, "-") for s in atras],
+        "adelante": [formatear(s, "+") for s in adelante],
     })
-
 
 # =================================================
 # 🚍 APP CONDUCTOR (DEFINITIVA — SOLO UI)
