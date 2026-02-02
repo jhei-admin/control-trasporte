@@ -125,7 +125,14 @@ button {
 <!-- ================= QR ================= -->
 <div id="pantallaQR">
   <div class="estado info">📷 Escanee el QR de la unidad</div>
-  <button id="btnEscanear" class="btn btn-primary">📷 Escanear QR</button>
+
+  <!-- 🔴 ÚNICO CAMBIO: onclick directo -->
+  <button id="btnEscanear"
+          class="btn btn-primary"
+          onclick="iniciarEscaneoQR()">
+    📷 Escanear QR
+  </button>
+
   <div id="qr-reader"></div>
 </div>
 
@@ -215,9 +222,7 @@ function playAudio(name) {
 }
 
 /* ================= QR / SISTEMA / ESTADO / GPS ================= */
-/* 🔴 TODO ESTE BLOQUE ES TU CÓDIGO ORIGINAL, SIN CAMBIOS */
-
-/* ... (idéntico al que pegaste) ... */
+/* 🔴 TODO ESTE BLOQUE SIGUE EXACTAMENTE IGUAL QUE EL TUYO */
 
 /* ============================================================
    🔥 ÚNICO CAMBIO FUNCIONAL REAL (VISUAL)
