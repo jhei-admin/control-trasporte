@@ -321,7 +321,7 @@ window.addEventListener("load", () => {
 });
 
 /* ============================================================
-   🔥 BLOQUE AGREGADO — CONTEXTO DE COLA (NO SE BORRA NADA)
+   🔥 BLOQUE AGREGADO — CONTEXTO DE COLA (SOLO SE AJUSTA TEXTO)
    ============================================================ */
 
 function cargarColaContexto() {
@@ -335,14 +335,17 @@ function cargarColaContexto() {
   .then(d => {
     if (!d.ok) return;
 
-    $("gpsBus").innerText = d.actual.codigo;
+    // 👉 BUS ACTUAL
+    $("gpsBus").innerText = "UNIDAD " + d.actual.codigo;
 
+    // 👉 ATRÁS (invertido, IDEOVAL)
     $("gpsAtras").innerHTML = d.atras.length
-      ? d.atras.map(b => `<div>${b.codigo}</div>`).join("")
+      ? d.atras.slice().reverse().map(b => `<div>UNIDAD ${b.codigo}</div>`).join("")
       : "<div>—</div>";
 
+    // 👉 ADELANTE
     $("gpsAdelante").innerHTML = d.adelante.length
-      ? d.adelante.map(b => `<div>${b.codigo}</div>`).join("")
+      ? d.adelante.map(b => `<div>UNIDAD ${b.codigo}</div>`).join("")
       : "<div>—</div>";
   });
 }
