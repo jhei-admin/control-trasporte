@@ -1408,9 +1408,10 @@ def api_app_cola_contexto(request):
     - bus actual
     - 2 buses adelante
 
-    🔒 Solo lectura
-    🔒 Misma ruta
-    🔒 Misma fecha operativa
+    📌 COLA = orden por hora_salida
+    📌 NO usa en_cola
+    📌 NO usa orden_cola
+    📌 Compatible con tu panel actual
     """
 
     # =============================================
@@ -1436,6 +1437,7 @@ def api_app_cola_contexto(request):
 
     # =============================================
     # 🚍 SALIDA ACTUAL DEL CONDUCTOR
+    # 👉 ACTIVA + HOY + CON HORA
     # =============================================
     salida_actual = (
         RegistroSalida.objects
@@ -1444,18 +1446,20 @@ def api_app_cola_contexto(request):
             vehiculo=sesion.vehiculo,
             fecha=hoy,
             activo=True,
-            en_cola=True
+            hora_salida__isnull=False
         )
+        .order_by("hora_salida")
         .first()
     )
 
-    if not salida_actual or not salida_actual.orden_cola:
+    if not salida_actual:
         return JsonResponse(
-            {"ok": False, "motivo": "NO_EN_COLA"}
+            {"ok": False, "motivo": "SIN_SALIDA"}
         )
 
     # =============================================
-    # 🚦 COLA COMPLETA (MISMA RUTA)
+    # 🚦 COLA COMPLETA (MISMA RUTA, MISMO DÍA)
+    # 👉 DEFINIDA POR hora_salida
     # =============================================
     cola = list(
         RegistroSalida.objects
@@ -1463,14 +1467,14 @@ def api_app_cola_contexto(request):
         .filter(
             fecha=hoy,
             activo=True,
-            en_cola=True,
-            ruta=salida_actual.ruta
+            ruta=salida_actual.ruta,
+            hora_salida__isnull=False
         )
-        .order_by("orden_cola")
+        .order_by("hora_salida")
     )
 
     # =============================================
-    # 📍 POSICIÓN ACTUAL EN COLA
+    # 📍 POSICIÓN ACTUAL EN LA COLA
     # =============================================
     try:
         index_actual = next(
@@ -1491,10 +1495,8 @@ def api_app_cola_contexto(request):
     def formatear(s):
         return {
             "codigo": s.vehiculo.codigo,
-            "orden": s.orden_cola,
             "hora_salida": (
-                timezone.localtime(s.hora_salida)
-                .strftime("%H:%M")
+                timezone.localtime(s.hora_salida).strftime("%H:%M")
                 if s.hora_salida else None
             )
         }
