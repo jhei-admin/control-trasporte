@@ -1396,7 +1396,7 @@ def api_app_estado(request):
     })
 
 # =================================================
-# 🚍 API APP — CONTEXTO DE COLA (GPS IDEOVAL)
+# 🚍 API APP — CONTEXTO DE COLA (MINUTOS REALES GPS)
 # =================================================
 @require_GET
 def api_app_cola_contexto(request):
@@ -1406,10 +1406,8 @@ def api_app_cola_contexto(request):
     - bus actual
     - 2 buses adelante
 
-    📌 COLA = orden por hora_salida
-    📌 NO usa en_cola
-    📌 NO usa orden_cola
-    📌 Compatible con tu panel actual
+    🔥 MINUTOS REALES calculados por GPS
+    📌 Cola definida SOLO por hora_salida
     """
 
     # =============================================
@@ -1423,8 +1421,8 @@ def api_app_cola_contexto(request):
         )
 
     token = auth.replace("Bearer ", "").strip()
-
     sesion = validar_sesion(token)
+
     if not sesion:
         return JsonResponse(
             {"ok": False, "motivo": "SESION_INVALIDA"},
@@ -1434,7 +1432,7 @@ def api_app_cola_contexto(request):
     hoy = timezone.localdate()
 
     # =============================================
-    # 🚍 SALIDA ACTUAL DEL CONDUCTOR
+    # 🚍 SALIDA ACTUAL
     # =============================================
     salida_actual = (
         RegistroSalida.objects
@@ -1455,6 +1453,18 @@ def api_app_cola_contexto(request):
         )
 
     # =============================================
+    # 📍 UBICACIÓN GPS ACTUAL
+    # =============================================
+    try:
+        ub_actual = UbicacionVehiculo.objects.get(
+            vehiculo=salida_actual.vehiculo
+        )
+    except UbicacionVehiculo.DoesNotExist:
+        return JsonResponse(
+            {"ok": False, "motivo": "SIN_GPS"}
+        )
+
+    # =============================================
     # 🚦 COLA COMPLETA (MISMA RUTA)
     # =============================================
     cola = list(
@@ -1470,7 +1480,7 @@ def api_app_cola_contexto(request):
     )
 
     # =============================================
-    # 📍 POSICIÓN ACTUAL
+    # 📍 POSICIÓN EN COLA
     # =============================================
     try:
         index_actual = next(
@@ -1482,56 +1492,38 @@ def api_app_cola_contexto(request):
             {"ok": False, "motivo": "FUERA_DE_COLA"}
         )
 
-    # =============================================
-    # 🔎 CONTEXTO
-    # =============================================
     atras = cola[max(0, index_actual - 2):index_actual]
     adelante = cola[index_actual + 1:index_actual + 3]
 
-    # =================================================
-    # 🔥 FUNCIÓN EXTENDIDA (ÚNICO CAMBIO REAL)
-    # =================================================
-    def formatear(s):
-        tz = timezone.get_current_timezone()
-        ahora = timezone.localtime(timezone.now(), tz)
+    # =============================================
+    # ⏱️ CÁLCULO DE MINUTOS REALES POR GPS
+    # =============================================
+    VELOCIDAD_PROMEDIO_KMH = 25  # ajustable
 
-        # ---------------------------------------------
-        # 🔍 PRIMERA MARCACIÓN REAL (SALI)
-        # ---------------------------------------------
-        primera_marcacion = (
-            MarcacionPunto.objects
-            .filter(
-                registro_salida=s,
-                hora_marcada__isnull=False
+    def calcular_minutos_reales(salida):
+        try:
+            ub = UbicacionVehiculo.objects.get(
+                vehiculo=salida.vehiculo
             )
-            .order_by("hora_marcada")
-            .first()
+        except UbicacionVehiculo.DoesNotExist:
+            return None
+
+        distancia = distancia_metros(
+            ub_actual.latitud,
+            ub_actual.longitud,
+            ub.latitud,
+            ub.longitud
         )
 
-        # ---------------------------------------------
-        # ⏱️ MINUTOS REALES (YA EN RUTA)
-        # ---------------------------------------------
-        if primera_marcacion and primera_marcacion.diferencia_minutos is not None:
-            minutos = primera_marcacion.diferencia_minutos
+        metros_por_minuto = (VELOCIDAD_PROMEDIO_KMH * 1000) / 60
+        minutos = distancia / metros_por_minuto
 
-        # ---------------------------------------------
-        # 🕒 MINUTOS TEÓRICOS (AÚN NO SALE)
-        # ---------------------------------------------
-        elif s.hora_salida:
-            hora_salida = timezone.localtime(s.hora_salida, tz)
-            segundos = (hora_salida - ahora).total_seconds()
-            minutos = int(segundos // 60)
+        return max(int(round(minutos)), 0)
 
-        else:
-            minutos = None
-
+    def formatear(s):
         return {
             "codigo": s.vehiculo.codigo,
-            "hora_salida": (
-                timezone.localtime(s.hora_salida).strftime("%H:%M")
-                if s.hora_salida else None
-            ),
-            "minutos": minutos
+            "minutos": calcular_minutos_reales(s)
         }
 
     # =============================================
@@ -1540,10 +1532,14 @@ def api_app_cola_contexto(request):
     return JsonResponse({
         "ok": True,
         "ruta": salida_actual.ruta.nombre if salida_actual.ruta else None,
-        "actual": formatear(salida_actual),
+        "actual": {
+            "codigo": salida_actual.vehiculo.codigo,
+            "minutos": 0
+        },
         "atras": [formatear(s) for s in atras],
         "adelante": [formatear(s) for s in adelante],
     })
+
 
 # =================================================
 # 🚍 APP CONDUCTOR (DEFINITIVA — SOLO UI)
