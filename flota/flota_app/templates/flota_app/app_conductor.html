@@ -43,24 +43,6 @@ button {
   display: none;
 }
 
-/* ================= TOAST ================= */
-.toast-marcacion {
-  position: fixed;
-  bottom: 30px;
-  left: 50%;
-  transform: translateX(-50%);
-  background: #1e1e1e;
-  color: #fff;
-  padding: 18px 22px;
-  border-radius: 14px;
-  min-width: 240px;
-  z-index: 9999;
-}
-
-.toast-estado.adelantado { background: #0277bd; }
-.toast-estado.a_tiempo { background: #2e7d32; }
-.toast-estado.tarde { background: #c62828; }
-
 /* ================= GPS ================= */
 .gps-screen {
   width: 100vw;
@@ -82,17 +64,14 @@ button {
   display: flex;
 }
 
-/* 🔥 UI: columnas */
 .gps-col {
   flex: 1;
   display: flex;
   flex-direction: column;
   justify-content: center;
   gap: 10px;
-  transition: all 180ms ease-out;
 }
 
-/* 🔥 UI: contexto visual */
 .gps-atras,
 .gps-adelante {
   opacity: 0.4;
@@ -103,48 +82,31 @@ button {
   transform: scale(1.05);
 }
 
-/* 🔥 UI: unidad siguiente */
 .gps-adelante .unidad-siguiente {
   background: #0d47a1;
   border-left: 4px solid #42a5f5;
   padding: 10px;
   border-radius: 12px;
   font-weight: bold;
-  animation: fadeSlide 160ms ease-out;
 }
 
-/* 🔥 UI: animación suave */
-@keyframes fadeSlide {
-  from { opacity: 0; transform: translateY(6px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-/* 🔥 UI: desvío */
 .gps-desvio {
   font-size: 48px;
   font-weight: bold;
 }
 
-/* 🔥 UI: estado */
 .gps-estado {
   padding: 8px 14px;
   border-radius: 12px;
   font-size: 18px;
 }
 
-/* 🔥 UI: bus actual */
 .gps-bus {
   margin-top: 6px;
   font-size: 22px;
   font-weight: bold;
 }
 
-/* 🔥 UI: iconos */
-.icon {
-  margin-right: 6px;
-}
-
-/* ================= MOBILE ================= */
 @media (orientation: portrait) {
   .gps-body { flex-direction: column; }
   .gps-atras,
@@ -155,7 +117,11 @@ button {
 <!-- ================= QR ================= -->
 <div id="pantallaQR">
   <div class="estado info">📷 Escanee el QR de la unidad</div>
-  <button id="btnEscanear" class="btn btn-primary">📷 Escanear QR</button>
+  <button id="btnEscanear"
+          class="btn btn-primary"
+          onclick="iniciarEscaneoQR()">
+    📷 Escanear QR
+  </button>
   <div id="qr-reader"></div>
 </div>
 
@@ -186,14 +152,6 @@ button {
     📍 Punto actual: <span id="gpsPunto">—</span>
   </div>
 </div>
-
-<!-- ================= TOAST ================= -->
-<div id="toastMarcacion" class="toast-marcacion" style="display:none">
-  <div id="toastTitulo">SALI</div>
-  <div id="toastTiempo">-2 min</div>
-  <div id="toastEstado" class="toast-estado adelantado">ADELANTADO</div>
-</div>
-
 {% endblock %}
 
 {% block extra_js %}
@@ -203,10 +161,86 @@ button {
 const API_BASE = location.origin;
 const $ = id => document.getElementById(id);
 
-/* ============================================================
-   🔥 BLOQUE CONTEXTO VISUAL (NO ROMPE NADA)
-   ============================================================ */
+/* ================= QR ================= */
+let qrScanner = null;
+let escaneando = false;
+let estadoInterval = null;
 
+function iniciarEscaneoQR() {
+  if (escaneando) return;
+
+  escaneando = true;
+  $("btnEscanear").disabled = true;
+  $("qr-reader").style.display = "block";
+
+  qrScanner = new Html5Qrcode("qr-reader");
+
+  Html5Qrcode.getCameras().then(cameras => {
+    if (!cameras.length) {
+      alert("❌ No se detectó cámara");
+      escaneando = false;
+      $("btnEscanear").disabled = false;
+      return;
+    }
+
+    const camaraId = cameras[cameras.length - 1].id;
+
+    qrScanner.start(
+      camaraId,
+      { fps: 10, qrbox: 250 },
+      async texto => {
+        await qrScanner.stop();
+        await qrScanner.clear();
+
+        $("qr-reader").style.display = "none";
+        $("pantallaQR").style.display = "none";
+        $("pantallaEstado").style.display = "block";
+
+        escaneando = false;
+        activarUnidad(texto);
+      }
+    );
+  });
+}
+
+/* ================= ACTIVAR ================= */
+function activarUnidad(texto) {
+  let vehiculoId;
+  try {
+    vehiculoId = JSON.parse(texto).vehiculo_id;
+  } catch {
+    alert("❌ QR inválido");
+    $("btnEscanear").disabled = false;
+    escaneando = false;
+    return;
+  }
+
+  fetch(`${API_BASE}/sistema/api/app/escanear-qr/`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ vehiculo_id: vehiculoId })
+  })
+  .then(r => r.json())
+  .then(d => {
+    if (!d.ok) {
+      alert("❌ No autorizado");
+      return;
+    }
+
+    localStorage.setItem("token", d.token);
+    iniciarSistema();
+  });
+}
+
+/* ================= SISTEMA ================= */
+function iniciarSistema() {
+  if (!estadoInterval)
+    estadoInterval = setInterval(cargarColaContexto, 5000);
+
+  cargarColaContexto();
+}
+
+/* ================= CONTEXTO ================= */
 function cargarColaContexto() {
   const token = localStorage.getItem("token");
   if (!token) return;
@@ -216,19 +250,14 @@ function cargarColaContexto() {
   })
   .then(r => r.json())
   .then(d => {
-    if (!d.ok) return;
+    if (!d || !d.ok) return;
 
-    // 👉 BUS ACTUAL
     $("gpsBus").innerText = "🚍 UNIDAD " + d.actual.codigo;
 
-    // 👉 ATRÁS
     $("gpsAtras").innerHTML = d.atras.length
-      ? d.atras.map(b =>
-          `<div>⬅️ ${b.codigo} · ${b.hora_salida}</div>`
-        ).join("")
+      ? d.atras.map(b => `<div>⬅️ ${b.codigo} · ${b.hora_salida}</div>`).join("")
       : "<div>—</div>";
 
-    // 👉 ADELANTE (resalta el primero)
     $("gpsAdelante").innerHTML = d.adelante.length
       ? d.adelante.map((b, i) =>
           `<div class="${i === 0 ? 'unidad-siguiente' : ''}">
@@ -238,7 +267,5 @@ function cargarColaContexto() {
       : "<div>—</div>";
   });
 }
-
-setInterval(cargarColaContexto, 5000);
 </script>
 {% endblock %}
