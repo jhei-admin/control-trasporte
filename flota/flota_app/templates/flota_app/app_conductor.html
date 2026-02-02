@@ -350,25 +350,45 @@ function cargarColaContexto() {
   .then(d => {
     if (!d.ok) return;
 
-    // BUS ACTUAL (NO SE TOCA)
+    // ===============================
+    // 🚍 BUS ACTUAL (NO SE TOCA)
+    // ===============================
     $("gpsBus").innerText = "UNIDAD " + d.actual.codigo;
 
-    // ATRÁS → UNA SOLA LÍNEA
+    // ===============================
+    // ⬅️ ATRÁS (ya salieron)
+    // ===============================
     $("gpsAtras").innerHTML = d.atras.length
       ? d.atras.map(b =>
-          `<div class="cola-item">UNIDAD ${b.codigo} · ${b.hora_salida}</div>`
+          `<div class="cola-item">
+            UNIDAD ${b.codigo} · ${formatearMinutos(b.minutos)}
+          </div>`
         ).join("")
       : "<div>—</div>";
 
-    // ADELANTE → PRIMERO RESALTADO
+    // ===============================
+    // ➡️ ADELANTE (próximos)
+    // ===============================
     $("gpsAdelante").innerHTML = d.adelante.length
       ? d.adelante.map((b, i) =>
           `<div class="cola-item ${i === 0 ? 'siguiente' : ''}">
-            UNIDAD ${b.codigo} · ${b.hora_salida}
-           </div>`
+            UNIDAD ${b.codigo} · ${formatearMinutos(b.minutos)}
+          </div>`
         ).join("")
       : "<div>—</div>";
   });
+}
+
+/* ============================================================
+   🔢 FORMATO DE MINUTOS (NUEVO — NO ROMPE NADA)
+   ============================================================ */
+function formatearMinutos(min) {
+  if (min === null || min === undefined) return "--";
+
+  if (min > 0) return `+${min} min`;
+  if (min < 0) return `${min} min`;
+
+  return "0 min";
 }
 
 setInterval(cargarColaContexto, 5000);

@@ -1398,8 +1398,6 @@ def api_app_estado(request):
 # =================================================
 # 🚍 API APP — CONTEXTO DE COLA (GPS IDEOVAL)
 # =================================================
-from django.views.decorators.http import require_GET
-
 @require_GET
 def api_app_cola_contexto(request):
     """
@@ -1437,7 +1435,6 @@ def api_app_cola_contexto(request):
 
     # =============================================
     # 🚍 SALIDA ACTUAL DEL CONDUCTOR
-    # 👉 ACTIVA + HOY + CON HORA
     # =============================================
     salida_actual = (
         RegistroSalida.objects
@@ -1458,8 +1455,7 @@ def api_app_cola_contexto(request):
         )
 
     # =============================================
-    # 🚦 COLA COMPLETA (MISMA RUTA, MISMO DÍA)
-    # 👉 DEFINIDA POR hora_salida
+    # 🚦 COLA COMPLETA (MISMA RUTA)
     # =============================================
     cola = list(
         RegistroSalida.objects
@@ -1474,7 +1470,7 @@ def api_app_cola_contexto(request):
     )
 
     # =============================================
-    # 📍 POSICIÓN ACTUAL EN LA COLA
+    # 📍 POSICIÓN ACTUAL
     # =============================================
     try:
         index_actual = next(
@@ -1487,18 +1483,55 @@ def api_app_cola_contexto(request):
         )
 
     # =============================================
-    # 🔎 CONTEXTO (2 ATRÁS / 2 ADELANTE)
+    # 🔎 CONTEXTO
     # =============================================
     atras = cola[max(0, index_actual - 2):index_actual]
     adelante = cola[index_actual + 1:index_actual + 3]
 
+    # =================================================
+    # 🔥 FUNCIÓN EXTENDIDA (ÚNICO CAMBIO REAL)
+    # =================================================
     def formatear(s):
+        tz = timezone.get_current_timezone()
+        ahora = timezone.localtime(timezone.now(), tz)
+
+        # ---------------------------------------------
+        # 🔍 PRIMERA MARCACIÓN REAL (SALI)
+        # ---------------------------------------------
+        primera_marcacion = (
+            MarcacionPunto.objects
+            .filter(
+                registro_salida=s,
+                hora_marcada__isnull=False
+            )
+            .order_by("hora_marcada")
+            .first()
+        )
+
+        # ---------------------------------------------
+        # ⏱️ MINUTOS REALES (YA EN RUTA)
+        # ---------------------------------------------
+        if primera_marcacion and primera_marcacion.diferencia_minutos is not None:
+            minutos = primera_marcacion.diferencia_minutos
+
+        # ---------------------------------------------
+        # 🕒 MINUTOS TEÓRICOS (AÚN NO SALE)
+        # ---------------------------------------------
+        elif s.hora_salida:
+            hora_salida = timezone.localtime(s.hora_salida, tz)
+            segundos = (hora_salida - ahora).total_seconds()
+            minutos = int(segundos // 60)
+
+        else:
+            minutos = None
+
         return {
             "codigo": s.vehiculo.codigo,
             "hora_salida": (
                 timezone.localtime(s.hora_salida).strftime("%H:%M")
                 if s.hora_salida else None
-            )
+            ),
+            "minutos": minutos
         }
 
     # =============================================
