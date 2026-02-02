@@ -16,6 +16,7 @@ body.bg-light {
   padding: 0 !important;
 }
 
+/* ================= ESTADO ================= */
 .estado {
   margin-top: 25px;
   padding: 22px;
@@ -81,18 +82,69 @@ button {
   display: flex;
 }
 
+/* 🔥 UI: columnas */
 .gps-col {
   flex: 1;
   display: flex;
   flex-direction: column;
   justify-content: center;
+  gap: 10px;
+  transition: all 180ms ease-out;
 }
 
+/* 🔥 UI: contexto visual */
+.gps-atras,
+.gps-adelante {
+  opacity: 0.4;
+  font-size: 14px;
+}
+
+.gps-centro {
+  transform: scale(1.05);
+}
+
+/* 🔥 UI: unidad siguiente */
+.gps-adelante .unidad-siguiente {
+  background: #0d47a1;
+  border-left: 4px solid #42a5f5;
+  padding: 10px;
+  border-radius: 12px;
+  font-weight: bold;
+  animation: fadeSlide 160ms ease-out;
+}
+
+/* 🔥 UI: animación suave */
+@keyframes fadeSlide {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* 🔥 UI: desvío */
 .gps-desvio {
   font-size: 48px;
   font-weight: bold;
 }
 
+/* 🔥 UI: estado */
+.gps-estado {
+  padding: 8px 14px;
+  border-radius: 12px;
+  font-size: 18px;
+}
+
+/* 🔥 UI: bus actual */
+.gps-bus {
+  margin-top: 6px;
+  font-size: 22px;
+  font-weight: bold;
+}
+
+/* 🔥 UI: iconos */
+.icon {
+  margin-right: 6px;
+}
+
+/* ================= MOBILE ================= */
 @media (orientation: portrait) {
   .gps-body { flex-direction: column; }
   .gps-atras,
@@ -115,19 +167,23 @@ button {
   </div>
 
   <div class="gps-body">
-    <div class="gps-col gps-atras" id="gpsAtras"><div>—</div><div>—</div></div>
+    <div class="gps-col gps-atras" id="gpsAtras">
+      <div>—</div><div>—</div>
+    </div>
 
     <div class="gps-col gps-centro">
       <div id="gpsDesvio" class="gps-desvio">0 min</div>
       <div id="gpsEstado" class="gps-estado ok">A TIEMPO</div>
-      <div id="gpsBus" class="gps-bus">BUS</div>
+      <div id="gpsBus" class="gps-bus">🚍 UNIDAD</div>
     </div>
 
-    <div class="gps-col gps-adelante" id="gpsAdelante"><div>—</div><div>—</div></div>
+    <div class="gps-col gps-adelante" id="gpsAdelante">
+      <div>—</div><div>—</div>
+    </div>
   </div>
 
   <div class="gps-footer">
-    Punto actual: <span id="gpsPunto">—</span>
+    📍 Punto actual: <span id="gpsPunto">—</span>
   </div>
 </div>
 
@@ -147,181 +203,8 @@ button {
 const API_BASE = location.origin;
 const $ = id => document.getElementById(id);
 
-/* ================= GLOBAL ================= */
-let qrScanner = null;
-let escaneando = false;
-let estadoInterval = null;
-let watchId = null;
-
-/* ================= AUDIO ================= */
-let audioContext = null;
-let audioBuffers = {};
-let audioUnlocked = false;
-let audioReproduciendo = false;
-
-async function unlockAudio() {
-  if (audioUnlocked) return;
-
-  audioContext = new (window.AudioContext || window.webkitAudioContext)();
-  await audioContext.resume();
-
-  async function load(name, url) {
-    const res = await fetch(url);
-    const buf = await res.arrayBuffer();
-    audioBuffers[name] = await audioContext.decodeAudioData(buf);
-  }
-
-  await load("beep", "{% static 'flota_app/sonidos/beep_despacho.wav' %}");
-  await load("audio_adelantado", "{% static 'flota_app/sonidos/adelantado.mp3' %}");
-  await load("audio_tarde", "{% static 'flota_app/sonidos/tarde.mp3' %}");
-
-  audioUnlocked = true;
-}
-
-function playAudio(name) {
-  if (!audioUnlocked || !audioBuffers[name]) return;
-  if (audioReproduciendo) return;
-
-  audioReproduciendo = true;
-  const src = audioContext.createBufferSource();
-  src.buffer = audioBuffers[name];
-  src.connect(audioContext.destination);
-
-  src.onended = () => audioReproduciendo = false;
-  src.start(0);
-}
-
-/* ================= QR ================= */
-function iniciarEscaneoQR() {
-  unlockAudio();
-  if (escaneando) return;
-
-  escaneando = true;
-  $("btnEscanear").disabled = true;
-  $("qr-reader").style.display = "block";
-
-  qrScanner = new Html5Qrcode("qr-reader");
-
-  Html5Qrcode.getCameras().then(cameras => {
-    const camaraId = cameras[cameras.length - 1].id;
-
-    qrScanner.start(
-      camaraId,
-      { fps: 10, qrbox: 250 },
-      async texto => {
-        await qrScanner.stop();
-        await qrScanner.clear();
-
-        $("qr-reader").style.display = "none";
-        $("pantallaQR").style.display = "none";
-        $("pantallaEstado").style.display = "block";
-
-        escaneando = false;
-        activarUnidad(texto);
-      }
-    );
-  });
-}
-
-/* ================= ACTIVAR ================= */
-function activarUnidad(texto) {
-  let vehiculoId;
-  try {
-    vehiculoId = JSON.parse(texto).vehiculo_id;
-  } catch {
-    alert("❌ QR inválido");
-    return;
-  }
-
-  fetch(`${API_BASE}/sistema/api/app/escanear-qr/`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ vehiculo_id: vehiculoId })
-  })
-  .then(r => r.json())
-  .then(d => {
-    if (!d.ok) return;
-    localStorage.setItem("token", d.token);
-    iniciarSistema();
-  });
-}
-
-/* ================= SISTEMA ================= */
-function iniciarSistema() {
-  if (!estadoInterval)
-    estadoInterval = setInterval(consultarEstado, 5000);
-
-  iniciarGPSContinuo();
-  consultarEstado();
-}
-
-/* ================= ESTADO ================= */
-function consultarEstado() {
-  const token = localStorage.getItem("token");
-  if (!token) return;
-
-  fetch(`${API_BASE}/sistema/api/app/estado/`, {
-    method: "POST",
-    headers: { "Authorization": "Bearer " + token }
-  })
-  .then(r => r.json())
-  .then(data => {
-    if (!data.autorizado) return;
-
-    const horaPrev = localStorage.getItem("hora_salida");
-    if (data.hora_salida && data.hora_salida !== horaPrev) {
-      playAudio("beep");
-      localStorage.setItem("hora_salida", data.hora_salida);
-    }
-
-    if (data.hora_salida)
-      $("gpsHora").innerText = data.hora_salida;
-
-    if (data.estado === "SALIDA_ACTIVA") {
-      $("gpsEstado").innerText = "A TIEMPO";
-      $("gpsEstado").className = "gps-estado ok";
-    }
-  });
-}
-
-/* ================= GPS ================= */
-function iniciarGPSContinuo() {
-  if (!navigator.geolocation || watchId) return;
-
-  watchId = navigator.geolocation.watchPosition(pos => {
-    const token = localStorage.getItem("token");
-    if (!token) return;
-
-    fetch(`${API_BASE}/sistema/api/gps/conductor/`, {
-      method: "POST",
-      headers: {
-        "Authorization": "Bearer " + token,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        lat: pos.coords.latitude,
-        lng: pos.coords.longitude,
-        precision: pos.coords.accuracy
-      })
-    });
-  });
-}
-
-/* ================= LOAD ================= */
-window.addEventListener("load", () => {
-  const token = localStorage.getItem("token");
-  if (token) {
-    unlockAudio();
-    $("pantallaQR").style.display = "none";
-    $("pantallaEstado").style.display = "block";
-    iniciarSistema();
-  } else {
-    $("btnEscanear").onclick = iniciarEscaneoQR;
-  }
-});
-
 /* ============================================================
-   🔥 BLOQUE AGREGADO — CONTEXTO DE COLA (SOLO SE AJUSTA TEXTO)
+   🔥 BLOQUE CONTEXTO VISUAL (NO ROMPE NADA)
    ============================================================ */
 
 function cargarColaContexto() {
@@ -336,16 +219,22 @@ function cargarColaContexto() {
     if (!d.ok) return;
 
     // 👉 BUS ACTUAL
-    $("gpsBus").innerText = "UNIDAD " + d.actual.codigo;
+    $("gpsBus").innerText = "🚍 UNIDAD " + d.actual.codigo;
 
-    // 👉 ATRÁS (invertido, IDEOVAL)
+    // 👉 ATRÁS
     $("gpsAtras").innerHTML = d.atras.length
-      ? d.atras.slice().reverse().map(b => `<div>UNIDAD ${b.codigo}</div>`).join("")
+      ? d.atras.map(b =>
+          `<div>⬅️ ${b.codigo} · ${b.hora_salida}</div>`
+        ).join("")
       : "<div>—</div>";
 
-    // 👉 ADELANTE
+    // 👉 ADELANTE (resalta el primero)
     $("gpsAdelante").innerHTML = d.adelante.length
-      ? d.adelante.map(b => `<div>UNIDAD ${b.codigo}</div>`).join("")
+      ? d.adelante.map((b, i) =>
+          `<div class="${i === 0 ? 'unidad-siguiente' : ''}">
+            ➡️ ${b.codigo} · ${b.hora_salida}
+           </div>`
+        ).join("")
       : "<div>—</div>";
   });
 }
