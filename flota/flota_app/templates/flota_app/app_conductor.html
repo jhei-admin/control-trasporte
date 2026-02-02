@@ -104,14 +104,53 @@ button {
   opacity: 0.5;
   padding: 4px 0;
 }
+/* ================= HORA DE SALIDA (RESALTADA) ================= */
+#gpsHora {
+  font-size: 36px;        /* mucho más grande */
+  font-weight: 900;      /* bien grueso */
+  color: #00e676;        /* verde llamativo */
+  letter-spacing: 2px;
+}
+/* ================= UNIDAD ACTUAL ================= */
+.gps-bus {
+  font-size: 24px;
+  font-weight: 900;
+  letter-spacing: 1px;
+  color: #ffffff;
+}
+/* ================= UNIDADES ATRÁS ================= */
+#gpsAtras .cola-item {
+  font-size: 16px;
+  font-weight: 600;
+  color: #9e9e9e;
+  opacity: 0.8;
+}
 
-.cola-item.siguiente {
+/* ================= UNIDADES ADELANTE ================= */
+#gpsAdelante .cola-item {
+  font-size: 17px;
+  font-weight: 700;
+  color: #cfd8dc;
+}
+
+/* ================= SIGUIENTE UNIDAD (AZUL FUERTE) ================= */
+#gpsAdelante .cola-item.siguiente {
   background: #0d47a1;
-  border-left: 4px solid #42a5f5;
-  padding: 6px 10px;
-  border-radius: 8px;
-  font-weight: bold;
-  opacity: 1;
+  color: #ffffff;
+  font-size: 19px;
+  font-weight: 900;
+  padding: 10px 16px;
+  border-radius: 16px;
+  box-shadow: 0 0 14px rgba(33,150,243,0.7);
+}
+#gpsDesvio {
+  font-size: 56px;
+  font-weight: 900;
+}
+#gpsEstado {
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: 1px;
 }
 </style>
 
