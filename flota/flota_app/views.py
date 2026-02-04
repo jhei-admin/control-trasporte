@@ -1141,7 +1141,7 @@ def api_heartbeat(request):
             fecha_inicio__lte=hoy,
             fecha_fin__gte=hoy
         )
-        .order_by("-fecha_inicio")
+        .order_by("-creado_en")
         .first()
     )
 
