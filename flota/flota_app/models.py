@@ -514,3 +514,29 @@ class Parada(models.Model):
     def __str__(self):
         estado = "PROLONGADA" if self.es_prolongada else "NORMAL"
         return f"{self.vehiculo} | {estado}"
+    
+# =========================
+# 📢 MENSAJES GLOBALES (APP CONDUCTOR)
+# =========================
+class MensajeGlobal(models.Model):
+    texto = models.TextField(
+        help_text="Mensaje mostrado en la app (debajo de Punto actual)"
+    )
+
+    activo = models.BooleanField(default=True)
+
+    fecha_inicio = models.DateField(
+        help_text="Fecha desde la que se muestra el mensaje"
+    )
+    fecha_fin = models.DateField(
+        help_text="Fecha hasta la que se muestra el mensaje"
+    )
+
+    creado_en = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-fecha_inicio"]
+
+    def __str__(self):
+        return f"{self.texto[:50]} ({self.fecha_inicio} → {self.fecha_fin})"
+

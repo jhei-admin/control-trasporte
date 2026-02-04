@@ -17,6 +17,7 @@ from django.views.decorators.cache import never_cache
 from django.contrib import messages
 from django.core.exceptions import ValidationError
 from django.db import models
+from .models import MensajeGlobal
 
 
 import qrcode
@@ -1089,7 +1090,7 @@ def api_heartbeat(request):
         )
 
     # =============================================
-    # 🔑 LEER TOKEN (MISMO ESTÁNDAR QUE GPS)
+    # 📦 LEER JSON
     # =============================================
     try:
         data = json.loads(request.body or "{}")
@@ -1100,7 +1101,10 @@ def api_heartbeat(request):
 
     if not token:
         return JsonResponse(
-            {"estado": "BLOQUEADO", "mensaje": "Token requerido"},
+            {
+                "estado": "BLOQUEADO",
+                "mensaje": "Token requerido"
+            },
             status=401
         )
 
@@ -1121,15 +1125,40 @@ def api_heartbeat(request):
     # =============================================
     # 🫀 REGISTRAR HEARTBEAT
     # =============================================
-    sesion.last_heartbeat = timezone.now()
+    ahora = timezone.now()
+    sesion.last_heartbeat = ahora
     sesion.save(update_fields=["last_heartbeat"])
 
-    return JsonResponse(
-        {
-            "ok": True,
-            "timestamp": sesion.last_heartbeat.isoformat()
-        }
+    # =============================================
+    # 📢 MENSAJE GLOBAL ACTIVO (SI EXISTE)
+    # =============================================
+    hoy = timezone.localdate()
+
+    mensaje = (
+        MensajeGlobal.objects
+        .filter(
+            activo=True,
+            fecha_inicio__lte=hoy,
+            fecha_fin__gte=hoy
+        )
+        .order_by("-fecha_inicio")
+        .first()
     )
+
+    # =============================================
+    # 📤 RESPUESTA FINAL
+    # =============================================
+    respuesta = {
+        "ok": True,
+        "timestamp": ahora.isoformat()
+    }
+
+    if mensaje:
+        respuesta["mensaje"] = {
+            "texto": mensaje.texto
+        }
+
+    return JsonResponse(respuesta)
 
 # =================================================
 # 🔐 API — ESCANEAR QR (ACTIVACIÓN DEFINITIVA)

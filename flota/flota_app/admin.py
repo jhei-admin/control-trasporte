@@ -9,6 +9,7 @@ from .models import (
     SesionUnidad,
     GPSRegistro,
     UbicacionVehiculo,
+    MensajeGlobal,   # 👈 NUEVO
 )
 
 # =================================================
@@ -25,18 +26,15 @@ class VehiculoAdmin(admin.ModelAdmin):
         "fecha_baja",
     )
 
-    list_filter = (
-        "activo",
-    )
+    list_filter = ("activo",)
 
     search_fields = (
         "codigo",
         "placa",
     )
 
-    ordering = (
-        "codigo",
-    )
+    ordering = ("codigo",)
+
 
 # =================================================
 # RUTA
@@ -94,6 +92,7 @@ class ConfiguracionDespachoAdmin(admin.ModelAdmin):
         "activa",
         "creado_en",
     )
+
     list_filter = ("activa",)
     ordering = ("-creado_en",)
 
@@ -233,3 +232,23 @@ class UbicacionVehiculoAdmin(admin.ModelAdmin):
     ordering = ("-updated_at",)
 
     readonly_fields = ("updated_at",)
+
+
+# =================================================
+# 📢 MENSAJES GLOBALES (APP CONDUCTOR)
+# =================================================
+@admin.register(MensajeGlobal)
+class MensajeGlobalAdmin(admin.ModelAdmin):
+    list_display = (
+        "texto",
+        "activo",
+        "fecha_inicio",
+        "fecha_fin",
+        "creado_en",
+    )
+
+    list_filter = ("activo",)
+
+    search_fields = ("texto",)
+
+    ordering = ("-fecha_inicio",)
