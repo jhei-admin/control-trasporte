@@ -1146,11 +1146,13 @@ def api_heartbeat(request):
     )
 
     # =============================================
-    # 📤 RESPUESTA FINAL
+    # 📤 RESPUESTA FINAL (CONTRATO EXPLÍCITO)
     # =============================================
     respuesta = {
         "ok": True,
-        "timestamp": ahora.isoformat()
+        "timestamp": ahora.isoformat(),
+        # 🔑 CLAVE: siempre devolver la key "mensaje"
+        "mensaje": None
     }
 
     if mensaje:
