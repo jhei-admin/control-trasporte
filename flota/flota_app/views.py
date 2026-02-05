@@ -1095,15 +1095,20 @@ def api_heartbeat(request):
     try:
         data = json.loads(request.body or "{}")
     except Exception:
-        return JsonResponse({"error": "JSON inválido"}, status=400)
+        return JsonResponse(
+            {"error": "JSON inválido"},
+            status=400
+        )
 
     token = data.get("token")
 
     if not token:
         return JsonResponse(
             {
+                "ok": False,
                 "estado": "BLOQUEADO",
-                "mensaje": "Token requerido"
+                "mensaje": None,
+                "motivo": "TOKEN_REQUERIDO"
             },
             status=401
         )
@@ -1116,8 +1121,10 @@ def api_heartbeat(request):
     if not sesion:
         return JsonResponse(
             {
+                "ok": False,
                 "estado": "BLOQUEADO",
-                "mensaje": "Sesión inválida o reemplazada"
+                "mensaje": None,
+                "motivo": "SESION_INVALIDA"
             },
             status=403
         )
@@ -1146,21 +1153,32 @@ def api_heartbeat(request):
     )
 
     # =============================================
-    # 📤 RESPUESTA FINAL (CONTRATO EXPLÍCITO)
+    # 📤 RESPUESTA FINAL (CONTRATO FIJO)
     # =============================================
     respuesta = {
         "ok": True,
+        "estado": "ACTIVO",
         "timestamp": ahora.isoformat(),
-        # 🔑 CLAVE: siempre devolver la key "mensaje"
-        "mensaje": None
+        "mensaje": None   # 🔑 SIEMPRE PRESENTE
     }
 
     if mensaje:
         respuesta["mensaje"] = {
-            "texto": mensaje.texto
+            "id": mensaje.id,
+            "texto": mensaje.texto,
+            "actualizado_en": mensaje.creado_en.isoformat()
         }
 
-    return JsonResponse(respuesta)
+    response = JsonResponse(respuesta)
+
+    # =============================================
+    # 🚫 ANTI-CACHE (CLAVE PARA TU PROBLEMA)
+    # =============================================
+    response["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    response["Pragma"] = "no-cache"
+    response["Expires"] = "0"
+
+    return response
 
 # =================================================
 # 🔐 API — ESCANEAR QR (ACTIVACIÓN DEFINITIVA)
