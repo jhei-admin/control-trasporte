@@ -519,39 +519,25 @@ class Parada(models.Model):
 # 📢 MENSAJES GLOBALES (APP CONDUCTOR)
 # =========================
 class MensajeGlobal(models.Model):
-
     texto = models.TextField(
-        help_text="Mensaje mostrado en la app (barra roja superior)"
+        help_text="Mensaje mostrado en la app"
     )
 
-    activo = models.BooleanField(
-        default=True,
-        help_text="Indica si el mensaje está activo"
-    )
+    activo = models.BooleanField(default=True)
 
-    fecha_inicio = models.DateField(
-        help_text="Fecha desde la que se muestra el mensaje"
-    )
+    fecha_inicio = models.DateField()
+    fecha_fin = models.DateField()
 
-    fecha_fin = models.DateField(
-        help_text="Fecha hasta la que se muestra el mensaje"
-    )
-
-    # 🕒 FECHAS DE CONTROL
-    creado_en = models.DateTimeField(
-        auto_now_add=True,
-        help_text="Fecha de creación"
-    )
-
-    # 🔥 CLAVE ABSOLUTA (ESTE CAMPO TE FALTABA)
+    creado_en = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(
         auto_now=True,
         help_text="Última modificación del mensaje"
     )
 
     class Meta:
-        ordering = ["-updated_at", "-id"]
+        ordering = ["-updated_at", "-id"]  # 🔥 SIEMPRE EL MÁS RECIENTE
 
     def __str__(self):
         return f"{self.texto[:50]} ({self.fecha_inicio} → {self.fecha_fin})"
+
 

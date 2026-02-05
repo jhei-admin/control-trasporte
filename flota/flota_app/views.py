@@ -1087,21 +1087,23 @@ def api_heartbeat(request):
     # 🔒 MÉTODO
     # =============================================
     if request.method != "POST":
-        return JsonResponse(
+        response = JsonResponse(
             {"error": "Método no permitido"},
             status=405
         )
+        return _disable_cache(response)
 
     # =============================================
     # 📦 LEER JSON
     # =============================================
     try:
-        data = json.loads(request.body or "{}")
+        data = json.loads(request.body.decode("utf-8") or "{}")
     except Exception:
-        return JsonResponse(
+        response = JsonResponse(
             {"error": "JSON inválido"},
             status=400
         )
+        return _disable_cache(response)
 
     token = data.get("token")
 
@@ -1118,8 +1120,7 @@ def api_heartbeat(request):
             },
             status=401
         )
-        _disable_cache(response)
-        return response
+        return _disable_cache(response)
 
     # =============================================
     # 🔐 VALIDACIÓN CENTRAL DE SESIÓN
@@ -1136,8 +1137,7 @@ def api_heartbeat(request):
             },
             status=403
         )
-        _disable_cache(response)
-        return response
+        return _disable_cache(response)
 
     # =============================================
     # 🫀 REGISTRAR HEARTBEAT
@@ -1147,7 +1147,7 @@ def api_heartbeat(request):
     sesion.save(update_fields=["last_heartbeat"])
 
     # =============================================
-    # 📢 MENSAJE GLOBAL ACTIVO
+    # 📢 MENSAJE GLOBAL ACTIVO (ÚNICO Y REAL)
     # =============================================
     hoy = timezone.localdate()
 
@@ -1158,7 +1158,8 @@ def api_heartbeat(request):
             fecha_inicio__lte=hoy,
             fecha_fin__gte=hoy
         )
-        .order_by("-updated_at", "-id")   # 🔥 CLAVE REAL
+        .order_by("-updated_at", "-id")   # 🔥 SIEMPRE EL MÁS NUEVO
+        .only("id", "texto", "updated_at", "creado_en")
         .first()
     )
 
@@ -1169,7 +1170,7 @@ def api_heartbeat(request):
         "ok": True,
         "estado": "ACTIVO",
         "timestamp": ahora.isoformat(),
-        "mensaje": None   # 🔑 SIEMPRE PRESENTE
+        "mensaje": None
     }
 
     if mensaje:
@@ -1178,19 +1179,13 @@ def api_heartbeat(request):
             "texto": mensaje.texto,
             "actualizado_en": (
                 mensaje.updated_at.isoformat()
-                if hasattr(mensaje, "updated_at")
+                if mensaje.updated_at
                 else mensaje.creado_en.isoformat()
             )
         }
 
     response = JsonResponse(respuesta)
-
-    # =============================================
-    # 🚫 ANTI-CACHE TOTAL (CLAVE ABSOLUTA)
-    # =============================================
-    _disable_cache(response)
-
-    return response
+    return _disable_cache(response)
 
 
 # =================================================
