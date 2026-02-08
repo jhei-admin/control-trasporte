@@ -1468,12 +1468,12 @@ def api_app_estado(request):
 def api_app_cola_contexto(request):
     """
     Devuelve el contexto de cola para la App Conductor:
-    - 2 buses atrás
-    - bus actual
-    - 2 buses adelante
+    - unidades atrás
+    - unidad actual
+    - unidades adelante
 
-    🔥 MINUTOS REALES calculados por GPS
-    📌 Cola definida SOLO por hora_salida
+    ✔ Muestra unidades aunque no tengan GPS
+    ✔ Minutos = null hasta SALI
     """
 
     # =============================================
@@ -1481,19 +1481,12 @@ def api_app_cola_contexto(request):
     # =============================================
     auth = request.headers.get("Authorization", "")
     if not auth.startswith("Bearer "):
-        return JsonResponse(
-            {"ok": False, "motivo": "TOKEN_REQUERIDO"},
-            status=401
-        )
+        return JsonResponse({"ok": False}, status=401)
 
     token = auth.replace("Bearer ", "").strip()
     sesion = validar_sesion(token)
-
     if not sesion:
-        return JsonResponse(
-            {"ok": False, "motivo": "SESION_INVALIDA"},
-            status=403
-        )
+        return JsonResponse({"ok": False}, status=403)
 
     hoy = timezone.localdate()
 
@@ -1514,31 +1507,10 @@ def api_app_cola_contexto(request):
     )
 
     if not salida_actual:
-        return JsonResponse(
-            {"ok": False, "motivo": "SIN_SALIDA"}
-        )
+        return JsonResponse({"ok": False})
 
     # =============================================
-    # 📍 GPS ACTUAL DEL CONDUCTOR
-    # =============================================
-    try:
-        ub_actual = UbicacionVehiculo.objects.get(
-            vehiculo=salida_actual.vehiculo
-        )
-    except UbicacionVehiculo.DoesNotExist:
-        return JsonResponse(
-            {"ok": False, "motivo": "SIN_GPS"}
-        )
-
-    # 🔒 GPS VIEJO = NO CONFIABLE
-    GPS_MAX_DELAY = timedelta(seconds=60)
-    if timezone.now() - ub_actual.updated_at > GPS_MAX_DELAY:
-        return JsonResponse(
-            {"ok": False, "motivo": "GPS_NO_ACTUAL"}
-        )
-
-    # =============================================
-    # 🚦 COLA COMPLETA (MISMA RUTA / MISMO DÍA)
+    # 🚦 COLA COMPLETA (POR HORA)
     # =============================================
     cola = list(
         RegistroSalida.objects
@@ -1552,28 +1524,28 @@ def api_app_cola_contexto(request):
         .order_by("hora_salida")
     )
 
-    # =============================================
-    # 📍 POSICIÓN ACTUAL EN COLA
-    # =============================================
-    try:
-        index_actual = next(
-            i for i, s in enumerate(cola)
-            if s.id == salida_actual.id
-        )
-    except StopIteration:
-        return JsonResponse(
-            {"ok": False, "motivo": "FUERA_DE_COLA"}
-        )
+    index_actual = cola.index(salida_actual)
 
     atras = cola[max(0, index_actual - 2):index_actual]
     adelante = cola[index_actual + 1:index_actual + 3]
 
     # =============================================
-    # ⏱️ CÁLCULO DE MINUTOS REALES (GPS)
+    # ⏱️ MINUTOS REALES (GPS SI EXISTE)
     # =============================================
-    VELOCIDAD_PROMEDIO_KMH = 25  # fallback seguro
+    GPS_MAX_DELAY = timedelta(seconds=60)
+    VELOCIDAD_PROMEDIO = 25
 
-    def calcular_minutos_reales(salida):
+    try:
+        ub_actual = UbicacionVehiculo.objects.get(
+            vehiculo=salida_actual.vehiculo
+        )
+    except UbicacionVehiculo.DoesNotExist:
+        ub_actual = None
+
+    def calcular_minutos(salida):
+        if not ub_actual:
+            return None
+
         try:
             ub = UbicacionVehiculo.objects.get(
                 vehiculo=salida.vehiculo
@@ -1581,7 +1553,6 @@ def api_app_cola_contexto(request):
         except UbicacionVehiculo.DoesNotExist:
             return None
 
-        # GPS viejo → ignorar
         if timezone.now() - ub.updated_at > GPS_MAX_DELAY:
             return None
 
@@ -1592,22 +1563,14 @@ def api_app_cola_contexto(request):
             ub.longitud
         )
 
-        # Usar velocidad real si existe
-        vel_kmh = ub.velocidad or VELOCIDAD_PROMEDIO_KMH
-        if vel_kmh < 5:  # evita divisiones raras
-            vel_kmh = VELOCIDAD_PROMEDIO_KMH
+        vel = ub.velocidad or VELOCIDAD_PROMEDIO
+        metros_min = (vel * 1000) / 60
+        return max(int(round(distancia / metros_min)), 0)
 
-        metros_por_minuto = (vel_kmh * 1000) / 60
-        minutos = distancia / metros_por_minuto
-
-        return max(int(round(minutos)), 0)
-
-    def formatear(s, signo):
-        minutos = calcular_minutos_reales(s)
+    def serializar(s):
         return {
-            "codigo": s.vehiculo.codigo,
-            "minutos": minutos,
-            "signo": signo
+            "unidad": s.vehiculo.codigo,
+            "minutos": calcular_minutos(s)
         }
 
     # =============================================
@@ -1615,13 +1578,12 @@ def api_app_cola_contexto(request):
     # =============================================
     return JsonResponse({
         "ok": True,
-        "ruta": salida_actual.ruta.nombre if salida_actual.ruta else None,
         "actual": {
-            "codigo": salida_actual.vehiculo.codigo,
+            "unidad": salida_actual.vehiculo.codigo,
             "minutos": 0
         },
-        "atras": [formatear(s, "-") for s in atras],
-        "adelante": [formatear(s, "+") for s in adelante],
+        "atras": [serializar(s) for s in atras],
+        "adelante": [serializar(s) for s in adelante],
     })
 
 # =================================================
