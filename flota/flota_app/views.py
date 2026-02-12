@@ -1082,45 +1082,33 @@ def api_paradas_vehiculo(request):
 # 🫀 API — HEARTBEAT (SEÑAL DE VIDA APP CONDUCTOR)
 # =================================================
 @csrf_exempt
+@require_POST
 def api_heartbeat(request):
-    # =============================================
-    # 🔒 MÉTODO
-    # =============================================
-    if request.method != "POST":
-        response = JsonResponse(
-            {"error": "Método no permitido"},
-            status=405
-        )
-        return _disable_cache(response)
+    """
+    Heartbeat oficial de la App Conductor.
+
+    ✔ Autenticación unificada por Authorization: Bearer
+    ✔ Actualiza last_heartbeat
+    ✔ Devuelve mensaje global activo (si existe)
+    ✔ Sin cache
+    """
 
     # =============================================
-    # 📦 LEER JSON
+    # 🔐 TOKEN DESDE HEADER (UNIFICADO)
     # =============================================
-    try:
-        data = json.loads(request.body.decode("utf-8") or "{}")
-    except Exception:
-        response = JsonResponse(
-            {"error": "JSON inválido"},
-            status=400
-        )
-        return _disable_cache(response)
-
-    token = data.get("token")
-
-    # =============================================
-    # 🔑 TOKEN REQUERIDO
-    # =============================================
-    if not token:
+    auth = request.headers.get("Authorization", "")
+    if not auth.startswith("Bearer "):
         response = JsonResponse(
             {
                 "ok": False,
                 "estado": "BLOQUEADO",
-                "mensaje": None,
                 "motivo": "TOKEN_REQUERIDO"
             },
             status=401
         )
         return _disable_cache(response)
+
+    token = auth.replace("Bearer ", "").strip()
 
     # =============================================
     # 🔐 VALIDACIÓN CENTRAL DE SESIÓN
@@ -1132,7 +1120,6 @@ def api_heartbeat(request):
             {
                 "ok": False,
                 "estado": "BLOQUEADO",
-                "mensaje": None,
                 "motivo": "SESION_INVALIDA"
             },
             status=403
@@ -1147,7 +1134,7 @@ def api_heartbeat(request):
     sesion.save(update_fields=["last_heartbeat"])
 
     # =============================================
-    # 📢 MENSAJE GLOBAL ACTIVO (ÚNICO Y REAL)
+    # 📢 MENSAJE GLOBAL ACTIVO
     # =============================================
     hoy = timezone.localdate()
 
@@ -1158,7 +1145,7 @@ def api_heartbeat(request):
             fecha_inicio__lte=hoy,
             fecha_fin__gte=hoy
         )
-        .order_by("-updated_at", "-id")   # 🔥 SIEMPRE EL MÁS NUEVO
+        .order_by("-updated_at", "-id")
         .only("id", "texto", "updated_at", "creado_en")
         .first()
     )
@@ -1186,7 +1173,6 @@ def api_heartbeat(request):
 
     response = JsonResponse(respuesta)
     return _disable_cache(response)
-
 
 # =================================================
 # 🚫 DESACTIVAR CACHE HTTP (FUNCIÓN CENTRAL)

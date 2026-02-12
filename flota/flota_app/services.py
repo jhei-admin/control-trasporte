@@ -4,17 +4,25 @@ from datetime import timedelta
 from .models import (
     RegistroSalida,
     ConfiguracionDespacho,
-    SesionUnidad
+    SesionUnidad,
+    GPSRegistro,
 )
 
 # =================================================
-# 🔐 VALIDAR SESIÓN ACTIVA (CLAVE DEL SISTEMA)
+# 🔐 VALIDAR SESIÓN ACTIVA (ÚNICA FUENTE DE VERDAD)
 # =================================================
-def validar_sesion(token):
+def validar_sesion(token: str):
     """
-    Valida una sesión activa a partir del token.
-    Retorna la sesión si es válida o None si no lo es.
+    Valida una sesión activa por token.
+
+    Retorna:
+        SesionUnidad si es válida
+        None si es inválida
     """
+
+    if not token:
+        return None
+
     try:
         sesion = (
             SesionUnidad.objects
@@ -31,25 +39,65 @@ def validar_sesion(token):
 
 
 # =================================================
-# 📡 ESTADO GPS / SESIÓN (TÉCNICO)
+# 🧠 ESTADO INTELIGENTE DEL VEHÍCULO
 # =================================================
-def calcular_estado_sesion(sesion):
+HEARTBEAT_TIMEOUT = timedelta(seconds=90)
+GPS_TIMEOUT = timedelta(minutes=3)
+
+
+def calcular_estado_sesion(sesion: SesionUnidad):
     """
-    Estado técnico de comunicación GPS.
-    NO decide lógica de salida.
+    Determina el estado REAL del vehículo usando:
+
+    - Sesión
+    - Heartbeat
+    - Último GPS
+
+    Estados posibles:
+    - BLOQUEADO
+    - SIN_GPS
+    - SIN_SENAL
+    - EN_RUTA
+    - DETENIDO
     """
 
-    if not sesion or not sesion.last_heartbeat:
-        return "OFFLINE"
+    if not sesion or not sesion.activa:
+        return "BLOQUEADO"
 
     ahora = timezone.now()
-    delta = (ahora - sesion.last_heartbeat).total_seconds()
 
-    if delta <= 30:
-        return "ACTIVO"
-    elif delta <= 120:
-        return "INACTIVO"
-    return "OFFLINE"
+    # =============================================
+    # 🫀 HEARTBEAT
+    # =============================================
+    if not sesion.last_heartbeat:
+        return "SIN_SENAL"
+
+    if ahora - sesion.last_heartbeat > HEARTBEAT_TIMEOUT:
+        return "SIN_SENAL"
+
+    # =============================================
+    # 📍 ÚLTIMO GPS
+    # =============================================
+    ultimo_gps = (
+        GPSRegistro.objects
+        .filter(sesion=sesion)
+        .order_by("-timestamp")
+        .first()
+    )
+
+    if not ultimo_gps:
+        return "SIN_GPS"
+
+    if ahora - ultimo_gps.timestamp > GPS_TIMEOUT:
+        return "SIN_SENAL"
+
+    # =============================================
+    # 🚍 ESTADO POR VELOCIDAD
+    # =============================================
+    if ultimo_gps.velocidad and ultimo_gps.velocidad > 5:
+        return "EN_RUTA"
+
+    return "DETENIDO"
 
 
 # =================================================
@@ -81,7 +129,7 @@ def iniciar_salida_segura(salida):
 # =================================================
 def registrar_llegada_al_paradero(vehiculo, ruta):
     """
-    Crea una salida nueva y cierra las anteriores.
+    Cierra salidas activas y crea nueva salida del día.
     """
 
     hoy = timezone.localdate()
@@ -109,12 +157,10 @@ def registrar_llegada_al_paradero(vehiculo, ruta):
 # =================================================
 def recalcular_cola():
     """
-    Recalcula horas de salida SOLO para:
-    - salidas de HOY
+    Recalcula horas SOLO para:
+    - salidas de hoy
     - activas
     - en cola
-
-    ✔ Respeta hora fija (bloqueado)
     """
 
     hoy = timezone.localdate()
