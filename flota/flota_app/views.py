@@ -387,15 +387,16 @@ def recorrido_vehiculo(request):
     )
 
 # =================================================
-# 📡 API APP CONDUCTOR — GPS OFICIAL (DEFINITIVA CAMPO)
+# 📡 API APP CONDUCTOR — GPS OFICIAL (VERSIÓN EMPRESA)
 # =================================================
 @csrf_exempt
 def api_gps_conductor(request):
+
     if request.method != "POST":
         return JsonResponse({"error": "Método no permitido"}, status=405)
 
     # =============================================
-    # 🔑 LEER TOKEN DESDE HEADER
+    # 🔑 TOKEN
     # =============================================
     auth = request.headers.get("Authorization", "")
     if not auth.startswith("Bearer "):
@@ -403,9 +404,6 @@ def api_gps_conductor(request):
 
     token = auth.replace("Bearer ", "").strip()
 
-    # =============================================
-    # 🔐 VALIDACIÓN CENTRAL DE SESIÓN
-    # =============================================
     sesion = validar_sesion(token)
     if not sesion:
         return JsonResponse({
@@ -413,9 +411,6 @@ def api_gps_conductor(request):
             "mensaje": "Sesión inválida o reemplazada"
         })
 
-    # =============================================
-    # 📅 FECHA ACTUAL (LOCAL)
-    # =============================================
     hoy = timezone.localdate()
 
     # =============================================
@@ -438,11 +433,9 @@ def api_gps_conductor(request):
     except Exception:
         return JsonResponse({"error": "JSON inválido"}, status=400)
 
-    # =============================================
-    # 📍 COORDENADAS GPS
-    # =============================================
     lat = data.get("lat")
     lng = data.get("lng")
+    precision = data.get("precision")
 
     if lat is None or lng is None:
         return JsonResponse({"accion": "ninguna"})
@@ -450,11 +443,18 @@ def api_gps_conductor(request):
     try:
         lat = float(lat)
         lng = float(lng)
+        precision = float(precision) if precision is not None else None
     except (TypeError, ValueError):
         return JsonResponse({"accion": "ninguna"})
 
     # =================================================
-    # 📍 UBICACIÓN ACTUAL (MAPA)
+    # 🔴 FILTRO GPS BASURA (PROFESIONAL)
+    # =================================================
+    if precision and precision > 100:
+        return JsonResponse({"accion": "ninguna"})
+
+    # =================================================
+    # 📍 UBICACIÓN ACTUAL
     # =================================================
     UbicacionVehiculo.objects.update_or_create(
         vehiculo=sesion.vehiculo,
@@ -464,9 +464,9 @@ def api_gps_conductor(request):
         }
     )
 
-    # =============================================
+    # =================================================
     # 🛰️ GPS HISTÓRICO (ANTI-SPAM)
-    # =============================================
+    # =================================================
     ultimo_gps = (
         GPSRegistro.objects
         .filter(sesion=sesion)
@@ -474,24 +474,19 @@ def api_gps_conductor(request):
         .first()
     )
 
-    if not ultimo_gps:
+    ahora = timezone.now()
+
+    if not ultimo_gps or (ahora - ultimo_gps.timestamp) >= timedelta(seconds=5):
         GPSRegistro.objects.create(
             sesion=sesion,
             lat=lat,
-            lng=lng
+            lng=lng,
+            precision=precision
         )
-    else:
-        delta = timezone.now() - ultimo_gps.timestamp
-        if delta >= timedelta(seconds=5):
-            GPSRegistro.objects.create(
-                sesion=sesion,
-                lat=lat,
-                lng=lng
-            )
 
-    # =============================================
-    # 🚍 SALIDA ACTIVA — SOLO HOY
-    # =============================================
+    # =================================================
+    # 🚍 SALIDA ACTIVA HOY
+    # =================================================
     salida = (
         RegistroSalida.objects
         .filter(
@@ -507,10 +502,10 @@ def api_gps_conductor(request):
         return JsonResponse({"accion": "ninguna"})
 
     # =================================================
-    # 🧱 FIX CLAVE — ASEGURAR MARCACIONES
-    # (ESTE ERA EL BUG REAL)
+    # 🧱 ASEGURAR MARCACIONES
     # =================================================
     if salida.ruta and not salida.marcaciones.exists():
+
         puntos = PuntoControl.objects.filter(
             ruta=salida.ruta,
             activo=True
@@ -522,15 +517,13 @@ def api_gps_conductor(request):
                 punto=punto
             )
 
-    # =============================================
-    # 📍 SIGUIENTE MARCACIÓN PENDIENTE
-    # =============================================
+    # =================================================
+    # 📍 SIGUIENTE MARCACIÓN
+    # =================================================
     marcacion = salida.siguiente_marcacion()
 
-    # =================================================
-    # 🛑 NO FINALIZAR SI AÚN NO INICIÓ
-    # =================================================
     if not marcacion:
+
         if not salida.hora_real_salida:
             return JsonResponse({"accion": "ninguna"})
 
@@ -545,9 +538,9 @@ def api_gps_conductor(request):
 
     punto = marcacion.punto
 
-    # =============================================
-    # 📏 DISTANCIA GPS (METROS)
-    # =============================================
+    # =================================================
+    # 📏 DISTANCIA
+    # =================================================
     distancia = distancia_metros(
         lat,
         lng,
@@ -559,10 +552,18 @@ def api_gps_conductor(request):
         return JsonResponse({"accion": "ninguna"})
 
     # =================================================
-    # 🟢 PRIMER SALI INICIA LA SALIDA REAL
+    # 🔒 ANTI DOBLE MARCACIÓN (DEBOUNCE 10 SEG)
+    # =================================================
+    if marcacion.hora_marcada:
+        delta = ahora - marcacion.hora_marcada
+        if delta.total_seconds() < 10:
+            return JsonResponse({"accion": "ninguna"})
+
+    # =================================================
+    # 🟢 INICIAR SALIDA REAL (PRIMER SALI)
     # =================================================
     if not salida.hora_real_salida:
-        salida.hora_real_salida = timezone.now()
+        salida.hora_real_salida = ahora
         salida.en_cola = False
         salida.activo = True
         salida.save(update_fields=[
@@ -575,14 +576,14 @@ def api_gps_conductor(request):
             sesion.salida = salida
             sesion.save(update_fields=["salida"])
 
-    # =============================================
-    # ✅ MARCAR PUNTO (FUENTE ÚNICA)
-    # =============================================
-    marcacion.marcar()
+    # =================================================
+    # ✅ MARCAR PUNTO
+    # =================================================
+    marcacion.marcar(hora=ahora)
 
-    # =============================================
+    # =================================================
     # 🔊 RESPUESTA FINAL
-    # =============================================
+    # =================================================
     return JsonResponse({
         "accion": "audio" if marcacion.audio_flag else "visual",
         "audio": marcacion.audio_flag,
