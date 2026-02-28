@@ -1449,6 +1449,92 @@ def api_app_estado(request):
     })
 
 # =================================================
+# 🚍 API APP — REFERENCIA DE TIEMPO (TABLERO PRO)
+# =================================================
+@require_GET
+def api_app_referencia_tiempo(request):
+
+    # ---------------------------------------------
+    # 🔐 VALIDAR TOKEN
+    # ---------------------------------------------
+    auth = request.headers.get("Authorization", "")
+    if not auth.startswith("Bearer "):
+        return JsonResponse({"ok": False}, status=401)
+
+    token = auth.replace("Bearer ", "").strip()
+    sesion = validar_sesion(token)
+    if not sesion:
+        return JsonResponse({"ok": False}, status=403)
+
+    hoy = timezone.localdate()
+
+    # ---------------------------------------------
+    # 🚍 SALIDA ACTIVA DE HOY
+    # ---------------------------------------------
+    salida = (
+        RegistroSalida.objects
+        .filter(
+            vehiculo=sesion.vehiculo,
+            fecha=hoy,
+            activo=True
+        )
+        .order_by("-id")
+        .first()
+    )
+
+    if not salida or not salida.hora_salida:
+        return JsonResponse({"ok": False})
+
+    # ---------------------------------------------
+    # 📍 PUNTO ACTUAL (PENDIENTE)
+    # ---------------------------------------------
+    marcacion_actual = salida.siguiente_marcacion()
+
+    if not marcacion_actual:
+        return JsonResponse({
+            "ok": True,
+            "salida": salida.hora_salida.strftime("%H:%M"),
+            "actual": None,
+            "siguiente": None
+        })
+
+    # ---------------------------------------------
+    # 📍 SIGUIENTE DESPUÉS DEL ACTUAL
+    # ---------------------------------------------
+    siguiente = (
+        MarcacionPunto.objects
+        .filter(
+            registro_salida=salida,
+            punto__orden__gt=marcacion_actual.punto.orden
+        )
+        .order_by("punto__orden")
+        .first()
+    )
+
+    # ---------------------------------------------
+    # 📤 RESPUESTA FINAL
+    # ---------------------------------------------
+    return JsonResponse({
+        "ok": True,
+        "salida": salida.hora_salida.strftime("%H:%M"),
+
+        "actual": {
+            "codigo": marcacion_actual.punto.codigo,
+            "diferencia": marcacion_actual.diferencia_minutos or 0,
+            "estado": marcacion_actual.estado
+        },
+
+        "siguiente": {
+            "codigo": siguiente.punto.codigo if siguiente else None,
+            "hora": (
+                siguiente.hora_programada.strftime("%H:%M")
+                if siguiente and siguiente.hora_programada
+                else None
+            )
+        }
+    })
+
+# =================================================
 # 🚍 API APP — CONTEXTO DE COLA (MINUTOS REALES GPS)
 # =================================================
 @require_GET
