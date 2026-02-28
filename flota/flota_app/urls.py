@@ -32,6 +32,12 @@ urlpatterns = [
         name="api_app_estado"
     ),
 
+    path(
+        "api/app/referencia-tiempo/",
+        views.api_app_referencia_tiempo,
+        name="api_app_referencia_tiempo"
+    ),
+
     # 🆕 CONTEXTO DE COLA (GPS IDEOVAL)
     path(
         "api/app/cola-contexto/",
