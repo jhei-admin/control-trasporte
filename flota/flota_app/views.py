@@ -1449,7 +1449,7 @@ def api_app_estado(request):
     })
 
 # =================================================
-# 🚍 API APP — REFERENCIA DE TIEMPO (CORREGIDA PRO)
+# 🚍 API APP — REFERENCIA DE TIEMPO (CORREGIDA + TIMEZONE OK)
 # =================================================
 @require_GET
 def api_app_referencia_tiempo(request):
@@ -1485,8 +1485,14 @@ def api_app_referencia_tiempo(request):
     if not salida or not salida.hora_salida:
         return JsonResponse({"ok": False})
 
+    # =================================================
+    # 🕒 CONVERTIR HORA SALIDA A ZONA LOCAL
+    # =================================================
+    tz = timezone.get_current_timezone()
+    hora_salida_local = timezone.localtime(salida.hora_salida, tz)
+
     # ---------------------------------------------
-    # ✅ ÚLTIMO PUNTO MARCADO (ESTO ES LO CORRECTO)
+    # ✅ ÚLTIMO PUNTO MARCADO
     # ---------------------------------------------
     ultimo_marcado = (
         MarcacionPunto.objects
@@ -1508,7 +1514,7 @@ def api_app_referencia_tiempo(request):
 
         return JsonResponse({
             "ok": True,
-            "salida": salida.hora_salida.strftime("%H:%M"),
+            "salida": hora_salida_local.strftime("%H:%M"),
             "actual": {
                 "codigo": primer_pendiente.punto.codigo if primer_pendiente else None,
                 "diferencia": 0,
@@ -1518,7 +1524,7 @@ def api_app_referencia_tiempo(request):
         })
 
     # ---------------------------------------------
-    # 📍 SIGUIENTE PUNTO (DESPUÉS DEL ÚLTIMO MARCADO)
+    # 📍 SIGUIENTE PUNTO
     # ---------------------------------------------
     siguiente = (
         MarcacionPunto.objects
@@ -1531,12 +1537,22 @@ def api_app_referencia_tiempo(request):
         .first()
     )
 
+    # =================================================
+    # 🕒 CONVERTIR HORA SIGUIENTE A LOCAL
+    # =================================================
+    hora_siguiente_local = None
+    if siguiente and siguiente.hora_programada:
+        hora_siguiente_local = timezone.localtime(
+            siguiente.hora_programada,
+            tz
+        )
+
     # ---------------------------------------------
-    # 📤 RESPUESTA FINAL CORRECTA
+    # 📤 RESPUESTA FINAL
     # ---------------------------------------------
     return JsonResponse({
         "ok": True,
-        "salida": salida.hora_salida.strftime("%H:%M"),
+        "salida": hora_salida_local.strftime("%H:%M"),
 
         "actual": {
             "codigo": ultimo_marcado.punto.codigo,
@@ -1547,8 +1563,8 @@ def api_app_referencia_tiempo(request):
         "siguiente": {
             "codigo": siguiente.punto.codigo if siguiente else None,
             "hora": (
-                siguiente.hora_programada.strftime("%H:%M")
-                if siguiente and siguiente.hora_programada
+                hora_siguiente_local.strftime("%H:%M")
+                if hora_siguiente_local
                 else None
             )
         }
