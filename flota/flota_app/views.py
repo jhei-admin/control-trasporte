@@ -1449,7 +1449,7 @@ def api_app_estado(request):
     })
 
 # =================================================
-# 🚍 API APP — REFERENCIA DE TIEMPO (TABLERO PRO)
+# 🚍 API APP — REFERENCIA DE TIEMPO (CORREGIDA PRO)
 # =================================================
 @require_GET
 def api_app_referencia_tiempo(request):
@@ -1486,42 +1486,62 @@ def api_app_referencia_tiempo(request):
         return JsonResponse({"ok": False})
 
     # ---------------------------------------------
-    # 📍 PUNTO ACTUAL (PENDIENTE)
+    # ✅ ÚLTIMO PUNTO MARCADO (ESTO ES LO CORRECTO)
     # ---------------------------------------------
-    marcacion_actual = salida.siguiente_marcacion()
+    ultimo_marcado = (
+        MarcacionPunto.objects
+        .filter(
+            registro_salida=salida,
+            hora_marcada__isnull=False
+        )
+        .select_related("punto")
+        .order_by("-punto__orden")
+        .first()
+    )
 
-    if not marcacion_actual:
+    # ---------------------------------------------
+    # 📍 SI TODAVÍA NO MARCÓ NADA
+    # ---------------------------------------------
+    if not ultimo_marcado:
+
+        primer_pendiente = salida.siguiente_marcacion()
+
         return JsonResponse({
             "ok": True,
             "salida": salida.hora_salida.strftime("%H:%M"),
-            "actual": None,
+            "actual": {
+                "codigo": primer_pendiente.punto.codigo if primer_pendiente else None,
+                "diferencia": 0,
+                "estado": None
+            },
             "siguiente": None
         })
 
     # ---------------------------------------------
-    # 📍 SIGUIENTE DESPUÉS DEL ACTUAL
+    # 📍 SIGUIENTE PUNTO (DESPUÉS DEL ÚLTIMO MARCADO)
     # ---------------------------------------------
     siguiente = (
         MarcacionPunto.objects
         .filter(
             registro_salida=salida,
-            punto__orden__gt=marcacion_actual.punto.orden
+            punto__orden__gt=ultimo_marcado.punto.orden
         )
+        .select_related("punto")
         .order_by("punto__orden")
         .first()
     )
 
     # ---------------------------------------------
-    # 📤 RESPUESTA FINAL
+    # 📤 RESPUESTA FINAL CORRECTA
     # ---------------------------------------------
     return JsonResponse({
         "ok": True,
         "salida": salida.hora_salida.strftime("%H:%M"),
 
         "actual": {
-            "codigo": marcacion_actual.punto.codigo,
-            "diferencia": marcacion_actual.diferencia_minutos or 0,
-            "estado": marcacion_actual.estado
+            "codigo": ultimo_marcado.punto.codigo,
+            "diferencia": ultimo_marcado.diferencia_minutos or 0,
+            "estado": ultimo_marcado.estado
         },
 
         "siguiente": {
