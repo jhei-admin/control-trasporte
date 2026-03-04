@@ -9,6 +9,7 @@ from io import BytesIO
 from django.shortcuts import (
     render, redirect, get_object_or_404
 )
+from django.conf import settings
 from django.http import JsonResponse, HttpResponse
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
@@ -363,7 +364,10 @@ def despachador_mapa(request):
     """
     return render(
         request,
-        "flota_app/despachador/mapa.html"
+        "flota_app/despachador/mapa.html",
+        {
+            "MAPBOX_TOKEN": settings.MAPBOX_TOKEN
+        }
     )
 
 # =================================================

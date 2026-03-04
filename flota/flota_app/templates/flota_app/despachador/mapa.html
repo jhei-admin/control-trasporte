@@ -152,9 +152,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const map = L.map("map").setView(PARADERO, ZOOM_PARADERO);
 
-  L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
-    attribution: "© OpenStreetMap © CARTO"
-  }).addTo(map);
+  L.tileLayer(
+"https://api.mapbox.com/styles/v1/mapbox/streets-v12/tiles/{z}/{x}/{y}?access_token={{ MAPBOX_TOKEN }}",
+{
+tileSize: 512,
+zoomOffset: -1,
+attribution: "© Mapbox © OpenStreetMap"
+}).addTo(map);
 
   map.zoomControl.setPosition("bottomright");
   map.attributionControl.setPrefix(false);

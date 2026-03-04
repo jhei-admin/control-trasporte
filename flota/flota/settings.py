@@ -211,3 +211,10 @@ SECURE_REFERRER_POLICY = "same-origin"
 # =========================
 APPEND_SLASH = True
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+# =========================
+# MAPBOX
+# =========================
+MAPBOX_TOKEN = os.getenv(
+    "MAPBOX_TOKEN",
+)
