@@ -5,195 +5,196 @@
 
 {% block content %}
 
-<link
-  rel="stylesheet"
-  href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 
 <style>
-  /* ================= TOOLTIP PRO (PARADERO) ================= */
-  .leaflet-tooltip.paradero-label {
-    background: rgba(20, 20, 20, 0.85);
-    color: #ffffff;
-    border: none;
-    box-shadow: none;
-    font-size: 12px;
-    font-weight: 500;
-    padding: 4px 8px;
-    border-radius: 6px;
-  }
 
-  /* ================= BUS CON NUMERO (PASO 1) ================= */
-  .bus-marker {
-    position: relative;
-    width: 34px;
-    height: 34px;
-  }
+.leaflet-container{
+background:#0f172a;
+}
 
-  .bus-marker img {
-    width: 100%;
-    height: 100%;
-  }
+/* TOOLTIP PARADERO */
 
-  .bus-numero {
-    position: absolute;
-    top: -10px;
-    left: 50%;
-    transform: translateX(-50%);
-    background: rgba(0, 0, 0, 0.85);
-    color: #ffffff;
-    font-size: 11px;
-    font-weight: 600;
-    padding: 1px 6px;
-    border-radius: 6px;
-    line-height: 1;
-    white-space: nowrap;
-  }
+.leaflet-tooltip.paradero-label{
+background:rgba(20,20,20,.85);
+color:#fff;
+border:none;
+font-size:12px;
+padding:4px 8px;
+border-radius:6px;
+}
 
-  /* ================= HALO / ESTADO (PASO 2) ================= */
-  .bus-activo {
-    filter: drop-shadow(0 0 6px rgba(40, 167, 69, 0.9));
-  }
+/* BUS */
 
-  .bus-inactivo {
-    filter: none;
-  }
+.bus-marker{
+position:relative;
+width:34px;
+height:34px;
+}
 
-  .bus-offline {
-    opacity: 0.45;
-    filter: grayscale(80%);
-  }
+.bus-marker img{
+width:100%;
+height:100%;
+transition:transform .4s linear;
+}
 
-  /* ================= INDICADOR EN VIVO (PASO 3) ================= */
-  .live-dot {
-    position: absolute;
-    top: -18px;
-    right: -6px;
-    width: 8px;
-    height: 8px;
-    background: #28a745;
-    border-radius: 50%;
-    box-shadow: 0 0 0 rgba(40, 167, 69, 0.7);
-    animation: livePulse 1.5s infinite;
-  }
+.bus-numero{
+position:absolute;
+top:-10px;
+left:50%;
+transform:translateX(-50%);
+background:rgba(0,0,0,.85);
+color:#fff;
+font-size:11px;
+padding:1px 6px;
+border-radius:6px;
+}
 
-  @keyframes livePulse {
-    0% { box-shadow: 0 0 0 0 rgba(40, 167, 69, 0.7); }
-    70% { box-shadow: 0 0 0 8px rgba(40, 167, 69, 0); }
-    100% { box-shadow: 0 0 0 0 rgba(40, 167, 69, 0); }
-  }
+/* ESTADOS */
 
-  /* ================= PUNTOS DE CONTROL (AGREGADO) ================= */
-  .punto-control-label {
-    background: rgba(0, 0, 0, 0.85);
-    color: #ffffff;
-    font-size: 11px;
-    font-weight: 700;
-    padding: 2px 6px;
-    border-radius: 6px;
-    border: none;
-  }
+.bus-activo{
+filter:drop-shadow(0 0 6px rgba(40,167,69,.9));
+}
+
+.bus-inactivo{
+filter:none;
+}
+
+.bus-offline{
+opacity:.45;
+filter:grayscale(80%);
+}
+
+/* LIVE DOT */
+
+.live-dot{
+position:absolute;
+top:-18px;
+right:-6px;
+width:8px;
+height:8px;
+background:#28a745;
+border-radius:50%;
+animation:livePulse 1.5s infinite;
+}
+
+@keyframes livePulse{
+0%{box-shadow:0 0 0 0 rgba(40,167,69,.7)}
+70%{box-shadow:0 0 0 8px rgba(40,167,69,0)}
+100%{box-shadow:0 0 0 0 rgba(40,167,69,0)}
+}
+
+/* PUNTOS CONTROL */
+
+.punto-control-label{
+background:rgba(0,0,0,.85);
+color:#fff;
+font-size:11px;
+font-weight:700;
+padding:2px 6px;
+border-radius:6px;
+}
+
 </style>
 
 <h2 class="mb-3">🗺️ Mapa en tiempo real</h2>
 
 <a href="{% url 'panel_despachador' %}" class="btn btn-secondary btn-sm mb-3">
-  ⬅ Volver al panel
+⬅ Volver al panel
 </a>
 
 <hr>
 
-<!-- ================= CONTROLES SUPERIORES ================= -->
 <div class="d-flex flex-wrap gap-3 align-items-center mb-3">
 
-  <div>
-    🟢 Activos: <strong id="cnt-activo">0</strong>
-    &nbsp;&nbsp;
-    🟡 Inactivos: <strong id="cnt-inactivo">0</strong>
-    &nbsp;&nbsp;
-    🔴 Offline: <strong id="cnt-offline">0</strong>
-  </div>
-
-  <div class="d-flex gap-2">
-    <label><input type="checkbox" checked onchange="toggleFiltro('ACTIVO')"> 🟢 Activo</label>
-    <label><input type="checkbox" checked onchange="toggleFiltro('INACTIVO')"> 🟡 Inactivo</label>
-    <label><input type="checkbox" checked onchange="toggleFiltro('OFFLINE')"> 🔴 Offline</label>
-  </div>
-
-  <div>
-    🔍
-    <input
-      type="text"
-      id="busqueda"
-      class="form-control form-control-sm"
-      placeholder="Buscar placa / código"
-      style="max-width: 220px"
-      oninput="aplicarFiltros()"
-    >
-  </div>
-
-  <div class="ms-auto">
-    <button class="btn btn-sm btn-outline-primary" onclick="centrarMapa()">
-      📍 Centrar mapa
-    </button>
-  </div>
+<div>
+🟢 Activos: <strong id="cnt-activo">0</strong>
+🟡 Inactivos: <strong id="cnt-inactivo">0</strong>
+🔴 Offline: <strong id="cnt-offline">0</strong>
 </div>
 
-<!-- ================= MAPA ================= -->
-<div id="map" style="height: 520px; width: 100%; border-radius: 8px;"></div>
+<div class="d-flex gap-2">
+<label><input type="checkbox" checked onchange="toggleFiltro('ACTIVO')"> 🟢 Activo</label>
+<label><input type="checkbox" checked onchange="toggleFiltro('INACTIVO')"> 🟡 Inactivo</label>
+<label><input type="checkbox" checked onchange="toggleFiltro('OFFLINE')"> 🔴 Offline</label>
+</div>
+
+<div>
+<input
+type="text"
+id="busqueda"
+class="form-control form-control-sm"
+placeholder="Buscar placa / código"
+style="max-width:220px"
+oninput="aplicarFiltros()"
+>
+</div>
+
+<div class="ms-auto">
+<button class="btn btn-sm btn-outline-primary" onclick="centrarMapa()">
+📍 Centrar mapa
+</button>
+</div>
+
+</div>
+
+<div id="map" style="height:520px;width:100%;border-radius:8px;"></div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
 <script>
-document.addEventListener("DOMContentLoaded", () => {
 
-  const PARADERO = [-16.338088, -71.619947];
-  const ZOOM_PARADERO = 15;
+document.addEventListener("DOMContentLoaded",()=>{
 
-  const map = L.map("map").setView(PARADERO, ZOOM_PARADERO);
+const PARADERO=[-16.338088,-71.619947]
+const ZOOM_PARADERO=15
 
-  L.tileLayer(
-"https://api.mapbox.com/styles/v1/mapbox/streets-v12/tiles/{z}/{x}/{y}?access_token={{ MAPBOX_TOKEN }}",
+const map=L.map("map").setView(PARADERO,ZOOM_PARADERO)
+
+/* MAPBOX PRO */
+
+L.tileLayer(
+"https://api.mapbox.com/styles/v1/mapbox/navigation-night-v1/tiles/{z}/{x}/{y}?access_token={{ MAPBOX_TOKEN }}",
 {
-tileSize: 512,
-zoomOffset: -1,
-attribution: "© Mapbox © OpenStreetMap"
-}).addTo(map);
+tileSize:512,
+zoomOffset:-1,
+attribution:"© Mapbox © OpenStreetMap"
+}).addTo(map)
 
-  map.zoomControl.setPosition("bottomright");
-  map.attributionControl.setPrefix(false);
+map.zoomControl.setPosition("bottomright")
+map.attributionControl.setPrefix(false)
 
-  const capaFlota = L.layerGroup().addTo(map);
-  const capaParadero = L.layerGroup().addTo(map);
-  const capaRutas = L.layerGroup().addTo(map);
-  const capaPuntosControl = L.layerGroup().addTo(map); // ✅ AGREGADO
+/* CAPAS */
 
-  L.control.layers(null, {
-    "🚌 Flota": capaFlota,
-    "🏁 Paradero": capaParadero,
-    "🛣️ Ruta": capaRutas,
-    "📍 Puntos de control": capaPuntosControl // ✅ AGREGADO
-  }).addTo(map);
+const capaFlota=L.layerGroup().addTo(map)
+const capaParadero=L.layerGroup().addTo(map)
+const capaRutas=L.layerGroup().addTo(map)
+const capaPuntosControl=L.layerGroup().addTo(map)
 
-  const paraderoIcon = L.icon({
-    iconUrl: "{% static 'icons/paradero.png' %}",
-    iconSize: [36, 36],
-    iconAnchor: [18, 36],
-  });
+L.control.layers(null,{
+"🚌 Flota":capaFlota,
+"🏁 Paradero":capaParadero,
+"🛣️ Ruta":capaRutas,
+"📍 Puntos de control":capaPuntosControl
+}).addTo(map)
 
-  L.marker(PARADERO, { icon: paraderoIcon })
-    .bindTooltip("Paradero", {
-      permanent: true,
-      direction: "bottom",
-      offset: [0, 8],
-      className: "paradero-label",
-      opacity: 0.95
-    })
-    .addTo(capaParadero);
+/* PARADERO */
 
-  /* ================= RUTA FIJA (SIN CAMBIOS) ================= */
-  const RUTA_FIJA = [
-    [-16.33822826038497, -71.62108004093172],
+const paraderoIcon=L.icon({
+iconUrl:"{% static 'icons/paradero.png' %}",
+iconSize:[36,36],
+iconAnchor:[18,36]
+})
+
+L.marker(PARADERO,{icon:paraderoIcon})
+.bindTooltip("Paradero",{permanent:true,className:"paradero-label"})
+.addTo(capaParadero)
+
+/* RUTA */
+
+const RUTA_FIJA=[
+
+[-16.33822826038497, -71.62108004093172],
     [-16.3384959453393, -71.62006080150606],
     [-16.338999060149316, -71.6181242465973],
     [-16.33950354103728, -71.61635398864748],
@@ -255,133 +256,176 @@ attribution: "© Mapbox © OpenStreetMap"
     [-16.355056710414207, -71.56680822372438],
     [-16.357033281910333, -71.56500577926637],
     [-16.359998101629834, -71.56243085861207]
-  ];
 
-  L.polyline(RUTA_FIJA, {
-    color: "#000000",
-    weight: 15,
-    opacity: 0.5,
-    lineCap: "round",
-    lineJoin: "round"
-  }).addTo(capaRutas);
+]
 
-  L.polyline(RUTA_FIJA, {
-    color: "#cfcfcf",
-    weight: 15,
-    opacity: 0.9,
-    lineCap: "round",
-    lineJoin: "round"
-  }).addTo(capaRutas);
+L.polyline(RUTA_FIJA,{
+color:"#000",
+weight:15,
+opacity:.5
+}).addTo(capaRutas)
 
-  /* ================= PUNTOS DE CONTROL (AGREGADO) ================= */
-  fetch("/sistema/api/despachador/puntos-control/")
-    .then(res => res.json())
-    .then(puntos => {
-      puntos.forEach(p => {
+L.polyline(RUTA_FIJA,{
+color:"#cfcfcf",
+weight:15,
+opacity:.9
+}).addTo(capaRutas)
 
-        L.circle([p.lat, p.lng], {
-          radius: p.radio || 100,
-          color: "#ffd54f",
-          weight: 2,
-          fillColor: "#ffd54f",
-          fillOpacity: 0.25
-        }).addTo(capaPuntosControl);
+/* PUNTOS CONTROL */
 
-        L.circleMarker([p.lat, p.lng], {
-          radius: 6,
-          color: "#ff9800",
-          fillColor: "#ff9800",
-          fillOpacity: 1
-        })
-        .bindTooltip(p.codigo, {
-          permanent: true,
-          direction: "top",
-          className: "punto-control-label"
-        })
-        .addTo(capaPuntosControl);
+fetch("/sistema/api/despachador/puntos-control/")
+.then(r=>r.json())
+.then(puntos=>{
 
-      });
-    });
+puntos.forEach(p=>{
 
-  /* ================= GPS (SIN CAMBIOS) ================= */
-  const ICON_BUS = {
-    ACTIVO: "{% static 'icons/bus_green.png' %}",
-    INACTIVO: "{% static 'icons/bus_yellow.png' %}",
-    OFFLINE: "{% static 'icons/bus_red.png' %}"
-  };
+L.circle([p.lat,p.lng],{
+radius:p.radio||100,
+color:"#ffd54f",
+fillColor:"#ffd54f",
+fillOpacity:.25
+}).addTo(capaPuntosControl)
 
-  function crearIconoBus(vehiculo, estado) {
-    let claseEstado =
-      estado === "ACTIVO" ? "bus-activo" :
-      estado === "INACTIVO" ? "bus-inactivo" :
-      "bus-offline";
+L.circleMarker([p.lat,p.lng],{
+radius:6,
+color:"#ff9800",
+fillColor:"#ff9800"
+})
+.bindTooltip(p.codigo,{permanent:true,className:"punto-control-label"})
+.addTo(capaPuntosControl)
 
-    const live = estado === "ACTIVO" ? `<span class="live-dot"></span>` : "";
+})
 
-    return L.divIcon({
-      className: "",
-      html: `
-        <div class="bus-marker ${claseEstado}">
-          ${live}
-          <div class="bus-numero">${vehiculo}</div>
-          <img src="${ICON_BUS[estado] || ICON_BUS.OFFLINE}">
-        </div>
-      `,
-      iconSize: [34, 34],
-      iconAnchor: [17, 17],
-    });
-  }
+})
 
-  const markers = {};
-  const filtros = { ACTIVO: true, INACTIVO: true, OFFLINE: true };
+/* ICONOS BUS */
 
-  window.toggleFiltro = estado => { filtros[estado] = !filtros[estado]; aplicarFiltros(); };
+const ICON_BUS={
+ACTIVO:"{% static 'icons/bus_green.png' %}",
+INACTIVO:"{% static 'icons/bus_yellow.png' %}",
+OFFLINE:"{% static 'icons/bus_red.png' %}"
+}
 
-  window.aplicarFiltros = () => {
-    const texto = document.getElementById("busqueda").value.toLowerCase();
-    Object.values(markers).forEach(m => {
-      const visible = filtros[m.estado] && m.codigo.toLowerCase().includes(texto);
-      visible ? capaFlota.addLayer(m) : capaFlota.removeLayer(m);
-    });
-  };
+function crearIconoBus(v){
 
-  window.centrarMapa = () => map.setView(PARADERO, ZOOM_PARADERO);
+let direccion=v.direccion||0
 
-  async function cargar() {
-    const res = await fetch("/sistema/api/despachador/mapa/");
-    const data = await res.json();
+let estado=v.estado
+let vehiculo=v.vehiculo
 
-    let a=0,i=0,o=0;
+let clase=
+estado==="ACTIVO"?"bus-activo":
+estado==="INACTIVO"?"bus-inactivo":
+"bus-offline"
 
-    data.forEach(v => {
-      if (!v.lat || !v.lng) return;
-      if (v.estado === "ACTIVO") a++;
-      else if (v.estado === "INACTIVO") i++;
-      else o++;
+let live=estado==="ACTIVO"?`<span class="live-dot"></span>`:""
 
-      const icono = crearIconoBus(v.vehiculo, v.estado);
+return L.divIcon({
 
-      if (!markers[v.vehiculo]) {
-        const m = L.marker([v.lat, v.lng], { icon: icono }).addTo(capaFlota);
-        m.estado = v.estado;
-        m.codigo = String(v.vehiculo);
-        markers[v.vehiculo] = m;
-      } else {
-        markers[v.vehiculo].setLatLng([v.lat, v.lng]).setIcon(icono);
-        markers[v.vehiculo].estado = v.estado;
-      }
-    });
+className:"",
 
-    document.getElementById("cnt-activo").innerText = a;
-    document.getElementById("cnt-inactivo").innerText = i;
-    document.getElementById("cnt-offline").innerText = o;
+html:`
+<div class="bus-marker ${clase}">
+${live}
+<div class="bus-numero">${vehiculo}</div>
+<img src="${ICON_BUS[estado]}" style="transform:rotate(${direccion}deg)">
+</div>
+`,
 
-    aplicarFiltros();
-  }
+iconSize:[34,34],
+iconAnchor:[17,17]
 
-  cargar();
-  setInterval(cargar, 5000);
-});
+})
+
+}
+
+/* FILTROS */
+
+const markers={}
+const filtros={ACTIVO:true,INACTIVO:true,OFFLINE:true}
+
+window.toggleFiltro=e=>{
+filtros[e]=!filtros[e]
+aplicarFiltros()
+}
+
+window.aplicarFiltros=()=>{
+
+const texto=document.getElementById("busqueda").value.toLowerCase()
+
+Object.values(markers).forEach(m=>{
+
+const visible=filtros[m.estado]&&m.codigo.includes(texto)
+
+visible?capaFlota.addLayer(m):capaFlota.removeLayer(m)
+
+})
+
+}
+
+window.centrarMapa=()=>{
+map.setView(PARADERO,ZOOM_PARADERO)
+}
+
+/* GPS */
+
+async function cargar(){
+
+const res=await fetch("/sistema/api/despachador/mapa/")
+const data=await res.json()
+
+let a=0,i=0,o=0
+let bounds=[]
+
+data.forEach(v=>{
+
+if(!v.lat||!v.lng)return
+
+bounds.push([v.lat,v.lng])
+
+if(v.estado==="ACTIVO")a++
+else if(v.estado==="INACTIVO")i++
+else o++
+
+const icono=crearIconoBus(v)
+
+if(!markers[v.vehiculo]){
+
+const m=L.marker([v.lat,v.lng],{icon:icono}).addTo(capaFlota)
+
+m.estado=v.estado
+m.codigo=String(v.vehiculo)
+
+markers[v.vehiculo]=m
+
+}else{
+
+markers[v.vehiculo].setLatLng([v.lat,v.lng])
+markers[v.vehiculo].setIcon(icono)
+markers[v.vehiculo].estado=v.estado
+
+}
+
+})
+
+document.getElementById("cnt-activo").innerText=a
+document.getElementById("cnt-inactivo").innerText=i
+document.getElementById("cnt-offline").innerText=o
+
+aplicarFiltros()
+
+if(bounds.length>0){
+map.fitBounds(bounds,{padding:[40,40]})
+}
+
+}
+
+cargar()
+
+setInterval(cargar,4000)
+
+})
+
 </script>
 
 {% endblock %}
