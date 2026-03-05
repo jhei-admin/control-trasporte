@@ -150,6 +150,7 @@ const PARADERO=[-16.338088,-71.619947]
 const ZOOM_PARADERO=15
 
 const map=L.map("map").setView(PARADERO,ZOOM_PARADERO)
+let mapaCentrado=false
 
 /* MAPBOX PRO */
 
@@ -414,8 +415,9 @@ document.getElementById("cnt-offline").innerText=o
 
 aplicarFiltros()
 
-if(bounds.length>0){
+if(bounds.length>0 && !mapaCentrado){
 map.fitBounds(bounds,{padding:[40,40]})
+mapaCentrado=true
 }
 
 }
