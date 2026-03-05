@@ -343,6 +343,7 @@ iconAnchor:[17,17]
 /* FILTROS */
 
 const markers={}
+const trails={}
 const filtros={ACTIVO:true,INACTIVO:true,OFFLINE:true}
 
 window.toggleFiltro=e=>{
@@ -404,6 +405,30 @@ markers[v.vehiculo]=m
 markers[v.vehiculo].setLatLng([v.lat,v.lng])
 markers[v.vehiculo].setIcon(icono)
 markers[v.vehiculo].estado=v.estado
+
+/* HISTORIAL DE RECORRIDO */
+
+if(!trails[v.vehiculo]){
+
+trails[v.vehiculo]=L.polyline([[v.lat,v.lng]],{
+color:"#00e5ff",
+weight:3,
+opacity:.8
+}).addTo(map)
+
+}else{
+
+let latlngs=trails[v.vehiculo].getLatLngs()
+
+latlngs.push([v.lat,v.lng])
+
+if(latlngs.length>50){
+latlngs.shift() // limitar historial
+}
+
+trails[v.vehiculo].setLatLngs(latlngs)
+
+}
 
 }
 
