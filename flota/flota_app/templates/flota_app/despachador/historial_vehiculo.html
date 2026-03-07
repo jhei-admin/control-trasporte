@@ -8,205 +8,404 @@
 <!-- FILTROS POR FECHA -->
 <!-- ============================= -->
 <form method="get" class="row g-3 mb-4">
-    <div class="col-md-3">
-        <label class="form-label">Desde</label>
-        <input type="date" name="fecha_inicio" class="form-control"
-               value="{{ request.GET.fecha_inicio }}">
-    </div>
+<div class="col-md-3">
+<label class="form-label">Desde</label>
+<input type="date" name="fecha_inicio" class="form-control"
+value="{{ request.GET.fecha_inicio }}">
+</div>
 
-    <div class="col-md-3">
-        <label class="form-label">Hasta</label>
-        <input type="date" name="fecha_fin" class="form-control"
-               value="{{ request.GET.fecha_fin }}">
-    </div>
+<div class="col-md-3">
+<label class="form-label">Hasta</label>
+<input type="date" name="fecha_fin" class="form-control"
+value="{{ request.GET.fecha_fin }}">
+</div>
 
-    <div class="col-md-3 d-flex align-items-end">
-        <button type="submit" class="btn btn-primary w-100">
-            Filtrar
-        </button>
-    </div>
+<div class="col-md-3 d-flex align-items-end">
+<button type="submit" class="btn btn-primary w-100">
+Filtrar
+</button>
+</div>
 
-    <div class="col-md-3 d-flex align-items-end">
-        <a href="{% url 'historial_vehiculo' vehiculo.id %}"
-           class="btn btn-outline-secondary w-100">
-            Limpiar
-        </a>
-    </div>
+<div class="col-md-3 d-flex align-items-end">
+<a href="{% url 'historial_vehiculo' vehiculo.id %}"
+class="btn btn-outline-secondary w-100">
+Limpiar
+</a>
+</div>
 </form>
 
 <!-- ============================= -->
-<!-- KPIs (SOLO DJANGO, SIN JS) -->
+<!-- KPIs -->
 <!-- ============================= -->
 <div class="row mb-4">
-    <div class="col-md-3">
-        <div class="card shadow-sm text-center">
-            <div class="card-body">
-                <h6 class="text-muted">Cumplimiento</h6>
-                <h3>{{ porcentaje }}%</h3>
-            </div>
-        </div>
-    </div>
 
-    <div class="col-md-3">
-        <div class="card shadow-sm text-center">
-            <div class="card-body">
-                <h6 class="text-muted">Total salidas</h6>
-                <h3>{{ total }}</h3>
-            </div>
-        </div>
-    </div>
+<div class="col-md-3">
+<div class="card shadow-sm text-center">
+<div class="card-body">
+<h6 class="text-muted">Cumplimiento</h6>
+<h3>{{ porcentaje }}%</h3>
+</div>
+</div>
+</div>
 
-    <div class="col-md-3">
-        <div class="card shadow-sm text-center">
-            <div class="card-body">
-                <h6 class="text-muted text-success">A tiempo</h6>
-                <h3>{{ a_tiempo }}</h3>
-            </div>
-        </div>
-    </div>
+<div class="col-md-3">
+<div class="card shadow-sm text-center">
+<div class="card-body">
+<h6 class="text-muted">Total salidas</h6>
+<h3>{{ total }}</h3>
+</div>
+</div>
+</div>
 
-    <div class="col-md-3">
-        <div class="card shadow-sm text-center">
-            <div class="card-body">
-                <h6 class="text-muted text-danger">Tarde</h6>
-                <h3>{{ tarde }}</h3>
-            </div>
-        </div>
-    </div>
+<div class="col-md-3">
+<div class="card shadow-sm text-center">
+<div class="card-body">
+<h6 class="text-muted text-success">A tiempo</h6>
+<h3>{{ a_tiempo }}</h3>
+</div>
+</div>
+</div>
+
+<div class="col-md-3">
+<div class="card shadow-sm text-center">
+<div class="card-body">
+<h6 class="text-muted text-danger">Tarde</h6>
+<h3>{{ tarde }}</h3>
+</div>
+</div>
+</div>
+
 </div>
 
 <!-- ============================= -->
-<!-- TÍTULO -->
+<!-- TITULO -->
 <!-- ============================= -->
 <h2 class="mb-4">Historial del vehículo {{ vehiculo.placa }}</h2>
 
-<h5 class="text-center mb-4">Indicadores de cumplimiento</h5>
+<h5 class="text-center mb-4">
+Indicadores de cumplimiento
+</h5>
 
 <!-- ============================= -->
-<!-- GRÁFICOS -->
+<!-- GRAFICOS -->
 <!-- ============================= -->
 <div class="row">
 
-    <!-- Gráfico de barras -->
-    <div class="col-md-8">
-        <div class="card shadow-sm mb-4">
-            <div class="card-body">
-                <h6 class="text-center">Cumplimiento por día (%)</h6>
-                <div style="height:300px;">
-                    <canvas id="graficoBarras"></canvas>
-                </div>
-            </div>
-        </div>
-    </div>
+<div class="col-md-8">
+<div class="card shadow-sm mb-4">
+<div class="card-body">
 
-    <!-- Gráfico circular -->
-    <div class="col-md-4">
-        <div class="card shadow-sm mb-4">
-            <div class="card-body">
-                <h6 class="text-center">A tiempo vs Tarde</h6>
-                <div style="height:300px;">
-                    <canvas id="graficoCircular"></canvas>
-                </div>
-            </div>
-        </div>
-    </div>
+<h6 class="text-center">
+Cumplimiento por día (%)
+</h6>
+
+<div style="height:300px;">
+<canvas id="graficoBarras"></canvas>
+</div>
+
+</div>
+</div>
+</div>
+
+<div class="col-md-4">
+<div class="card shadow-sm mb-4">
+<div class="card-body">
+
+<h6 class="text-center">
+A tiempo vs Tarde
+</h6>
+
+<div style="height:300px;">
+<canvas id="graficoCircular"></canvas>
+</div>
+
+</div>
+</div>
+</div>
 
 </div>
 
 <hr class="my-4">
 
 <!-- ============================= -->
+<!-- MAPA -->
+<!-- ============================= -->
+<h5 class="text-center mb-3">
+🗺️ Recorrido del vehículo
+</h5>
+
+<div id="map-recorrido"
+style="height:400px;border-radius:10px;"></div>
+
+<div class="text-center mt-2">
+
+<button id="btn-play"
+class="btn btn-success btn-sm">
+▶ Reproducir
+</button>
+
+<button id="btn-pause"
+class="btn btn-warning btn-sm">
+⏸ Pausar
+</button>
+
+<select id="velocidad"
+class="form-select form-select-sm d-inline-block w-auto">
+
+<option value="800">1x</option>
+<option value="400">2x</option>
+<option value="200">4x</option>
+
+</select>
+
+</div>
+
+<!-- ============================= -->
 <!-- TABLA -->
 <!-- ============================= -->
 <table class="table table-striped">
-    <thead>
-        <tr>
-            <th>Fecha</th>
-            <th>Hora salida</th>
-            <th>Ruta</th>
-            <th>Cumplimiento</th>
-        </tr>
-    </thead>
-    <tbody>
-        {% for salida in salidas %}
-        <tr>
-            <td>{{ salida.fecha }}</td>
-            <td>{{ salida.hora_salida }}</td>
-            <td>{{ salida.ruta.nombre }}</td>
-            <td>
-                {% if salida.hora_salida and salida.ruta and salida.ruta.hora_programada and salida.hora_salida <= salida.ruta.hora_programada %}
-                    <span class="badge bg-success">A tiempo</span>
-                {% else %}
-                    <span class="badge bg-danger">Tarde</span>
-                {% endif %}
-            </td>
-        </tr>
-        {% empty %}
-        <tr>
-            <td colspan="4" class="text-center">
-                No hay registros para este vehículo
-            </td>
-        </tr>
-        {% endfor %}
-    </tbody>
+
+<thead>
+<tr>
+<th>Fecha</th>
+<th>Hora salida</th>
+<th>Ruta</th>
+<th>Cumplimiento</th>
+</tr>
+</thead>
+
+<tbody>
+
+{% for salida in salidas %}
+
+<tr>
+<td>{{ salida.fecha }}</td>
+<td>{{ salida.hora_salida }}</td>
+<td>{{ salida.ruta.nombre }}</td>
+
+<td>
+{% if salida.hora_salida and salida.ruta and salida.ruta.hora_programada and salida.hora_salida <= salida.ruta.hora_programada %}
+<span class="badge bg-success">A tiempo</span>
+{% else %}
+<span class="badge bg-danger">Tarde</span>
+{% endif %}
+</td>
+
+</tr>
+
+{% empty %}
+
+<tr>
+<td colspan="4" class="text-center">
+No hay registros para este vehículo
+</td>
+</tr>
+
+{% endfor %}
+
+</tbody>
 </table>
 
-<a href="{% url 'panel_despachador' %}" class="btn btn-secondary mt-3">
-    ⬅ Volver al panel
+<a href="{% url 'panel_despachador' %}"
+class="btn btn-secondary mt-3">
+
+⬅ Volver al panel
+
 </a>
 
 {% endblock %}
 
+
+
 {% block extra_js %}
 <script>
-document.addEventListener("DOMContentLoaded", function () {
 
-    // ===== GRÁFICO DE BARRAS =====
-    const ctxBar = document.getElementById("graficoBarras");
-    if (ctxBar) {
-        new Chart(ctxBar, {
-            type: "bar",
-            data: {
-                labels: {{ fechas|safe }},
-                datasets: [{
-                    label: "Cumplimiento (%)",
-                    data: {{ porcentajes|safe }},
-                    backgroundColor: "rgba(54,162,235,0.6)"
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                scales: {
-                    y: { beginAtZero: true, max: 100 }
-                }
-            }
-        });
-    }
+document.addEventListener("DOMContentLoaded",function(){
 
-    // ===== GRÁFICO CIRCULAR =====
-    const ctxPie = document.getElementById("graficoCircular");
-    if (ctxPie) {
-        new Chart(ctxPie, {
-            type: "doughnut",
-            data: {
-                labels: ["A tiempo", "Tarde"],
-                datasets: [{
-                    data: [{{ a_tiempo }}, {{ tarde }}],
-                    backgroundColor: [
-                        "rgba(25,135,84,0.7)",
-                        "rgba(220,53,69,0.7)"
-                    ]
-                }]
-            },
-            options: {
-                plugins: {
-                    legend: { position: "bottom" }
-                }
-            }
-        });
-    }
+/* =========================
+VARIABLES REPLAY
+========================= */
 
-});
+let puntosRecorrido=[]
+let busReplay=null
+let indiceReplay=0
+let timerReplay=null
+
+
+/* =========================
+GRAFICO BARRAS
+========================= */
+
+const ctxBar=document.getElementById("graficoBarras")
+
+if(ctxBar){
+
+new Chart(ctxBar,{
+type:"bar",
+data:{
+labels:{{ fechas|safe }},
+datasets:[{
+label:"Cumplimiento (%)",
+data:{{ porcentajes|safe }},
+backgroundColor:"rgba(54,162,235,0.6)"
+}]
+},
+options:{
+responsive:true,
+maintainAspectRatio:false,
+scales:{
+y:{
+beginAtZero:true,
+max:100
+}
+}
+}
+})
+
+}
+
+
+/* =========================
+GRAFICO CIRCULAR
+========================= */
+
+const ctxPie=document.getElementById("graficoCircular")
+
+if(ctxPie){
+
+new Chart(ctxPie,{
+type:"doughnut",
+data:{
+labels:["A tiempo","Tarde"],
+datasets:[{
+data:[{{ a_tiempo }},{{ tarde }}],
+backgroundColor:[
+"rgba(25,135,84,0.7)",
+"rgba(220,53,69,0.7)"
+]
+}]
+},
+options:{
+plugins:{
+legend:{position:"bottom"}
+}
+}
+})
+
+}
+
+
+/* =========================
+MAPA RECORRIDO
+========================= */
+
+const mapDiv=document.getElementById("map-recorrido")
+
+if(mapDiv){
+
+const mapRecorrido=L.map("map-recorrido")
+.setView([-16.338088,-71.619947],13)
+
+L.tileLayer(
+"https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+{
+attribution:"© OpenStreetMap"
+}
+).addTo(mapRecorrido)
+
+
+fetch(`/sistema/api/despachador/recorrido?vehiculo_id={{ vehiculo.id }}`)
+.then(r=>r.json())
+.then(data=>{
+
+if(!data.length)return
+
+let puntos=[]
+
+data.forEach(p=>{
+puntos.push([p.lat,p.lng])
+})
+
+puntosRecorrido=puntos
+
+/* LINEA RECORRIDO */
+
+const linea=L.polyline(puntos,{
+color:"#00e5ff",
+weight:5,
+opacity:0.8
+}).addTo(mapRecorrido)
+
+/* BUS REPLAY */
+
+busReplay=L.marker(puntos[0]).addTo(mapRecorrido)
+
+mapRecorrido.fitBounds(linea.getBounds())
+
+L.marker(puntos[0])
+.addTo(mapRecorrido)
+.bindPopup("Inicio")
+
+L.marker(puntos[puntos.length-1])
+.addTo(mapRecorrido)
+.bindPopup("Último punto")
+
+})
+
+}
+
+
+/* =========================
+FUNCION REPLAY
+========================= */
+
+function moverBus(){
+
+if(!busReplay) return
+
+if(indiceReplay>=puntosRecorrido.length){
+
+clearInterval(timerReplay)
+return
+
+}
+
+busReplay.setLatLng(puntosRecorrido[indiceReplay])
+
+indiceReplay++
+
+}
+
+
+/* PLAY */
+
+document.getElementById("btn-play").onclick=function(){
+
+indiceReplay=0
+
+clearInterval(timerReplay)
+
+let velocidad=document
+.getElementById("velocidad")
+.value
+
+timerReplay=setInterval(
+moverBus,
+velocidad
+)
+
+}
+
+
+/* PAUSE */
+
+document.getElementById("btn-pause").onclick=function(){
+
+clearInterval(timerReplay)
+
+}
+
+})
+
 </script>
 {% endblock %}
