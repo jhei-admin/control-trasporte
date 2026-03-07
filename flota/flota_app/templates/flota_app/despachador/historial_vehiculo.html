@@ -80,7 +80,9 @@ Limpiar
 <!-- ============================= -->
 <!-- TITULO -->
 <!-- ============================= -->
-<h2 class="mb-4">Historial del vehículo {{ vehiculo.placa }}</h2>
+<h2 class="mb-4">
+Historial del vehículo {{ vehiculo.codigo }} ({{ vehiculo.placa }})
+</h2>
 
 <h5 class="text-center mb-4">
 Indicadores de cumplimiento
@@ -313,7 +315,11 @@ attribution:"© OpenStreetMap"
 ).addTo(mapRecorrido)
 
 
-fetch(`/api/recorrido-vehiculo?vehiculo={{ vehiculo.id }}&fecha={{ fechas.0|default:'' }}`)
+const fecha = "{{ fechas.0|default:'' }}"
+
+if(fecha){
+
+fetch(`/sistema/api/despachador/recorrido/?vehiculo={{ vehiculo.id }}&fecha=${fecha}`)
 .then(r=>r.json())
 .then(data=>{
 
@@ -341,6 +347,8 @@ busReplay=L.marker(puntos[0]).addTo(mapRecorrido)
 
 mapRecorrido.fitBounds(linea.getBounds())
 
+/* MARCADORES INICIO / FIN */
+
 L.marker(puntos[0])
 .addTo(mapRecorrido)
 .bindPopup("Inicio")
@@ -350,6 +358,8 @@ L.marker(puntos[puntos.length-1])
 .bindPopup("Último punto")
 
 })
+
+}
 
 }
 
@@ -376,13 +386,16 @@ indiceReplay++
 }
 
 
-/* PLAY */
+/* =========================
+PLAY
+========================= */
 
 const btnPlay=document.getElementById("btn-play")
 const btnPause=document.getElementById("btn-pause")
 
 if(btnPlay){
 btnPlay.onclick=function(){
+
 indiceReplay=0
 clearInterval(timerReplay)
 
@@ -392,6 +405,7 @@ timerReplay=setInterval(
 moverBus,
 velocidad
 )
+
 }
 }
 
@@ -399,6 +413,8 @@ if(btnPause){
 btnPause.onclick=function(){
 clearInterval(timerReplay)
 }
+}
+
 })
 
 </script>
