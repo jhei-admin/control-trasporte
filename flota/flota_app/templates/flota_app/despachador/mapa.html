@@ -153,46 +153,140 @@ width:100%;
 height:100%;
 }
 
+/* DASHBOARD SUPERIOR */
+
+.dashboard-cards{
+display:grid;
+grid-template-columns:repeat(4,1fr);
+gap:10px;
+margin-bottom:10px;
+}
+
+.card{
+background:#0f172a;
+padding:12px;
+border-radius:10px;
+color:white;
+text-align:center;
+box-shadow:0 4px 10px rgba(0,0,0,.3);
+}
+
+.card .titulo{
+font-size:13px;
+opacity:.8;
+}
+
+.card .numero{
+font-size:22px;
+font-weight:700;
+}
+
+.card.activo{border-left:4px solid #22c55e}
+.card.inactivo{border-left:4px solid #facc15}
+.card.offline{border-left:4px solid #ef4444}
+.card.total{border-left:4px solid #3b82f6}
+
+/* CONTROLES MAPA */
+
+.map-controls{
+display:flex;
+gap:10px;
+margin-bottom:10px;
+}
+
+.map-controls input{
+padding:6px 10px;
+border-radius:6px;
+border:1px solid #ccc;
+}
+
+.map-controls button{
+background:#2563eb;
+color:white;
+border:none;
+padding:6px 10px;
+border-radius:6px;
+cursor:pointer;
+}
+
+.map-controls a{
+background:#374151;
+color:white;
+padding:6px 10px;
+border-radius:6px;
+text-decoration:none;
+}
+
+/* BOTON FULLSCREEN */
+
+.fullscreen-btn{
+position:absolute;
+top:10px;
+right:10px;
+z-index:1000;
+background:white;
+border:none;
+border-radius:6px;
+padding:6px 10px;
+cursor:pointer;
+box-shadow:0 2px 6px rgba(0,0,0,.3);
+font-size:16px;
+}
+
+.map-container.fullscreen{
+position:fixed;
+top:0;
+left:0;
+width:100vw;
+height:100vh;
+z-index:9999;
+border-radius:0;
+}
+
+.map-container.fullscreen #map{
+height:100vh;
+}
+
 </style>
 
-<h2 class="mb-3">🗺️ Mapa en tiempo real</h2>
+<h2 style="margin-bottom:10px;">🗺️ Mapa en tiempo real</h2>
 
-<a href="{% url 'panel_despachador' %}" class="btn btn-secondary btn-sm mb-3">
-⬅ Volver al panel
-</a>
+<div class="dashboard-cards">
 
-<hr>
-
-<div class="d-flex flex-wrap gap-3 align-items-center mb-3">
-
-<div>
-🟢 Activos: <strong id="cnt-activo">0</strong>
-🟡 Inactivos: <strong id="cnt-inactivo">0</strong>
-🔴 Offline: <strong id="cnt-offline">0</strong>
+<div class="card activo">
+<div class="titulo">🟢 Activos</div>
+<div class="numero" id="cnt-activo">0</div>
 </div>
 
-<div class="d-flex gap-2">
-<label><input type="checkbox" checked onchange="toggleFiltro('ACTIVO')"> 🟢 Activo</label>
-<label><input type="checkbox" checked onchange="toggleFiltro('INACTIVO')"> 🟡 Inactivo</label>
-<label><input type="checkbox" checked onchange="toggleFiltro('OFFLINE')"> 🔴 Offline</label>
+<div class="card inactivo">
+<div class="titulo">🟡 Inactivos</div>
+<div class="numero" id="cnt-inactivo">0</div>
 </div>
 
-<div>
+<div class="card offline">
+<div class="titulo">🔴 Offline</div>
+<div class="numero" id="cnt-offline">0</div>
+</div>
+
+<div class="card total">
+<div class="titulo">🚌 Total</div>
+<div class="numero" id="cnt-total">0</div>
+</div>
+
+</div>
+
+<div class="map-controls">
+
 <input
 type="text"
 id="busqueda"
-class="form-control form-control-sm"
 placeholder="Buscar placa / código"
-style="max-width:220px"
 oninput="aplicarFiltros()"
 >
-</div>
 
-<div class="ms-auto">
-<button class="btn btn-sm btn-outline-primary" onclick="centrarMapa()">
-📍 Centrar mapa
-</button>
-</div>
+<button onclick="centrarMapa()">📍 Centrar mapa</button>
+
+<a href="{% url 'panel_despachador' %}">⬅ Panel</a>
 
 </div>
 
@@ -211,8 +305,12 @@ oninput="aplicarFiltros()"
 
     <!-- MAPA -->
     <div class="map-container">
-        <div id="map"></div>
-    </div>
+
+<button class="fullscreen-btn" onclick="toggleFullscreen()">⛶</button>
+
+<div id="map"></div>
+
+</div>
 
 </div>
 
@@ -448,6 +546,7 @@ item.className="bus-item"
 item.innerHTML=`
 <span class="bus-status ${color}"></span>
 Bus ${v.vehiculo}
+<span style="margin-left:auto;font-size:11px;opacity:.7">${v.estado}</span>
 `
 
 item.onclick=()=>{
@@ -516,6 +615,18 @@ encontrado.openPopup()
 
 window.centrarMapa=()=>{
 map.setView(PARADERO,ZOOM_PARADERO)
+}
+
+window.toggleFullscreen=()=>{
+
+const cont=document.querySelector(".map-container")
+
+cont.classList.toggle("fullscreen")
+
+setTimeout(()=>{
+map.invalidateSize()
+},300)
+
 }
 
 /* ANIMACION MOVIMIENTO BUS */
@@ -629,6 +740,7 @@ trails[v.vehiculo].setLatLngs(latlngs)
 document.getElementById("cnt-activo").innerText=a
 document.getElementById("cnt-inactivo").innerText=i
 document.getElementById("cnt-offline").innerText=o
+document.getElementById("cnt-total").innerText=data.length
 
 aplicarFiltros()
 
