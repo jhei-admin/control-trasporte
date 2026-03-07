@@ -369,13 +369,32 @@ window.aplicarFiltros=()=>{
 
 const texto=document.getElementById("busqueda").value.toLowerCase()
 
+let encontrado=null
+
 Object.values(markers).forEach(m=>{
 
-const visible=filtros[m.estado]&&m.codigo.includes(texto)
+const visible=filtros[m.estado] && m.codigo.includes(texto)
 
-visible?capaFlota.addLayer(m):capaFlota.removeLayer(m)
+visible ? capaFlota.addLayer(m) : capaFlota.removeLayer(m)
+
+if(texto && m.codigo.includes(texto)){
+encontrado=m
+}
 
 })
+
+/* CENTRAR MAPA EN BUS ENCONTRADO */
+
+if(encontrado){
+
+map.setView(encontrado.getLatLng(),18,{
+animate:true,
+duration:1
+})
+
+encontrado.openPopup()
+
+}
 
 }
 
