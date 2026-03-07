@@ -134,8 +134,7 @@ A tiempo vs Tarde
 🗺️ Recorrido del vehículo
 </h5>
 
-<div id="map-recorrido"
-style="height:400px;border-radius:10px;"></div>
+<div id="map-recorrido" style="height:450px;border-radius:10px;"></div>
 
 <div class="text-center mt-2">
 
@@ -184,7 +183,7 @@ class="form-select form-select-sm d-inline-block w-auto">
 <td>{{ salida.ruta.nombre }}</td>
 
 <td>
-{% if salida.hora_salida and salida.ruta and salida.ruta.hora_programada and salida.hora_salida <= salida.ruta.hora_programada %}
+{% if salida.hora_real_salida %}
 <span class="badge bg-success">A tiempo</span>
 {% else %}
 <span class="badge bg-danger">Tarde</span>
@@ -314,7 +313,7 @@ attribution:"© OpenStreetMap"
 ).addTo(mapRecorrido)
 
 
-fetch(`/sistema/api/despachador/recorrido?vehiculo_id={{ vehiculo.id }}`)
+fetch(`/api/recorrido-vehiculo?vehiculo={{ vehiculo.id }}&fecha={{ fechas.0|default:'' }}`)
 .then(r=>r.json())
 .then(data=>{
 
@@ -379,32 +378,27 @@ indiceReplay++
 
 /* PLAY */
 
-document.getElementById("btn-play").onclick=function(){
+const btnPlay=document.getElementById("btn-play")
+const btnPause=document.getElementById("btn-pause")
 
+if(btnPlay){
+btnPlay.onclick=function(){
 indiceReplay=0
-
 clearInterval(timerReplay)
 
-let velocidad=document
-.getElementById("velocidad")
-.value
+let velocidad=document.getElementById("velocidad").value
 
 timerReplay=setInterval(
 moverBus,
 velocidad
 )
-
+}
 }
 
-
-/* PAUSE */
-
-document.getElementById("btn-pause").onclick=function(){
-
+if(btnPause){
+btnPause.onclick=function(){
 clearInterval(timerReplay)
-
 }
-
 })
 
 </script>
