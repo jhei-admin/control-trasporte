@@ -237,6 +237,12 @@ urlpatterns = [
         name="historial_salidas"
     ),
 
+    path(
+    "despachador/historial/<int:vehiculo_id>/",
+    views.historial_vehiculo,
+    name="historial_vehiculo"
+    ),
+
     # =========================
     # 📍 DETALLE SALIDA
     # =========================
