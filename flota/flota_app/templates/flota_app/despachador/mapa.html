@@ -32,12 +32,6 @@ width:34px;
 height:34px;
 }
 
-.bus-marker img{
-width:100%;
-height:100%;
-transition:transform .4s linear;
-}
-
 .bus-numero{
 position:absolute;
 top:-10px;
@@ -48,6 +42,13 @@ color:#fff;
 font-size:11px;
 padding:1px 6px;
 border-radius:6px;
+}
+
+.bus-marker img{
+width:100%;
+height:100%;
+transition:transform .4s linear;
+filter:drop-shadow(0 3px 4px rgba(0,0,0,.6));
 }
 
 /* ESTADOS */
@@ -260,15 +261,28 @@ const RUTA_FIJA=[
 
 ]
 
-L.polyline(RUTA_FIJA,{
-color:"#000",
-weight:15,
-opacity:.5
-}).addTo(capaRutas)
+/* BORDE NEGRO */
 
 L.polyline(RUTA_FIJA,{
-color:"#cfcfcf",
-weight:15,
+color:"#000",
+weight:16,
+opacity:.7
+}).addTo(capaRutas)
+
+/* CARRETERA */
+
+L.polyline(RUTA_FIJA,{
+color:"#e5e5e5",
+weight:12,
+opacity:.95
+}).addTo(capaRutas)
+
+/* LINEA CENTRAL */
+
+L.polyline(RUTA_FIJA,{
+color:"#00e5ff",
+weight:4,
+dashArray:"10,10",
 opacity:.9
 }).addTo(capaRutas)
 
@@ -369,6 +383,36 @@ window.centrarMapa=()=>{
 map.setView(PARADERO,ZOOM_PARADERO)
 }
 
+/* ANIMACION MOVIMIENTO BUS */
+
+function animarMovimiento(marker,nuevaPos){
+
+let actual=marker.getLatLng()
+
+let latDiff=(nuevaPos[0]-actual.lat)/10
+let lngDiff=(nuevaPos[1]-actual.lng)/10
+
+let i=0
+
+let anim=setInterval(()=>{
+
+if(i>=10){
+clearInterval(anim)
+marker.setLatLng(nuevaPos)
+return
+}
+
+actual.lat+=latDiff
+actual.lng+=lngDiff
+
+marker.setLatLng([actual.lat,actual.lng])
+
+i++
+
+},40)
+
+}
+
 /* GPS */
 
 async function cargar(){
@@ -393,16 +437,27 @@ const icono=crearIconoBus(v)
 
 if(!markers[v.vehiculo]){
 
-const m=L.marker([v.lat,v.lng],{icon:icono}).addTo(capaFlota)
+const m=L.marker([v.lat,v.lng],{icon:icono})
+.bindPopup(`
+<div style="min-width:180px">
+
+<b>🚌 Vehículo:</b> ${v.vehiculo}<br>
+<b>Estado:</b> ${v.estado}<br>
+<b>Velocidad:</b> ${v.velocidad || 0} km/h<br>
+<b>Última señal:</b> ${v.fecha || "--"}
+
+</div>
+`)
+.addTo(capaFlota)
 
 m.estado=v.estado
-m.codigo=String(v.vehiculo)
+m.codigo=String(v.vehiculo).toLowerCase()
 
 markers[v.vehiculo]=m
 
 }else{
 
-markers[v.vehiculo].setLatLng([v.lat,v.lng])
+animarMovimiento(markers[v.vehiculo],[v.lat,v.lng])
 markers[v.vehiculo].setIcon(icono)
 markers[v.vehiculo].estado=v.estado
 
@@ -412,9 +467,10 @@ if(!trails[v.vehiculo]){
 
 trails[v.vehiculo]=L.polyline([[v.lat,v.lng]],{
 color:"#00e5ff",
-weight:3,
-opacity:.8
-}).addTo(map)
+weight:4,
+opacity:.7,
+lineCap:"round"
+}).addTo(capaFlota)
 
 }else{
 
