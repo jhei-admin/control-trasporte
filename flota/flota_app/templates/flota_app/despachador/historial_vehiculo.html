@@ -8,328 +8,208 @@
 Historial del vehículo {{ vehiculo.codigo }} ({{ vehiculo.placa }})
 </h2>
 
-
 <!-- ============================= -->
 <!-- FILTRO FECHA -->
 <!-- ============================= -->
-
 <div class="row mb-4">
-
-<div class="col-md-3">
-
-<select id="selector-fecha" class="form-select">
-
-{% for salida in salidas %}
-<option value="{{ salida.fecha }}">
-{{ salida.fecha }}
-</option>
-{% endfor %}
-
-</select>
-
+    <div class="col-md-3">
+        <select id="selector-fecha" class="form-select">
+            {% for salida in salidas %}
+                <option value="{{ salida.fecha }}">
+                    {{ salida.fecha }}
+                </option>
+            {% endfor %}
+        </select>
+    </div>
 </div>
-
-</div>
-
 
 <!-- ============================= -->
 <!-- KPIs -->
 <!-- ============================= -->
-
 <div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card shadow-sm text-center">
+            <div class="card-body">
+                <h6 class="text-muted">Cumplimiento</h6>
+                <h3>{{ porcentaje }}%</h3>
+            </div>
+        </div>
+    </div>
 
-<div class="col-md-3">
-<div class="card shadow-sm text-center">
-<div class="card-body">
-<h6 class="text-muted">Cumplimiento</h6>
-<h3>{{ porcentaje }}%</h3>
-</div>
-</div>
-</div>
+    <div class="col-md-3">
+        <div class="card shadow-sm text-center">
+            <div class="card-body">
+                <h6 class="text-muted">Total salidas</h6>
+                <h3>{{ total }}</h3>
+            </div>
+        </div>
+    </div>
 
-<div class="col-md-3">
-<div class="card shadow-sm text-center">
-<div class="card-body">
-<h6 class="text-muted">Total salidas</h6>
-<h3>{{ total }}</h3>
-</div>
-</div>
-</div>
+    <div class="col-md-3">
+        <div class="card shadow-sm text-center">
+            <div class="card-body">
+                <h6 class="text-success">A tiempo</h6>
+                <h3>{{ a_tiempo }}</h3>
+            </div>
+        </div>
+    </div>
 
-<div class="col-md-3">
-<div class="card shadow-sm text-center">
-<div class="card-body">
-<h6 class="text-success">A tiempo</h6>
-<h3>{{ a_tiempo }}</h3>
+    <div class="col-md-3">
+        <div class="card shadow-sm text-center">
+            <div class="card-body">
+                <h6 class="text-danger">Tarde</h6>
+                <h3>{{ tarde }}</h3>
+            </div>
+        </div>
+    </div>
 </div>
-</div>
-</div>
-
-<div class="col-md-3">
-<div class="card shadow-sm text-center">
-<div class="card-body">
-<h6 class="text-danger">Tarde</h6>
-<h3>{{ tarde }}</h3>
-</div>
-</div>
-</div>
-
-</div>
-
 
 <!-- ============================= -->
 <!-- MAPA -->
 <!-- ============================= -->
-
-<h5 class="text-center mb-3">
-🗺 Recorrido del vehículo
-</h5>
-
-<div id="map-recorrido"
-style="height:450px;border-radius:10px;"></div>
-
+<h5 class="text-center mb-3">🗺 Recorrido del vehículo</h5>
+<div id="map-recorrido" style="height:450px;border-radius:10px;"></div>
 
 <div class="text-center mt-3">
-
-<button id="btn-play"
-class="btn btn-success btn-sm">
-
-▶ Reproducir
-
-</button>
-
-<button id="btn-pause"
-class="btn btn-warning btn-sm">
-
-⏸ Pausar
-
-</button>
-
-<select id="velocidad"
-class="form-select form-select-sm d-inline-block w-auto">
-
-<option value="800">1x</option>
-<option value="400">2x</option>
-<option value="200">4x</option>
-
-</select>
-
+    <button id="btn-play" class="btn btn-success btn-sm">▶ Reproducir</button>
+    <button id="btn-pause" class="btn btn-warning btn-sm">⏸ Pausar</button>
+    <select id="velocidad" class="form-select form-select-sm d-inline-block w-auto">
+        <option value="800">1x</option>
+        <option value="400">2x</option>
+        <option value="200">4x</option>
+    </select>
 </div>
-
 
 <hr class="my-4">
 
-
 <!-- ============================= -->
-<!-- TABLA -->
+<!-- TABLA DE SALIDAS -->
 <!-- ============================= -->
-
 <table class="table table-striped">
-
-<thead>
-<tr>
-<th>Fecha</th>
-<th>Hora salida</th>
-<th>Ruta</th>
-<th>Cumplimiento</th>
-</tr>
-</thead>
-
-<tbody>
-
-{% for salida in salidas %}
-
-<tr>
-<td>{{ salida.fecha }}</td>
-<td>{{ salida.hora_salida }}</td>
-<td>{{ salida.ruta.nombre }}</td>
-
-<td>
-
-{% if salida.hora_real_salida %}
-<span class="badge bg-success">A tiempo</span>
-{% else %}
-<span class="badge bg-danger">Tarde</span>
-{% endif %}
-
-</td>
-
-</tr>
-
-{% endfor %}
-
-</tbody>
-
+    <thead>
+        <tr>
+            <th>Fecha</th>
+            <th>Hora salida</th>
+            <th>Ruta</th>
+            <th>Cumplimiento</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for salida in salidas %}
+        <tr>
+            <td>{{ salida.fecha }}</td>
+            <td>{{ salida.hora_salida }}</td>
+            <td>{{ salida.ruta.nombre }}</td>
+            <td>
+                {% if salida.hora_real_salida %}
+                    <span class="badge bg-success">A tiempo</span>
+                {% else %}
+                    <span class="badge bg-danger">Tarde</span>
+                {% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
 </table>
 
-
-<a href="{% url 'panel_despachador' %}"
-class="btn btn-secondary mt-3">
-
-⬅ Volver al panel
-
-</a>
+<a href="{% url 'panel_despachador' %}" class="btn btn-secondary mt-3">⬅ Volver al panel</a>
 
 {% endblock %}
-
-
 
 {% block extra_js %}
 
 <script>
-
 document.addEventListener("DOMContentLoaded", function(){
 
-mapboxgl.accessToken = "{{ MAPBOX_TOKEN }}";
+    mapboxgl.accessToken = "{{ MAPBOX_TOKEN }}";
 
-const map = new mapboxgl.Map({
-container: "map-recorrido",
-style: "mapbox://styles/mapbox/dark-v11",
-center: [-71.619947,-16.338088],
-zoom: 13
+    const map = new mapboxgl.Map({
+        container: "map-recorrido",
+        style: "mapbox://styles/mapbox/dark-v11",
+        center: [-71.619947,-16.338088],
+        zoom: 13
+    });
+
+    let busMarker = null;
+    let puntos = [];
+    let indice = 0;
+    let timer = null;
+
+    // FORMATEAR FECHA AL FORMATO YYYY-MM-DD
+    function formatearFecha(fechaStr){
+        const fechaObj = new Date(fechaStr);
+        const yyyy = fechaObj.getFullYear();
+        const mm = String(fechaObj.getMonth() + 1).padStart(2,'0');
+        const dd = String(fechaObj.getDate()).padStart(2,'0');
+        return `${yyyy}-${mm}-${dd}`;
+    }
+
+    // CARGAR RECORRIDO DE VEHICULO
+    function cargarRecorrido(fecha){
+        const fechaFormateada = formatearFecha(fecha);
+
+        fetch(`/sistema/api/despachador/recorrido/?vehiculo={{ vehiculo.id }}&fecha=${fechaFormateada}`)
+        .then(r => r.json())
+        .then(data => {
+            console.log("Datos GPS:", data);
+            if(!data || data.length === 0){
+                console.log("Sin datos GPS para la fecha seleccionada");
+                return;
+            }
+
+            puntos = data.map(p => [p.lng, p.lat]);
+
+            const geojson = { type:"Feature", geometry:{ type:"LineString", coordinates:puntos } };
+
+            if(map.getSource("ruta")){
+                map.getSource("ruta").setData(geojson);
+            } else {
+                map.addSource("ruta", { type:"geojson", data:geojson });
+                map.addLayer({
+                    id:"ruta",
+                    type:"line",
+                    source:"ruta",
+                    layout:{ "line-join":"round", "line-cap":"round" },
+                    paint:{ "line-color":"#00e5ff", "line-width":5 }
+                });
+            }
+
+            if(busMarker) busMarker.remove();
+            busMarker = new mapboxgl.Marker().setLngLat(puntos[0]).addTo(map);
+
+            map.flyTo({ center: puntos[0], zoom: 14 });
+        });
+    }
+
+    // REPLAY DEL VEHICULO
+    function moverBus(){
+        if(!busMarker) return;
+        if(indice >= puntos.length){ clearInterval(timer); return; }
+        busMarker.setLngLat(puntos[indice]);
+        indice++;
+    }
+
+    document.getElementById("btn-play").onclick = function(){
+        indice = 0;
+        clearInterval(timer);
+        let velocidad = document.getElementById("velocidad").value;
+        timer = setInterval(moverBus, velocidad);
+    }
+
+    document.getElementById("btn-pause").onclick = function(){
+        clearInterval(timer);
+    }
+
+    // SELECTOR FECHA
+    const selector = document.getElementById("selector-fecha");
+    if(selector){
+        cargarRecorrido(selector.value);
+        selector.addEventListener("change", function(){
+            cargarRecorrido(this.value);
+        });
+    }
+
 });
-
-let busMarker = null
-let puntos = []
-let indice = 0
-let timer = null
-
-
-function cargarRecorrido(fecha){
-
-fetch(`/sistema/api/despachador/recorrido/?vehiculo={{ vehiculo.id }}&fecha=${fecha}`)
-
-.then(r => r.json())
-
-.then(data => {
-
-if(!data || data.length === 0){
-console.log("Sin datos GPS")
-return
-}
-
-puntos = data.map(p => [p.lng, p.lat])
-
-
-const geojson = {
-type:"Feature",
-geometry:{
-type:"LineString",
-coordinates:puntos
-}
-}
-
-
-if(map.getSource("ruta")){
-
-map.getSource("ruta").setData(geojson)
-
-}else{
-
-map.addSource("ruta",{
-type:"geojson",
-data:geojson
-})
-
-map.addLayer({
-id:"ruta",
-type:"line",
-source:"ruta",
-layout:{
-"line-join":"round",
-"line-cap":"round"
-},
-paint:{
-"line-color":"#00e5ff",
-"line-width":5
-}
-})
-
-}
-
-
-if(busMarker){
-busMarker.remove()
-}
-
-busMarker = new mapboxgl.Marker()
-.setLngLat(puntos[0])
-.addTo(map)
-
-map.flyTo({
-center:puntos[0],
-zoom:14
-})
-
-})
-
-}
-
-
-/* =================
-REPLAY
-================= */
-
-function moverBus(){
-
-if(!busMarker) return
-
-if(indice >= puntos.length){
-clearInterval(timer)
-return
-}
-
-busMarker.setLngLat(puntos[indice])
-
-indice++
-
-}
-
-
-document.getElementById("btn-play").onclick = function(){
-
-indice = 0
-clearInterval(timer)
-
-let velocidad = document.getElementById("velocidad").value
-
-timer = setInterval(moverBus, velocidad)
-
-}
-
-
-document.getElementById("btn-pause").onclick = function(){
-
-clearInterval(timer)
-
-}
-
-
-/* =================
-SELECTOR FECHA
-================= */
-
-const selector = document.getElementById("selector-fecha")
-
-
-map.on("load", function(){
-
-if(selector){
-
-cargarRecorrido(selector.value)
-
-selector.addEventListener("change", function(){
-
-cargarRecorrido(this.value)
-
-})
-
-}
-
-})
-
-})
-
 </script>
 
 {% endblock %}
