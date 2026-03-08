@@ -2122,7 +2122,7 @@ def historial_vehiculo(request, vehiculo_id):
 
     total = salidas.count()
 
-    # 🔧 FIX: cálculo seguro
+    # cálculo seguro
     a_tiempo = salidas.filter(
         hora_real_salida__isnull=False
     ).count()
@@ -2149,6 +2149,9 @@ def historial_vehiculo(request, vehiculo_id):
             "porcentaje": porcentaje,
             "fechas": fechas,
             "porcentajes": porcentajes,
+
+            # 🔥 ESTA LÍNEA FALTABA
+            "MAPBOX_TOKEN": settings.MAPBOX_TOKEN,
         }
     )
 

@@ -619,9 +619,16 @@ const cont=document.querySelector(".map-container")
 
 cont.classList.toggle("fullscreen")
 
-setTimeout(()=>{
-map.invalidateSize()
-},300)
+const map = new mapboxgl.Map({
+container: "map-recorrido",
+style: "mapbox://styles/mapbox/dark-v11",
+center: [-71.619947,-16.338088],
+zoom: 13
+});
+
+setTimeout(() => {
+    map.resize();
+}, 300);
 
 }
 
