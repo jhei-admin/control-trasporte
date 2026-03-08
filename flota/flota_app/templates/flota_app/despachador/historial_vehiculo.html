@@ -137,6 +137,10 @@ let indice = 0
 let timer = null
 
 
+/* ===============================
+CARGAR RECORRIDO
+=============================== */
+
 function cargarRecorrido(fecha){
 
 fetch(`/sistema/api/despachador/recorrido/?vehiculo={{ vehiculo.id }}&fecha=${fecha}`)
@@ -152,6 +156,8 @@ console.log("Sin datos GPS")
 return
 }
 
+indice = 0
+
 puntos = data.map(p => [p.lng, p.lat])
 
 
@@ -163,6 +169,10 @@ coordinates:puntos
 }
 }
 
+
+/* ===============================
+DIBUJAR RUTA
+=============================== */
 
 if(map.getSource("ruta")){
 
@@ -192,7 +202,9 @@ paint:{
 }
 
 
-/* BUS */
+/* ===============================
+BUS
+=============================== */
 
 if(busMarker){
 busMarker.remove()
@@ -214,9 +226,9 @@ zoom:14
 }
 
 
-/* =================
+/* ===============================
 REPLAY
-================= */
+=============================== */
 
 function moverBus(){
 
@@ -236,7 +248,6 @@ indice++
 
 document.getElementById("btn-play").onclick = function(){
 
-indice = 0
 clearInterval(timer)
 
 let velocidad = document.getElementById("velocidad").value
@@ -253,13 +264,13 @@ clearInterval(timer)
 }
 
 
-/* =================
+/* ===============================
 MAP READY
-================= */
-
-const selector = document.getElementById("selector-fecha")
+=============================== */
 
 map.on("load", function(){
+
+const selector = document.getElementById("selector-fecha")
 
 if(selector){
 
