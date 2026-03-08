@@ -178,20 +178,19 @@ class="btn btn-secondary mt-3">
 
 <script>
 
-document.addEventListener("DOMContentLoaded",function(){
+document.addEventListener("DOMContentLoaded", function(){
 
-let map = L.map("map-recorrido")
-.setView([-16.338088,-71.619947],13)
+mapboxgl.accessToken = "{{ MAPBOX_TOKEN }}";
 
-L.tileLayer(
-"https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
-{
-attribution:"© OpenStreetMap"
-}
-).addTo(map)
+const map = new mapboxgl.Map({
+container: "map-recorrido",
+style: "mapbox://styles/mapbox/dark-v11",
+center: [-71.619947,-16.338088],
+zoom: 13
+});
 
-let linea = null
-let busReplay = null
+let rutaLayer = null
+let busMarker = null
 let puntos = []
 let indice = 0
 let timer = null
@@ -200,53 +199,119 @@ let timer = null
 function cargarRecorrido(fecha){
 
 fetch(`/sistema/api/despachador/recorrido/?vehiculo={{ vehiculo.id }}&fecha=${fecha}`)
-.then(r=>r.json())
-.then(data=>{
 
-if(!data || data.length==0){
-alert("No hay GPS para este día")
+.then(r => r.json())
+
+.then(data => {
+
+if(!data || data.length === 0){
+console.log("Sin datos GPS")
 return
 }
 
-puntos = []
+puntos = data.map(p => [p.lng, p.lat])
 
-data.forEach(p=>{
-puntos.push([p.lat,p.lng])
+
+/* LINEA */
+
+const geojson = {
+type: "Feature",
+geometry: {
+type: "LineString",
+coordinates: puntos
+}
+}
+
+if(map.getSource("ruta")){
+
+map.getSource("ruta").setData(geojson)
+
+}else{
+
+map.addSource("ruta",{
+type:"geojson",
+data:geojson
 })
 
-if(linea){
-map.removeLayer(linea)
+map.addLayer({
+id:"ruta",
+type:"line",
+source:"ruta",
+layout:{
+"line-join":"round",
+"line-cap":"round"
+},
+paint:{
+"line-color":"#00e5ff",
+"line-width":5
+}
+})
+
 }
 
-linea = L.polyline(puntos,{
-color:"#00e5ff",
-weight:5
-}).addTo(map)
 
-map.fitBounds(linea.getBounds())
+/* BUS */
 
-if(busReplay){
-map.removeLayer(busReplay)
+if(busMarker){
+busMarker.remove()
 }
 
-busReplay = L.marker(puntos[0]).addTo(map)
-
-L.marker(puntos[0])
+busMarker = new mapboxgl.Marker()
+.setLngLat(puntos[0])
 .addTo(map)
-.bindPopup("Inicio")
 
-L.marker(puntos[puntos.length-1])
-.addTo(map)
-.bindPopup("Fin")
+map.flyTo({
+center:puntos[0],
+zoom:14
+})
 
 })
 
 }
 
 
-/* =====================
+/* =================
+REPLAY
+================= */
+
+function moverBus(){
+
+if(!busMarker) return
+
+if(indice >= puntos.length){
+clearInterval(timer)
+return
+}
+
+busMarker.setLngLat(puntos[indice])
+
+indice++
+
+}
+
+
+document.getElementById("btn-play").onclick = function(){
+
+indice = 0
+
+clearInterval(timer)
+
+let velocidad = document.getElementById("velocidad").value
+
+timer = setInterval(moverBus, velocidad)
+
+}
+
+document.getElementById("btn-pause").onclick = function(){
+
+clearInterval(timer)
+
+}
+
+
+/* =================
 SELECTOR FECHA
-===================== */
+================= */
 
 const selector = document.getElementById("selector-fecha")
 
@@ -254,54 +319,11 @@ if(selector){
 
 cargarRecorrido(selector.value)
 
-selector.addEventListener("change",function(){
+selector.addEventListener("change", function(){
 
 cargarRecorrido(this.value)
 
 })
-
-}
-
-
-/* =====================
-REPLAY
-===================== */
-
-function moverBus(){
-
-if(!busReplay) return
-
-if(indice >= puntos.length){
-
-clearInterval(timer)
-return
-
-}
-
-busReplay.setLatLng(puntos[indice])
-
-indice++
-
-}
-
-
-document.getElementById("btn-play").onclick=function(){
-
-indice = 0
-
-clearInterval(timer)
-
-let velocidad =
-document.getElementById("velocidad").value
-
-timer = setInterval(moverBus,velocidad)
-
-}
-
-
-document.getElementById("btn-pause").onclick=function(){
-
-clearInterval(timer)
 
 }
 
