@@ -8,9 +8,7 @@
 Historial del vehículo {{ vehiculo.codigo }} ({{ vehiculo.placa }})
 </h2>
 
-<!-- ============================= -->
 <!-- FILTRO FECHA -->
-<!-- ============================= -->
 <div class="row mb-4">
     <div class="col-md-3">
         <select id="selector-fecha" class="form-select">
@@ -23,9 +21,7 @@ Historial del vehículo {{ vehiculo.codigo }} ({{ vehiculo.placa }})
     </div>
 </div>
 
-<!-- ============================= -->
 <!-- KPIs -->
-<!-- ============================= -->
 <div class="row mb-4">
     <div class="col-md-3">
         <div class="card shadow-sm text-center">
@@ -35,7 +31,6 @@ Historial del vehículo {{ vehiculo.codigo }} ({{ vehiculo.placa }})
             </div>
         </div>
     </div>
-
     <div class="col-md-3">
         <div class="card shadow-sm text-center">
             <div class="card-body">
@@ -44,7 +39,6 @@ Historial del vehículo {{ vehiculo.codigo }} ({{ vehiculo.placa }})
             </div>
         </div>
     </div>
-
     <div class="col-md-3">
         <div class="card shadow-sm text-center">
             <div class="card-body">
@@ -53,7 +47,6 @@ Historial del vehículo {{ vehiculo.codigo }} ({{ vehiculo.placa }})
             </div>
         </div>
     </div>
-
     <div class="col-md-3">
         <div class="card shadow-sm text-center">
             <div class="card-body">
@@ -64,9 +57,7 @@ Historial del vehículo {{ vehiculo.codigo }} ({{ vehiculo.placa }})
     </div>
 </div>
 
-<!-- ============================= -->
 <!-- MAPA -->
-<!-- ============================= -->
 <h5 class="text-center mb-3">🗺 Recorrido del vehículo</h5>
 <div id="map-recorrido" style="height:450px;border-radius:10px;"></div>
 
@@ -82,9 +73,7 @@ Historial del vehículo {{ vehiculo.codigo }} ({{ vehiculo.placa }})
 
 <hr class="my-4">
 
-<!-- ============================= -->
 <!-- TABLA DE SALIDAS -->
-<!-- ============================= -->
 <table class="table table-striped">
     <thead>
         <tr>
@@ -119,206 +108,162 @@ Historial del vehículo {{ vehiculo.codigo }} ({{ vehiculo.placa }})
 {% block extra_js %}
 
 <script>
-
 document.addEventListener("DOMContentLoaded", function(){
 
 mapboxgl.accessToken = "{{ MAPBOX_TOKEN }}";
 
 const map = new mapboxgl.Map({
-container: "map-recorrido",
-style: "mapbox://styles/mapbox/dark-v11",
-center: [-71.619947,-16.338088],
-zoom: 13
+    container: "map-recorrido",
+    style: "mapbox://styles/mapbox/dark-v11",
+    center: [-71.619947,-16.338088],
+    zoom: 13
 });
 
-let busMarker = null
-let puntos = []
-let indice = 0
-let timer = null
+let busMarker = null;
+let puntos = [];
+let indice = 0;
+let timer = null;
 
+/* ===============================
+UTILIDADES
+=============================== */
+function distanciaEntre(p1, p2){
+    const R = 6371000; // m
+    const dLat = (p2[1]-p1[1])*Math.PI/180;
+    const dLng = (p2[0]-p1[0])*Math.PI/180;
+    const a = Math.sin(dLat/2)**2 + Math.cos(p1[1]*Math.PI/180)*Math.cos(p2[1]*Math.PI/180)*Math.sin(dLng/2)**2;
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R*c;
+}
+
+function filtrarPuntos(puntos, minDist=5){
+    if(!puntos.length) return [];
+    const result = [puntos[0]];
+    for(let i=1; i<puntos.length; i++){
+        if(distanciaEntre(result[result.length-1], puntos[i]) >= minDist){
+            result.push(puntos[i]);
+        }
+    }
+    return result;
+}
 
 /* ===============================
 CARGAR RECORRIDO
 =============================== */
-
 function cargarRecorrido(fecha){
-
-fetch(`/sistema/api/despachador/recorrido/?vehiculo={{ vehiculo.id }}&fecha=${fecha}`)
-
-.then(r => r.json())
-
-.then(data => {
-
-if(!Array.isArray(data)){
-    console.error("Respuesta inválida:", data)
-    return
-}
-
-console.log("GPS:", data)
-
-if(data.length === 0){
-console.warn("Este vehículo no tiene registros GPS ese día")
-return
-}
-
-indice = 0
-
-puntos = data.map(p => [p.lng, p.lat])
-
-
-const geojson = {
-type:"Feature",
-geometry:{
-type:"LineString",
-coordinates:puntos
-}
-}
-
-
-// ===============================
-// FLECHAS DE DIRECCIÓN SOBRE LA RUTA
-// ===============================
-if(map.getSource("ruta")){
-    map.getSource("ruta").setData(geojson)
-}else{
-    map.addSource("ruta",{
-        type:"geojson",
-        data:geojson
-    })
-
-    map.addLayer({
-        id:"ruta",
-        type:"line",
-        source:"ruta",
-        layout:{
-            "line-join":"round",
-            "line-cap":"round"
-        },
-        paint:{
-            "line-color":"#00e5ff",
-            "line-width":4,
-            "line-opacity":0.8,
-            "line-blur":0.3
+    fetch(`/sistema/api/despachador/recorrido/?vehiculo={{ vehiculo.id }}&fecha=${fecha}`)
+    .then(r => r.json())
+    .then(data => {
+        if(!Array.isArray(data)){
+            console.error("Respuesta inválida:", data)
+            return
         }
-    })
-}
+        if(data.length===0){
+            console.warn("No hay registros GPS")
+            return
+        }
 
-// ahora agregar flechas
-if (!map.getLayer("ruta-direccion")) {
-    map.loadImage(
-        "https://docs.mapbox.com/mapbox-gl-js/assets/arrow.png",
-        function(error, image) {
-            if (error) throw error;
-            if (!map.hasImage("arrow")) map.addImage("arrow", image);
+        indice=0;
+        puntos = filtrarPuntos(data.map(p=>[p.lng,p.lat]),5);
+
+        const geojson = { type:"Feature", geometry:{ type:"LineString", coordinates:puntos } };
+
+        // Source + layer ruta
+        if(map.getSource("ruta")){
+            map.getSource("ruta").setData(geojson);
+        }else{
+            map.addSource("ruta",{ type:"geojson", data:geojson });
             map.addLayer({
-                id: "ruta-direccion",
-                type: "symbol",
-                source: "ruta",
-                layout: {
-                    "symbol-placement": "line",
-                    "symbol-spacing": 60,
-                    "icon-image": "arrow",
-                    "icon-size": 0.5,
-                    "icon-allow-overlap": true,
-                    "icon-ignore-placement": true
-                }
+                id:"ruta",
+                type:"line",
+                source:"ruta",
+                layout:{ "line-join":"round", "line-cap":"round" },
+                paint:{ "line-color":"#00e5ff", "line-width":4, "line-opacity":0.8, "line-blur":0.3 }
             });
         }
-    );
+
+        // Flechas de dirección
+        if(!map.getLayer("ruta-direccion")){
+            map.loadImage(
+                "https://docs.mapbox.com/mapbox-gl-js/assets/arrow.png",
+                function(error, image){
+                    if(error) throw error;
+                    if(!map.hasImage("arrow")) map.addImage("arrow", image);
+                    map.addLayer({
+                        id:"ruta-direccion",
+                        type:"symbol",
+                        source:"ruta",
+                        layout:{
+                            "symbol-placement":"line",
+                            "symbol-spacing":60,
+                            "icon-image":"arrow",
+                            "icon-size":0.5,
+                            "icon-allow-overlap":true,
+                            "icon-ignore-placement":true
+                        }
+                    });
+                }
+            );
+        }
+
+        // Bus
+        if(busMarker) busMarker.remove();
+        const busIcon = document.createElement("div");
+        busIcon.style.width="28px";
+        busIcon.style.height="28px";
+        busIcon.style.backgroundImage="url('https://cdn-icons-png.flaticon.com/512/61/61231.png')";
+        busIcon.style.backgroundSize="contain";
+        busIcon.style.backgroundRepeat="no-repeat";
+
+        busMarker = new mapboxgl.Marker(busIcon).setLngLat(puntos[0]).addTo(map);
+        map.flyTo({ center:puntos[0], zoom:14 });
+    });
 }
 
 /* ===============================
-BUS
+REPLAY ANIMADO
 =============================== */
-
-if(busMarker){
-busMarker.remove()
-}
-
-const busIcon = document.createElement("div")
-
-busIcon.style.width = "28px"
-busIcon.style.height = "28px"
-busIcon.style.backgroundImage = "url('https://cdn-icons-png.flaticon.com/512/61/61231.png')"
-busIcon.style.backgroundSize = "contain"
-busIcon.style.backgroundRepeat = "no-repeat"
-
-busMarker = new mapboxgl.Marker(busIcon)
-.setLngLat(puntos[0])
-.addTo(map)
-
-map.flyTo({
-center:puntos[0],
-zoom:14
-})
-
-})
-
-}
-
-
-/* ===============================
-REPLAY
-=============================== */
-
 function moverBus(){
+    if(!busMarker) return;
+    if(indice >= puntos.length-1){ clearInterval(timer); return; }
 
-if(!busMarker) return
+    const start = puntos[indice];
+    const end = puntos[indice+1];
+    let steps = 10;
+    let step = 0;
 
-if(indice >= puntos.length - 1){
-clearInterval(timer)
-return
-}
+    let anim = setInterval(()=>{
+        let lng = start[0] + (end[0]-start[0])*(step/steps);
+        let lat = start[1] + (end[1]-start[1])*(step/steps);
 
-const start = puntos[indice]
-const end = puntos[indice+1]
+        busMarker.setLngLat([lng,lat]);
+        map.easeTo({ center:[lng,lat], duration:200 });
 
-let steps = 10
-let step = 0
-
-let anim = setInterval(()=>{
-    let lng = start[0] + (end[0]-start[0])*(step/steps)
-    let lat = start[1] + (end[1]-start[1])*(step/steps)
-
-    busMarker.setLngLat([lng,lat])
-    map.easeTo({
-        center:[lng,lat],
-        duration:200
-    })
-
-    step++
-
-    if(step>steps){
-        clearInterval(anim)
-        indice++
-    }
-
-},30)
+        step++;
+        if(step>steps){ clearInterval(anim); indice++; }
+    },30);
 }
 
 /* ===============================
 MAP READY
 =============================== */
-
 map.on("load", function(){
+    const selector = document.getElementById("selector-fecha");
+    if(selector){
+        cargarRecorrido(selector.value);
+        selector.addEventListener("change", function(){ cargarRecorrido(this.value); });
+    }
+});
 
-const selector = document.getElementById("selector-fecha")
-
-if(selector){
-
-cargarRecorrido(selector.value)
-
-selector.addEventListener("change", function(){
-
-cargarRecorrido(this.value)
-
-})
-
+/* ===============================
+BOTONES REPLAY
+=============================== */
+document.getElementById("btn-play").onclick = function(){
+    clearInterval(timer);
+    let velocidad = parseInt(document.getElementById("velocidad").value);
+    timer = setInterval(moverBus, velocidad);
 }
-
-})
-
-})
+document.getElementById("btn-pause").onclick = function(){ clearInterval(timer); }
 
 </script>
 
