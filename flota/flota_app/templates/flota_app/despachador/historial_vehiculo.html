@@ -4,38 +4,32 @@
 
 {% block content %}
 
+<h2 class="mb-4">
+Historial del vehículo {{ vehiculo.codigo }} ({{ vehiculo.placa }})
+</h2>
+
+
 <!-- ============================= -->
-<!-- FILTROS -->
+<!-- FILTRO FECHA -->
 <!-- ============================= -->
 
-<form method="get" class="row g-3 mb-4">
+<div class="row mb-4">
 
 <div class="col-md-3">
-<label class="form-label">Desde</label>
-<input type="date" name="fecha_inicio" class="form-control"
-value="{{ request.GET.fecha_inicio }}">
+
+<select id="selector-fecha" class="form-select">
+
+{% for salida in salidas %}
+<option value="{{ salida.fecha }}">
+{{ salida.fecha }}
+</option>
+{% endfor %}
+
+</select>
+
 </div>
 
-<div class="col-md-3">
-<label class="form-label">Hasta</label>
-<input type="date" name="fecha_fin" class="form-control"
-value="{{ request.GET.fecha_fin }}">
 </div>
-
-<div class="col-md-3 d-flex align-items-end">
-<button type="submit" class="btn btn-primary w-100">
-Filtrar
-</button>
-</div>
-
-<div class="col-md-3 d-flex align-items-end">
-<a href="{% url 'historial_vehiculo' vehiculo.id %}"
-class="btn btn-outline-secondary w-100">
-Limpiar
-</a>
-</div>
-
-</form>
 
 
 <!-- ============================= -->
@@ -65,7 +59,7 @@ Limpiar
 <div class="col-md-3">
 <div class="card shadow-sm text-center">
 <div class="card-body">
-<h6 class="text-muted text-success">A tiempo</h6>
+<h6 class="text-success">A tiempo</h6>
 <h3>{{ a_tiempo }}</h3>
 </div>
 </div>
@@ -74,7 +68,7 @@ Limpiar
 <div class="col-md-3">
 <div class="card shadow-sm text-center">
 <div class="card-body">
-<h6 class="text-muted text-danger">Tarde</h6>
+<h6 class="text-danger">Tarde</h6>
 <h3>{{ tarde }}</h3>
 </div>
 </div>
@@ -84,81 +78,31 @@ Limpiar
 
 
 <!-- ============================= -->
-<!-- TITULO -->
-<!-- ============================= -->
-
-<h2 class="mb-4">
-Historial del vehículo {{ vehiculo.codigo }} ({{ vehiculo.placa }})
-</h2>
-
-<h5 class="text-center mb-4">
-Indicadores de cumplimiento
-</h5>
-
-
-<!-- ============================= -->
-<!-- GRAFICOS -->
-<!-- ============================= -->
-
-<div class="row">
-
-<div class="col-md-8">
-<div class="card shadow-sm mb-4">
-<div class="card-body">
-
-<h6 class="text-center">
-Cumplimiento por día (%)
-</h6>
-
-<div style="height:300px;">
-<canvas id="graficoBarras"></canvas>
-</div>
-
-</div>
-</div>
-</div>
-
-
-<div class="col-md-4">
-<div class="card shadow-sm mb-4">
-<div class="card-body">
-
-<h6 class="text-center">
-A tiempo vs Tarde
-</h6>
-
-<div style="height:300px;">
-<canvas id="graficoCircular"></canvas>
-</div>
-
-</div>
-</div>
-</div>
-
-</div>
-
-
-<hr class="my-4">
-
-
-<!-- ============================= -->
 <!-- MAPA -->
 <!-- ============================= -->
 
 <h5 class="text-center mb-3">
-🗺️ Recorrido del vehículo
+🗺 Recorrido del vehículo
 </h5>
 
-<div id="map-recorrido" style="height:450px;border-radius:10px;"></div>
+<div id="map-recorrido"
+style="height:450px;border-radius:10px;"></div>
 
-<div class="text-center mt-2">
 
-<button id="btn-play" class="btn btn-success btn-sm">
+<div class="text-center mt-3">
+
+<button id="btn-play"
+class="btn btn-success btn-sm">
+
 ▶ Reproducir
+
 </button>
 
-<button id="btn-pause" class="btn btn-warning btn-sm">
+<button id="btn-pause"
+class="btn btn-warning btn-sm">
+
 ⏸ Pausar
+
 </button>
 
 <select id="velocidad"
@@ -171,6 +115,9 @@ class="form-select form-select-sm d-inline-block w-auto">
 </select>
 
 </div>
+
+
+<hr class="my-4">
 
 
 <!-- ============================= -->
@@ -198,32 +145,29 @@ class="form-select form-select-sm d-inline-block w-auto">
 <td>{{ salida.ruta.nombre }}</td>
 
 <td>
+
 {% if salida.hora_real_salida %}
 <span class="badge bg-success">A tiempo</span>
 {% else %}
 <span class="badge bg-danger">Tarde</span>
 {% endif %}
+
 </td>
 
-</tr>
-
-{% empty %}
-
-<tr>
-<td colspan="4" class="text-center">
-No hay registros para este vehículo
-</td>
 </tr>
 
 {% endfor %}
 
 </tbody>
+
 </table>
 
 
 <a href="{% url 'panel_despachador' %}"
 class="btn btn-secondary mt-3">
+
 ⬅ Volver al panel
+
 </a>
 
 {% endblock %}
@@ -236,96 +180,7 @@ class="btn btn-secondary mt-3">
 
 document.addEventListener("DOMContentLoaded",function(){
 
-/* =========================
-DATOS DESDE DJANGO
-========================= */
-
-const fechas = JSON.parse('{{ fechas|safe }}')
-const porcentajes = JSON.parse('{{ porcentajes|safe }}')
-
-
-/* =========================
-VARIABLES REPLAY
-========================= */
-
-let puntosRecorrido=[]
-let busReplay=null
-let indiceReplay=0
-let timerReplay=null
-
-
-/* =========================
-GRAFICO BARRAS
-========================= */
-
-const ctxBar=document.getElementById("graficoBarras")
-
-if(ctxBar){
-
-new Chart(ctxBar,{
-type:"bar",
-data:{
-labels:fechas,
-datasets:[{
-label:"Cumplimiento (%)",
-data:porcentajes,
-backgroundColor:"rgba(54,162,235,0.6)"
-}]
-},
-options:{
-responsive:true,
-maintainAspectRatio:false,
-scales:{
-y:{
-beginAtZero:true,
-max:100
-}
-}
-}
-})
-
-}
-
-
-/* =========================
-GRAFICO CIRCULAR
-========================= */
-
-const ctxPie=document.getElementById("graficoCircular")
-
-if(ctxPie){
-
-new Chart(ctxPie,{
-type:"doughnut",
-data:{
-labels:["A tiempo","Tarde"],
-datasets:[{
-data:[{{ a_tiempo|default:0 }},{{ tarde|default:0 }}],
-backgroundColor:[
-"rgba(25,135,84,0.7)",
-"rgba(220,53,69,0.7)"
-]
-}]
-},
-options:{
-plugins:{
-legend:{position:"bottom"}
-}
-}
-})
-
-}
-
-
-/* =========================
-MAPA
-========================= */
-
-const mapDiv=document.getElementById("map-recorrido")
-
-if(mapDiv){
-
-const mapRecorrido=L.map("map-recorrido")
+let map = L.map("map-recorrido")
 .setView([-16.338088,-71.619947],13)
 
 L.tileLayer(
@@ -333,115 +188,120 @@ L.tileLayer(
 {
 attribution:"© OpenStreetMap"
 }
-).addTo(mapRecorrido)
+).addTo(map)
+
+let linea = null
+let busReplay = null
+let puntos = []
+let indice = 0
+let timer = null
 
 
-if(fechas.length){
-
-const fecha=fechas[0]
+function cargarRecorrido(fecha){
 
 fetch(`/sistema/api/despachador/recorrido/?vehiculo={{ vehiculo.id }}&fecha=${fecha}`)
 .then(r=>r.json())
 .then(data=>{
 
-if(!data || data.length===0) return
+if(!data || data.length==0){
+alert("No hay GPS para este día")
+return
+}
 
-let puntos=[]
+puntos = []
 
 data.forEach(p=>{
 puntos.push([p.lat,p.lng])
 })
 
-puntosRecorrido=puntos
+if(linea){
+map.removeLayer(linea)
+}
 
-
-/* LINEA RECORRIDO */
-
-const linea=L.polyline(puntos,{
+linea = L.polyline(puntos,{
 color:"#00e5ff",
-weight:5,
-opacity:0.8
-}).addTo(mapRecorrido)
+weight:5
+}).addTo(map)
 
+map.fitBounds(linea.getBounds())
 
-/* BUS REPLAY */
+if(busReplay){
+map.removeLayer(busReplay)
+}
 
-busReplay=L.marker(puntos[0]).addTo(mapRecorrido)
-
-mapRecorrido.fitBounds(linea.getBounds())
-
-
-/* MARCADORES */
+busReplay = L.marker(puntos[0]).addTo(map)
 
 L.marker(puntos[0])
-.addTo(mapRecorrido)
+.addTo(map)
 .bindPopup("Inicio")
 
 L.marker(puntos[puntos.length-1])
-.addTo(mapRecorrido)
-.bindPopup("Último punto")
+.addTo(map)
+.bindPopup("Fin")
 
 })
 
 }
 
+
+/* =====================
+SELECTOR FECHA
+===================== */
+
+const selector = document.getElementById("selector-fecha")
+
+if(selector){
+
+cargarRecorrido(selector.value)
+
+selector.addEventListener("change",function(){
+
+cargarRecorrido(this.value)
+
+})
+
 }
 
 
-/* =========================
+/* =====================
 REPLAY
-========================= */
+===================== */
 
 function moverBus(){
 
 if(!busReplay) return
 
-if(indiceReplay>=puntosRecorrido.length){
+if(indice >= puntos.length){
 
-clearInterval(timerReplay)
+clearInterval(timer)
 return
 
 }
 
-busReplay.setLatLng(puntosRecorrido[indiceReplay])
+busReplay.setLatLng(puntos[indice])
 
-indiceReplay++
-
-}
-
-
-/* =========================
-PLAY
-========================= */
-
-const btnPlay=document.getElementById("btn-play")
-const btnPause=document.getElementById("btn-pause")
-
-if(btnPlay){
-
-btnPlay.onclick=function(){
-
-indiceReplay=0
-
-clearInterval(timerReplay)
-
-let velocidad=document.getElementById("velocidad").value
-
-timerReplay=setInterval(
-moverBus,
-velocidad
-)
-
-}
+indice++
 
 }
 
 
-if(btnPause){
+document.getElementById("btn-play").onclick=function(){
 
-btnPause.onclick=function(){
-clearInterval(timerReplay)
+indice = 0
+
+clearInterval(timer)
+
+let velocidad =
+document.getElementById("velocidad").value
+
+timer = setInterval(moverBus,velocidad)
+
 }
+
+
+document.getElementById("btn-pause").onclick=function(){
+
+clearInterval(timer)
 
 }
 
