@@ -82,46 +82,6 @@ Historial del vehículo {{ vehiculo.codigo }} ({{ vehiculo.placa }})
 
 <hr class="my-4">
 
-<table class="table table-striped">
-
-<thead>
-<tr>
-<th>Fecha</th>
-<th>Hora salida</th>
-<th>Ruta</th>
-<th>Cumplimiento</th>
-</tr>
-</thead>
-
-<tbody>
-
-{% for salida in salidas %}
-
-<tr>
-<td>{{ salida.fecha }}</td>
-<td>{{ salida.hora_salida }}</td>
-<td>{{ salida.ruta.nombre }}</td>
-
-<td>
-{% if salida.hora_real_salida %}
-<span class="badge bg-success">A tiempo</span>
-{% else %}
-<span class="badge bg-danger">Tarde</span>
-{% endif %}
-</td>
-
-</tr>
-
-{% endfor %}
-
-</tbody>
-
-</table>
-
-<a href="{% url 'panel_despachador' %}" class="btn btn-secondary mt-3">
-⬅ Volver al panel
-</a>
-
 {% endblock %}
 
 
@@ -197,24 +157,13 @@ fetch(`/sistema/api/despachador/recorrido/?vehiculo={{ vehiculo.id }}&fecha=${fe
 
 .then(data=>{
 
-if(!Array.isArray(data)){
-console.error("Respuesta inválida:",data);
-return;
-}
+if(!Array.isArray(data)) return;
 
-if(data.length===0){
-console.warn("No hay registros GPS");
-return;
-}
+if(data.length===0) return;
 
 indice=0;
 
 puntos = filtrarPuntos(data.map(p=>[p.lng,p.lat]),20);
-
-if(!puntos.length){
-console.warn("No hay puntos después del filtro");
-return;
-}
 
 const geojson={
 type:"Feature",
@@ -226,8 +175,6 @@ coordinates:puntos
 
 
 
-/* SOURCE */
-
 if(!map.getSource("ruta")){
 
 map.addSource("ruta",{
@@ -235,29 +182,8 @@ type:"geojson",
 data:geojson
 });
 
-}else{
-
-map.getSource("ruta").setData(geojson);
-
-}
-
-
-
-/* FLECHAS */
-
-if(!map.hasImage("arrow")){
-
-map.loadImage(
-"https://docs.mapbox.com/mapbox-gl-js/assets/arrow.png",
-function(error,image){
-
-if(error) throw error;
-
-map.addImage("arrow",image);
-
-if(!map.getLayer("ruta-direccion")){
-
 map.addLayer({
+
 id:"ruta-direccion",
 type:"symbol",
 source:"ruta",
@@ -265,18 +191,17 @@ source:"ruta",
 layout:{
 "symbol-placement":"line",
 "symbol-spacing":40,
-"icon-image":"arrow",
-"icon-size":0.6,
-"icon-allow-overlap":true,
-"icon-ignore-placement":true
+"icon-image":"triangle-15",
+"icon-size":1.2,
+"icon-rotate":90,
+"icon-allow-overlap":true
 }
 
 });
 
-}
+}else{
 
-}
-);
+map.getSource("ruta").setData(geojson);
 
 }
 
@@ -352,8 +277,6 @@ indice++;
 }
 
 
-
-/* MAP READY */
 
 map.on("load",function(){
 
