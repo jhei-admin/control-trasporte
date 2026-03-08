@@ -82,6 +82,46 @@ Historial del vehículo {{ vehiculo.codigo }} ({{ vehiculo.placa }})
 
 <hr class="my-4">
 
+<table class="table table-striped">
+
+<thead>
+<tr>
+<th>Fecha</th>
+<th>Hora salida</th>
+<th>Ruta</th>
+<th>Cumplimiento</th>
+</tr>
+</thead>
+
+<tbody>
+
+{% for salida in salidas %}
+
+<tr>
+<td>{{ salida.fecha }}</td>
+<td>{{ salida.hora_salida }}</td>
+<td>{{ salida.ruta.nombre }}</td>
+
+<td>
+{% if salida.hora_real_salida %}
+<span class="badge bg-success">A tiempo</span>
+{% else %}
+<span class="badge bg-danger">Tarde</span>
+{% endif %}
+</td>
+
+</tr>
+
+{% endfor %}
+
+</tbody>
+
+</table>
+
+<a href="{% url 'panel_despachador' %}" class="btn btn-secondary mt-3">
+⬅ Volver al panel
+</a>
+
 {% endblock %}
 
 
@@ -105,6 +145,8 @@ let busMarker = null;
 let puntos = [];
 let indice = 0;
 let timer = null;
+
+let flechas = [];   // NUEVO: guardamos flechas para borrarlas
 
 
 
@@ -149,6 +191,34 @@ return result;
 
 
 
+function dibujarFlechas(){
+
+// borrar flechas anteriores
+flechas.forEach(f=>f.remove());
+flechas=[];
+
+for(let i=0;i<puntos.length;i+=5){
+
+const arrow=document.createElement("div");
+
+arrow.style.width="0";
+arrow.style.height="0";
+arrow.style.borderTop="6px solid transparent";
+arrow.style.borderBottom="6px solid transparent";
+arrow.style.borderLeft="12px solid #00e5ff";
+
+const marker=new mapboxgl.Marker(arrow)
+.setLngLat(puntos[i])
+.addTo(map);
+
+flechas.push(marker);
+
+}
+
+}
+
+
+
 function cargarRecorrido(fecha){
 
 fetch(`/sistema/api/despachador/recorrido/?vehiculo={{ vehiculo.id }}&fecha=${fecha}`)
@@ -157,13 +227,24 @@ fetch(`/sistema/api/despachador/recorrido/?vehiculo={{ vehiculo.id }}&fecha=${fe
 
 .then(data=>{
 
-if(!Array.isArray(data)) return;
+if(!Array.isArray(data)){
+console.error("Respuesta inválida:",data);
+return;
+}
 
-if(data.length===0) return;
+if(data.length===0){
+console.warn("No hay registros GPS");
+return;
+}
 
 indice=0;
 
 puntos = filtrarPuntos(data.map(p=>[p.lng,p.lat]),20);
+
+if(!puntos.length){
+console.warn("No hay puntos después del filtro");
+return;
+}
 
 const geojson={
 type:"Feature",
@@ -175,6 +256,8 @@ coordinates:puntos
 
 
 
+/* SOURCE */
+
 if(!map.getSource("ruta")){
 
 map.addSource("ruta",{
@@ -182,28 +265,17 @@ type:"geojson",
 data:geojson
 });
 
-map.addLayer({
-
-id:"ruta-direccion",
-type:"symbol",
-source:"ruta",
-
-layout:{
-"symbol-placement":"line",
-"symbol-spacing":40,
-"icon-image":"triangle-15",
-"icon-size":1.2,
-"icon-rotate":90,
-"icon-allow-overlap":true
-}
-
-});
-
 }else{
 
 map.getSource("ruta").setData(geojson);
 
 }
+
+
+
+/* NUEVO: dibujar flechas */
+
+dibujarFlechas();
 
 
 
@@ -277,6 +349,8 @@ indice++;
 }
 
 
+
+/* MAP READY */
 
 map.on("load",function(){
 
