@@ -189,7 +189,6 @@ center: [-71.619947,-16.338088],
 zoom: 13
 });
 
-let rutaLayer = null
 let busMarker = null
 let puntos = []
 let indice = 0
@@ -212,15 +211,14 @@ return
 puntos = data.map(p => [p.lng, p.lat])
 
 
-/* LINEA */
-
 const geojson = {
-type: "Feature",
-geometry: {
-type: "LineString",
-coordinates: puntos
+type:"Feature",
+geometry:{
+type:"LineString",
+coordinates:puntos
 }
 }
+
 
 if(map.getSource("ruta")){
 
@@ -249,8 +247,6 @@ paint:{
 
 }
 
-
-/* BUS */
 
 if(busMarker){
 busMarker.remove()
@@ -293,7 +289,6 @@ indice++
 document.getElementById("btn-play").onclick = function(){
 
 indice = 0
-
 clearInterval(timer)
 
 let velocidad = document.getElementById("velocidad").value
@@ -301,6 +296,7 @@ let velocidad = document.getElementById("velocidad").value
 timer = setInterval(moverBus, velocidad)
 
 }
+
 
 document.getElementById("btn-pause").onclick = function(){
 
@@ -315,6 +311,9 @@ SELECTOR FECHA
 
 const selector = document.getElementById("selector-fecha")
 
+
+map.on("load", function(){
+
 if(selector){
 
 cargarRecorrido(selector.value)
@@ -326,6 +325,8 @@ cargarRecorrido(this.value)
 })
 
 }
+
+})
 
 })
 
