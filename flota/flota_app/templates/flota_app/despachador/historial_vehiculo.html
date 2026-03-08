@@ -15,8 +15,8 @@ Historial del vehículo {{ vehiculo.codigo }} ({{ vehiculo.placa }})
     <div class="col-md-3">
         <select id="selector-fecha" class="form-select">
             {% for salida in salidas %}
-                <option value="{{ salida.fecha }}">
-                    {{ salida.fecha }}
+                <option value="{{ salida.fecha|date:'Y-m-d' }}">
+                    {{ salida.fecha|date:'d/m/Y' }}
                 </option>
             {% endfor %}
         </select>
@@ -149,10 +149,15 @@ fetch(`/sistema/api/despachador/recorrido/?vehiculo={{ vehiculo.id }}&fecha=${fe
 
 .then(data => {
 
+if(!Array.isArray(data)){
+    console.error("Respuesta inválida:", data)
+    return
+}
+
 console.log("GPS:", data)
 
-if(!data || data.length === 0){
-console.log("Sin datos GPS")
+if(data.length === 0){
+console.warn("Este vehículo no tiene registros GPS ese día")
 return
 }
 
