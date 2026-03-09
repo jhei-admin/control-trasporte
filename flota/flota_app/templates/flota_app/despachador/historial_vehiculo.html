@@ -214,24 +214,32 @@ const angulo=Math.atan2(dy,dx)*180/Math.PI;
 
 const arrow=document.createElement("div");
 
+/* FLECHA MAS VISIBLE */
+
 arrow.style.width="0";
 arrow.style.height="0";
-arrow.style.borderTop="6px solid transparent";
-arrow.style.borderBottom="6px solid transparent";
-arrow.style.borderLeft="12px solid black";
+arrow.style.borderTop="7px solid transparent";
+arrow.style.borderBottom="7px solid transparent";
+arrow.style.borderLeft="14px solid white";
+arrow.style.filter="drop-shadow(0 0 2px black)";
 arrow.style.transform=`rotate(${angulo}deg)`;
 
-/* POPUP VELOCIDAD Y HORA */
+
+/* DATOS DEL GPS */
 
 let info = puntosOriginal[i] || {};
+
+
+/* POPUP */
 
 let popup = new mapboxgl.Popup({
 closeButton:false,
 offset:15
 }).setHTML(`
-<b>${i}</b><br>
+<b>Unidad {{ vehiculo.codigo }}</b><br>
 ${info.hora || ""} ${info.velocidad || ""} Km/h
 `);
+
 
 const marker=new mapboxgl.Marker(arrow)
 .setLngLat(p1)
