@@ -2496,8 +2496,6 @@ def panel_frecuencia(request):
 @require_GET
 def api_panel_frecuencia(request):
 
-    hoy = timezone.localdate()
-
     puntos = list(
         PuntoControl.objects
         .filter(activo=True)
@@ -2507,11 +2505,10 @@ def api_panel_frecuencia(request):
     config = ConfiguracionDespacho.objects.filter(activa=True).first()
     intervalo = config.intervalo_fijo if config and config.intervalo_fijo else 6
 
-    # ⚠ quitar filtro activo
+    # 🔹 traer todas las salidas
     salidas = (
         RegistroSalida.objects
         .select_related("vehiculo")
-        .filter(fecha=hoy)
         .order_by("vehiculo__codigo")
     )
 
@@ -2559,7 +2556,6 @@ def api_panel_frecuencia(request):
     # ordenar por avance
     data.sort(key=lambda x: x["avance"], reverse=True)
 
-    # calcular frecuencia entre buses
     for i in range(1, len(data)):
 
         actual = data[i]
