@@ -291,6 +291,12 @@ urlpatterns = [
         name="reporte_salidas_diarias"
     ),
 
+    path(
+        "despachador/frecuencia/",
+        views.panel_frecuencia,
+        name="panel_frecuencia"
+    ),
+
     # =========================
     # 🧪 DEBUG
     # =========================

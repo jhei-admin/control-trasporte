@@ -1,0 +1,131 @@
+{% extends "flota_app/base.html" %}
+
+{% block content %}
+
+<h2>CONTROL DE FRECUENCIA</h2>
+
+<table class="table table-bordered text-center" id="tablaFrecuencia">
+
+<thead class="table-dark">
+<tr id="headerFrecuencia">
+<th>Unidad</th>
+
+{% for p in puntos %}
+<th>{{ p.codigo }}</th>
+{% endfor %}
+
+</tr>
+</thead>
+
+<tbody id="bodyFrecuencia">
+
+{% for fila in tabla %}
+
+<tr>
+
+<td class="fw-bold">{{ fila.unidad }}</td>
+
+{% for v in fila.controles %}
+
+<td
+{% if v != "N" and v != "—" %}
+    {% if v > 0 %}
+        class="bg-danger text-white"
+    {% elif v < 0 %}
+        class="bg-info text-dark"
+    {% else %}
+        class="bg-success text-white"
+    {% endif %}
+{% endif %}
+>
+
+{% if v == "N" %}
+N
+{% elif v == "—" %}
+•
+{% else %}
+{{ v }}
+{% endif %}
+
+</td>
+
+{% endfor %}
+
+</tr>
+
+{% endfor %}
+
+</tbody>
+
+</table>
+
+
+<!-- ======================================= -->
+<!-- 🔄 AJAX ACTUALIZACIÓN CADA 3 SEGUNDOS -->
+<!-- ======================================= -->
+<script>
+
+async function actualizarFrecuencia(){
+
+    try{
+
+        const res = await fetch("/api/frecuencia/")
+        const json = await res.json()
+
+        const body = document.getElementById("bodyFrecuencia")
+
+        body.innerHTML = ""
+
+        json.data.forEach(fila => {
+
+            let tr = `<tr>`
+            tr += `<td class="fw-bold">${fila.unidad}</td>`
+
+            fila.controles.forEach(v => {
+
+                let clase = ""
+                let valor = v
+
+                if(v === null){
+                    valor = "N"
+                }
+
+                if(v === "pendiente"){
+                    valor = "•"
+                }
+
+                if(typeof v === "number"){
+
+                    if(v > 0) clase = "bg-danger text-white"
+                    if(v < 0) clase = "bg-info text-dark"
+                    if(v == 0) clase = "bg-success text-white"
+
+                }
+
+                tr += `<td class="${clase}">${valor}</td>`
+
+            })
+
+            tr += "</tr>"
+
+            body.innerHTML += tr
+
+        })
+
+    }catch(e){
+
+        console.error("Error actualizando frecuencia:", e)
+
+    }
+
+}
+
+/* carga inicial */
+actualizarFrecuencia()
+
+/* actualización automática */
+setInterval(actualizarFrecuencia, 3000)
+
+</script>
+
+{% endblock %}

@@ -2477,3 +2477,69 @@ def debug_gps(request):
         })
 
     return JsonResponse(data, safe=False)
+
+# =================================================
+# 📊 PANEL FRECUENCIA DE RUTA
+# =================================================
+def panel_frecuencia(request):
+
+    hoy = timezone.localdate()
+
+    # puntos de control ordenados
+    puntos = list(
+        PuntoControl.objects
+        .filter(activo=True)
+        .order_by("orden")
+    )
+
+    # salidas activas del día
+    salidas = (
+        RegistroSalida.objects
+        .select_related("vehiculo", "ruta")
+        .filter(
+            fecha=hoy
+        )
+        .order_by("vehiculo__codigo")
+    )
+
+    tabla = []
+
+    for salida in salidas:
+
+        fila = {
+            "unidad": salida.vehiculo.codigo,
+            "controles": []
+        }
+
+        for punto in puntos:
+
+            marcacion = (
+                MarcacionPunto.objects
+                .filter(
+                    registro_salida=salida,
+                    punto=punto
+                )
+                .first()
+            )
+
+            if not marcacion:
+                valor = "N"
+
+            elif marcacion.hora_marcada:
+                valor = marcacion.diferencia_minutos
+
+            else:
+                valor = "—"
+
+            fila["controles"].append(valor)
+
+        tabla.append(fila)
+
+    return render(
+        request,
+        "flota_app/despachador/frecuencia_ruta.html",
+        {
+            "puntos": puntos,
+            "tabla": tabla
+        }
+    )   
