@@ -145,7 +145,7 @@ let busMarker = null;
 let puntos = [];
 let puntosOriginal = [];
 let indice = 0;
-let timer = null;
+let reproduciendo = false;
 
 let flechas = [];
 
@@ -174,7 +174,6 @@ return R*c;
 
 
 /* FILTRAR PUNTOS GPS */
-/* 🔧 AJUSTE: ahora 8 metros */
 
 function filtrarPuntos(lista,minDist=8){
 
@@ -196,7 +195,7 @@ return result;
 
 
 
-/* DIBUJAR FLECHAS DEL RECORRIDO */
+/* FLECHAS */
 
 function dibujarFlechas(){
 
@@ -267,10 +266,7 @@ return;
 }
 
 indice=0;
-
 puntosOriginal=data;
-
-/* 🔧 FILTRO MÁS SUAVE */
 
 puntos = filtrarPuntos(data.map(p=>[p.lng,p.lat]),8);
 
@@ -278,8 +274,6 @@ if(!puntos.length){
 console.warn("No hay puntos después del filtro");
 return;
 }
-
-/* FLECHAS */
 
 dibujarFlechas();
 
@@ -312,35 +306,52 @@ zoom:14
 
 
 
-/* REPLAY BUS */
+/* REPLAY REALISTA */
 
 function moverBus(){
 
-if(!busMarker) return;
+if(!reproduciendo) return;
 
-if(!puntos.length || indice>=puntos.length-1){
-
-clearInterval(timer);
+if(indice >= puntos.length-1){
+reproduciendo=false;
 return;
-
 }
 
-const start=puntos[indice];
-const end=puntos[indice+1];
-
-/* 🔧 MÁS SUAVIDAD */
-
-let steps=25;
-let step=0;
+const start = puntos[indice];
+const end = puntos[indice+1];
 
 let dx=end[0]-start[0];
 let dy=end[1]-start[1];
 
 let angulo=Math.atan2(dy,dx)*180/Math.PI;
-
 busMarker.getElement().style.transform=`rotate(${angulo}deg)`;
 
-let anim=setInterval(()=>{
+
+/* CALCULAR TIEMPO REAL ENTRE GPS */
+
+let tiempo = 2000;
+
+if(puntosOriginal[indice] && puntosOriginal[indice+1]){
+
+let t1 = new Date(puntosOriginal[indice].hora);
+let t2 = new Date(puntosOriginal[indice+1].hora);
+
+let diff = (t2 - t1);
+
+if(diff>0 && diff<10000){
+tiempo = diff;
+}
+
+}
+
+/* INTERPOLACION */
+
+let steps = 30;
+let step = 0;
+
+let intervalo = tiempo / steps;
+
+let anim = setInterval(()=>{
 
 let lng=start[0]+(end[0]-start[0])*(step/steps);
 let lat=start[1]+(end[1]-start[1])*(step/steps);
@@ -349,17 +360,20 @@ busMarker.setLngLat([lng,lat]);
 
 map.easeTo({
 center:[lng,lat],
-duration:200
+duration:intervalo
 });
 
 step++;
 
 if(step>steps){
+
 clearInterval(anim);
 indice++;
+moverBus();
+
 }
 
-},30);
+},intervalo);
 
 }
 
@@ -389,18 +403,15 @@ cargarRecorrido(this.value);
 
 document.getElementById("btn-play").onclick=function(){
 
-clearInterval(timer);
-
-let velocidad=parseInt(document.getElementById("velocidad").value);
-
-timer=setInterval(moverBus,velocidad);
+reproduciendo=true;
+moverBus();
 
 };
 
-
-
 document.getElementById("btn-pause").onclick=function(){
-clearInterval(timer);
+
+reproduciendo=false;
+
 };
 
 });
