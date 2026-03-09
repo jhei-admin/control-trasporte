@@ -2507,13 +2507,11 @@ def api_panel_frecuencia(request):
     config = ConfiguracionDespacho.objects.filter(activa=True).first()
     intervalo = config.intervalo_fijo if config and config.intervalo_fijo else 6
 
+    # ⚠ quitar filtro activo
     salidas = (
         RegistroSalida.objects
         .select_related("vehiculo")
-        .filter(
-            fecha=hoy,
-            activo=True
-        )
+        .filter(fecha=hoy)
         .order_by("vehiculo__codigo")
     )
 
@@ -2541,7 +2539,6 @@ def api_panel_frecuencia(request):
                 punto=punto
             ).first()
 
-            # si no hay marcación
             if not marcacion or not marcacion.hora_marcada:
                 valor = None
 
@@ -2559,7 +2556,7 @@ def api_panel_frecuencia(request):
 
         data.append(fila)
 
-    # ordenar por avance en ruta
+    # ordenar por avance
     data.sort(key=lambda x: x["avance"], reverse=True)
 
     # calcular frecuencia entre buses
@@ -2576,11 +2573,9 @@ def api_panel_frecuencia(request):
 
             actual["frecuencia"] = int(diff)
 
-            # hueco
             if diff > intervalo * 1.5:
                 actual["hueco"] = True
 
-            # convoy (buses pegados)
             if diff < intervalo * 0.5:
                 actual["pegado"] = True
 
