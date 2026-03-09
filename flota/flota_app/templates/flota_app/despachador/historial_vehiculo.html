@@ -174,8 +174,9 @@ return R*c;
 
 
 /* FILTRAR PUNTOS GPS */
+/* 🔧 AJUSTE: ahora 8 metros */
 
-function filtrarPuntos(lista,minDist=20){
+function filtrarPuntos(lista,minDist=8){
 
 if(!lista.length) return [];
 
@@ -214,8 +215,6 @@ const angulo=Math.atan2(dy,dx)*180/Math.PI;
 
 const arrow=document.createElement("div");
 
-/* FLECHA MAS VISIBLE */
-
 arrow.style.width="0";
 arrow.style.height="0";
 arrow.style.borderTop="7px solid transparent";
@@ -224,13 +223,7 @@ arrow.style.borderLeft="14px solid white";
 arrow.style.filter="drop-shadow(0 0 2px black)";
 arrow.style.transform=`rotate(${angulo}deg)`;
 
-
-/* DATOS DEL GPS */
-
 let info = puntosOriginal[i] || {};
-
-
-/* POPUP */
 
 let popup = new mapboxgl.Popup({
 closeButton:false,
@@ -239,7 +232,6 @@ offset:15
 <b>Unidad {{ vehiculo.codigo }}</b><br>
 ${info.hora || ""} ${info.velocidad || ""} Km/h
 `);
-
 
 const marker=new mapboxgl.Marker(arrow)
 .setLngLat(p1)
@@ -278,16 +270,16 @@ indice=0;
 
 puntosOriginal=data;
 
-/* FILTRAR PUNTOS */
+/* 🔧 FILTRO MÁS SUAVE */
 
-puntos = filtrarPuntos(data.map(p=>[p.lng,p.lat]),20);
+puntos = filtrarPuntos(data.map(p=>[p.lng,p.lat]),8);
 
 if(!puntos.length){
 console.warn("No hay puntos después del filtro");
 return;
 }
 
-/* DIBUJAR FLECHAS */
+/* FLECHAS */
 
 dibujarFlechas();
 
@@ -336,7 +328,9 @@ return;
 const start=puntos[indice];
 const end=puntos[indice+1];
 
-let steps=12;
+/* 🔧 MÁS SUAVIDAD */
+
+let steps=25;
 let step=0;
 
 let dx=end[0]-start[0];
