@@ -2496,6 +2496,8 @@ def panel_frecuencia(request):
 @require_GET
 def api_panel_frecuencia(request):
 
+    hoy = timezone.localdate()
+
     puntos = list(
         PuntoControl.objects
         .filter(activo=True)
@@ -2505,10 +2507,11 @@ def api_panel_frecuencia(request):
     config = ConfiguracionDespacho.objects.filter(activa=True).first()
     intervalo = config.intervalo_fijo if config and config.intervalo_fijo else 6
 
-    # 🔹 traer todas las salidas
+    # 🔹 EXACTAMENTE igual que usa el panel despachador
     salidas = (
         RegistroSalida.objects
         .select_related("vehiculo")
+        .filter(activo=True)
         .order_by("vehiculo__codigo")
     )
 
