@@ -4,15 +4,20 @@
 
 <h2>CONTROL DE FRECUENCIA</h2>
 
+<div style="overflow-x:auto">
+
 <table class="table table-bordered text-center" id="tablaFrecuencia">
 
 <thead class="table-dark">
 <tr id="headerFrecuencia">
+
 <th>Unidad</th>
 
 {% for p in puntos %}
 <th>{{ p.codigo }}</th>
 {% endfor %}
+
+<th>Freq</th>
 
 </tr>
 </thead>
@@ -51,6 +56,8 @@ N
 
 {% endfor %}
 
+<td>-</td>
+
 </tr>
 
 {% endfor %}
@@ -59,10 +66,9 @@ N
 
 </table>
 
+</div>
 
-<!-- ======================================= -->
-<!-- 🔄 AJAX ACTUALIZACIÓN CADA 3 SEGUNDOS -->
-<!-- ======================================= -->
+
 <script>
 
 async function actualizarFrecuencia(){
@@ -76,35 +82,56 @@ async function actualizarFrecuencia(){
 
         body.innerHTML = ""
 
-        json.data.forEach(fila => {
+        json.data.forEach((fila,index)=>{
 
-            let tr = `<tr>`
+            let claseFila=""
+
+            if(fila.hueco){
+                claseFila="table-warning"
+            }
+
+            if(fila.pegado){
+                claseFila="table-danger"
+            }
+
+            let tr = `<tr class="${claseFila}">`
+
             tr += `<td class="fw-bold">${fila.unidad}</td>`
 
-            fila.controles.forEach(v => {
+            fila.controles.forEach(v=>{
 
-                let clase = ""
-                let valor = v
+                let clase=""
+                let valor=v
 
-                if(v === null){
-                    valor = "N"
+                if(v===null){
+                    valor="N"
                 }
 
-                if(v === "pendiente"){
-                    valor = "•"
+                if(v==="pendiente"){
+                    valor="•"
                 }
 
-                if(typeof v === "number"){
+                if(typeof v==="number"){
 
-                    if(v > 0) clase = "bg-danger text-white"
-                    if(v < 0) clase = "bg-info text-dark"
-                    if(v == 0) clase = "bg-success text-white"
+                    if(v>0) clase="bg-danger text-white"
+                    if(v<0) clase="bg-info text-dark"
+                    if(v==0) clase="bg-success text-white"
 
                 }
 
                 tr += `<td class="${clase}">${valor}</td>`
 
             })
+
+            let freq=""
+
+            if(index===0){
+                freq="Líder"
+            }else{
+                freq = fila.frecuencia ? fila.frecuencia+" min" : "-"
+            }
+
+            tr += `<td><b>${freq}</b></td>`
 
             tr += "</tr>"
 
@@ -120,11 +147,9 @@ async function actualizarFrecuencia(){
 
 }
 
-/* carga inicial */
 actualizarFrecuencia()
 
-/* actualización automática */
-setInterval(actualizarFrecuencia, 3000)
+setInterval(actualizarFrecuencia,3000)
 
 </script>
 

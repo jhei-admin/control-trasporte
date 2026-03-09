@@ -2481,35 +2481,46 @@ def debug_gps(request):
 # =================================================
 # 📊 PANEL FRECUENCIA DE RUTA
 # =================================================
-def panel_frecuencia(request):
+@require_GET
+def api_panel_frecuencia(request):
 
     hoy = timezone.localdate()
 
-    # puntos de control ordenados
     puntos = list(
         PuntoControl.objects
         .filter(activo=True)
         .order_by("orden")
     )
 
-    # salidas activas del día
+    # intervalo programado
+    config = ConfiguracionDespacho.objects.filter(activa=True).first()
+    intervalo = config.intervalo_fijo if config and config.intervalo_fijo else 6
+
     salidas = (
         RegistroSalida.objects
-        .select_related("vehiculo", "ruta")
+        .select_related("vehiculo")
         .filter(
-            fecha=hoy
+            fecha=hoy,
+            activo=True
         )
-        .order_by("vehiculo__codigo")
     )
 
-    tabla = []
+    data = []
 
     for salida in salidas:
 
         fila = {
             "unidad": salida.vehiculo.codigo,
-            "controles": []
+            "controles": [],
+            "avance": 0,
+            "ultimo_tiempo": None,
+            "frecuencia": None,
+            "hueco": False,
+            "pegado": False
         }
+
+        ultimo_orden = 0
+        ultimo_tiempo = None
 
         for punto in puntos:
 
@@ -2523,23 +2534,54 @@ def panel_frecuencia(request):
             )
 
             if not marcacion:
-                valor = "N"
+                valor = None
 
             elif marcacion.hora_marcada:
+
                 valor = marcacion.diferencia_minutos
 
+                if punto.orden > ultimo_orden:
+                    ultimo_orden = punto.orden
+                    ultimo_tiempo = marcacion.hora_marcada
+
             else:
-                valor = "—"
+                valor = "pendiente"
 
             fila["controles"].append(valor)
 
-        tabla.append(fila)
+        fila["avance"] = ultimo_orden
+        fila["ultimo_tiempo"] = ultimo_tiempo
 
-    return render(
-        request,
-        "flota_app/despachador/frecuencia_ruta.html",
-        {
-            "puntos": puntos,
-            "tabla": tabla
-        }
-    )   
+        data.append(fila)
+
+    # ordenar por avance en la ruta
+    data.sort(key=lambda x: x["avance"], reverse=True)
+
+    # =========================================
+    # DETECCIÓN DE FRECUENCIA ENTRE BUSES
+    # =========================================
+    for i in range(1, len(data)):
+
+        actual = data[i]
+        anterior = data[i-1]
+
+        if actual["ultimo_tiempo"] and anterior["ultimo_tiempo"]:
+
+            diff = (
+                actual["ultimo_tiempo"] - anterior["ultimo_tiempo"]
+            ).total_seconds() / 60
+
+            actual["frecuencia"] = int(diff)
+
+            # hueco
+            if diff > intervalo * 1.5:
+                actual["hueco"] = True
+
+            # buses pegados
+            if diff < intervalo * 0.5:
+                actual["pegado"] = True
+
+    return JsonResponse({
+        "puntos": [p.codigo for p in puntos],
+        "data": data
+    })
