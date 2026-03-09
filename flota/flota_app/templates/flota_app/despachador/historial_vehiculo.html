@@ -143,12 +143,18 @@ zoom: 13
 
 let busMarker = null;
 let puntos = [];
+let puntosOriginal = [];
 let indice = 0;
 let timer = null;
 
-let flechas = [];   // NUEVO: guardamos flechas para borrarlas
+let flechas = [];
+let marcadoresParadas = [];
+let markerInicio = null;
+let markerFin = null;
 
 
+
+/* DISTANCIA */
 
 function distanciaEntre(p1,p2){
 
@@ -171,6 +177,8 @@ return R*c;
 
 
 
+/* FILTRO DE PUNTOS */
+
 function filtrarPuntos(lista,minDist=20){
 
 if(!lista.length) return [];
@@ -191,13 +199,22 @@ return result;
 
 
 
+/* FLECHAS DE DIRECCION */
+
 function dibujarFlechas(){
 
-// borrar flechas anteriores
 flechas.forEach(f=>f.remove());
 flechas=[];
 
-for(let i=0;i<puntos.length;i+=5){
+for(let i=0;i<puntos.length-1;i+=3){
+
+const p1=puntos[i];
+const p2=puntos[i+1];
+
+const dx=p2[0]-p1[0];
+const dy=p2[1]-p1[1];
+
+const angulo=Math.atan2(dy,dx)*180/Math.PI;
 
 const arrow=document.createElement("div");
 
@@ -206,9 +223,10 @@ arrow.style.height="0";
 arrow.style.borderTop="6px solid transparent";
 arrow.style.borderBottom="6px solid transparent";
 arrow.style.borderLeft="12px solid #00e5ff";
+arrow.style.transform=`rotate(${angulo}deg)`;
 
 const marker=new mapboxgl.Marker(arrow)
-.setLngLat(puntos[i])
+.setLngLat(p1)
 .addTo(map);
 
 flechas.push(marker);
@@ -218,6 +236,72 @@ flechas.push(marker);
 }
 
 
+
+/* DETECTAR PARADAS */
+
+function detectarParadas(){
+
+marcadoresParadas.forEach(m=>m.remove());
+marcadoresParadas=[];
+
+let contador=0;
+
+for(let i=1;i<puntosOriginal.length;i++){
+
+let p1=puntosOriginal[i-1];
+let p2=puntosOriginal[i];
+
+let dist=distanciaEntre([p1.lng,p1.lat],[p2.lng,p2.lat]);
+
+if(dist<10){
+contador++;
+}else{
+contador=0;
+}
+
+if(contador>=5){
+
+const marker=new mapboxgl.Marker({color:"yellow"})
+.setLngLat([p2.lng,p2.lat])
+.setPopup(
+new mapboxgl.Popup().setHTML("⏸ Parada detectada")
+)
+.addTo(map);
+
+marcadoresParadas.push(marker);
+
+contador=0;
+
+}
+
+}
+
+}
+
+
+
+/* MARCADORES INICIO Y FIN */
+
+function marcarInicioFin(){
+
+if(markerInicio) markerInicio.remove();
+if(markerFin) markerFin.remove();
+
+markerInicio = new mapboxgl.Marker({color:"green"})
+.setLngLat(puntos[0])
+.setPopup(new mapboxgl.Popup().setText("Inicio"))
+.addTo(map);
+
+markerFin = new mapboxgl.Marker({color:"red"})
+.setLngLat(puntos[puntos.length-1])
+.setPopup(new mapboxgl.Popup().setText("Fin"))
+.addTo(map);
+
+}
+
+
+
+/* CARGAR RECORRIDO */
 
 function cargarRecorrido(fecha){
 
@@ -239,12 +323,16 @@ return;
 
 indice=0;
 
+puntosOriginal=data;
+
 puntos = filtrarPuntos(data.map(p=>[p.lng,p.lat]),20);
 
 if(!puntos.length){
 console.warn("No hay puntos después del filtro");
 return;
 }
+
+
 
 const geojson={
 type:"Feature",
@@ -265,6 +353,16 @@ type:"geojson",
 data:geojson
 });
 
+map.addLayer({
+id:"ruta-linea",
+type:"line",
+source:"ruta",
+paint:{
+"line-color":"#00e5ff",
+"line-width":4
+}
+});
+
 }else{
 
 map.getSource("ruta").setData(geojson);
@@ -273,9 +371,21 @@ map.getSource("ruta").setData(geojson);
 
 
 
-/* NUEVO: dibujar flechas */
+/* FLECHAS */
 
 dibujarFlechas();
+
+
+
+/* PARADAS */
+
+detectarParadas();
+
+
+
+/* INICIO FIN */
+
+marcarInicioFin();
 
 
 
@@ -285,8 +395,8 @@ if(busMarker) busMarker.remove();
 
 const busIcon=document.createElement("div");
 
-busIcon.style.width="28px";
-busIcon.style.height="28px";
+busIcon.style.width="30px";
+busIcon.style.height="30px";
 busIcon.style.backgroundImage="url('https://cdn-icons-png.flaticon.com/512/61/61231.png')";
 busIcon.style.backgroundSize="contain";
 busIcon.style.backgroundRepeat="no-repeat";
@@ -322,8 +432,16 @@ return;
 const start=puntos[indice];
 const end=puntos[indice+1];
 
-let steps=10;
+let steps=12;
 let step=0;
+
+let dx=end[0]-start[0];
+let dy=end[1]-start[1];
+
+let angulo=Math.atan2(dy,dx)*180/Math.PI;
+
+busMarker.getElement().style.transform=`rotate(${angulo}deg)`;
+
 
 let anim=setInterval(()=>{
 
