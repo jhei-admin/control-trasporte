@@ -997,44 +997,62 @@ def api_buscar_vehiculo_por_codigo(request):
 @require_GET
 def api_recorrido_vehiculo(request):
     """
-    Devuelve el recorrido GPS de un vehículo en una fecha dada.
-    Usado para auditoría y análisis (PASO E1 + E2).
+    Devuelve el recorrido GPS de un vehículo SOLO durante su salida real.
+    Evita mostrar GPS cuando el vehículo está fuera de servicio.
     """
 
     vehiculo_id = request.GET.get("vehiculo")
     fecha = request.GET.get("fecha")
 
     if not vehiculo_id or not fecha:
-        return JsonResponse(
-            {"error": "Parámetros incompletos"},
-            status=400
-        )
+        return JsonResponse({"error": "Parámetros incompletos"}, status=400)
 
     try:
         fecha_dt = datetime.strptime(fecha, "%Y-%m-%d").date()
     except ValueError:
-        return JsonResponse(
-            {"error": "Fecha inválida"},
-            status=400
-        )
+        return JsonResponse({"error": "Fecha inválida"}, status=400)
 
-    registros = (
-        GPSRegistro.objects
-        .filter(
-            sesion__vehiculo_id=vehiculo_id,
-            timestamp__date=fecha_dt
-        )
-        .order_by("timestamp")
+    # ------------------------------------------------
+    # 🚍 SALIDAS DEL VEHÍCULO ESE DÍA
+    # ------------------------------------------------
+    salidas = list(
+        RegistroSalida.objects.filter(
+            vehiculo_id=vehiculo_id,
+            fecha=fecha_dt
+        ).order_by("hora_real_salida")
     )
 
+    if not salidas:
+        return JsonResponse([], safe=False)
+
     data = []
-    for r in registros:
-        data.append({
-            "lat": r.lat,
-            "lng": r.lng,
-            "hora": r.timestamp.strftime("%H:%M:%S"),
-            "velocidad": r.velocidad or 0
-        })
+
+    for i, salida in enumerate(salidas):
+
+        if not salida.hora_real_salida:
+            continue
+
+        inicio = salida.hora_real_salida
+
+        # siguiente salida
+        if i + 1 < len(salidas) and salidas[i + 1].hora_real_salida:
+            fin = salidas[i + 1].hora_real_salida
+        else:
+            fin = inicio + timedelta(hours=3)  # margen máximo
+
+        registros = GPSRegistro.objects.filter(
+            sesion__vehiculo_id=vehiculo_id,
+            timestamp__gte=inicio,
+            timestamp__lte=fin
+        ).order_by("timestamp")
+
+        for r in registros:
+            data.append({
+                "lat": r.lat,
+                "lng": r.lng,
+                "hora": r.timestamp.strftime("%H:%M:%S"),
+                "velocidad": r.velocidad or 0
+            })
 
     return JsonResponse(data, safe=False)
 
