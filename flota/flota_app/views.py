@@ -2481,6 +2481,18 @@ def debug_gps(request):
 # =================================================
 # 📊 PANEL FRECUENCIA DE RUTA
 # =================================================
+def panel_frecuencia(request):
+
+    puntos = PuntoControl.objects.filter(activo=True).order_by("orden")
+
+    return render(
+        request,
+        "flota_app/despachador/frecuencia_ruta.html",
+        {
+            "puntos": puntos
+        }
+    )
+
 @require_GET
 def api_panel_frecuencia(request):
 
@@ -2492,7 +2504,6 @@ def api_panel_frecuencia(request):
         .order_by("orden")
     )
 
-    # intervalo programado
     config = ConfiguracionDespacho.objects.filter(activa=True).first()
     intervalo = config.intervalo_fijo if config and config.intervalo_fijo else 6
 
@@ -2524,14 +2535,10 @@ def api_panel_frecuencia(request):
 
         for punto in puntos:
 
-            marcacion = (
-                MarcacionPunto.objects
-                .filter(
-                    registro_salida=salida,
-                    punto=punto
-                )
-                .first()
-            )
+            marcacion = MarcacionPunto.objects.filter(
+                registro_salida=salida,
+                punto=punto
+            ).first()
 
             if not marcacion:
                 valor = None
@@ -2554,12 +2561,8 @@ def api_panel_frecuencia(request):
 
         data.append(fila)
 
-    # ordenar por avance en la ruta
     data.sort(key=lambda x: x["avance"], reverse=True)
 
-    # =========================================
-    # DETECCIÓN DE FRECUENCIA ENTRE BUSES
-    # =========================================
     for i in range(1, len(data)):
 
         actual = data[i]
@@ -2573,11 +2576,9 @@ def api_panel_frecuencia(request):
 
             actual["frecuencia"] = int(diff)
 
-            # hueco
             if diff > intervalo * 1.5:
                 actual["hueco"] = True
 
-            # buses pegados
             if diff < intervalo * 0.5:
                 actual["pegado"] = True
 

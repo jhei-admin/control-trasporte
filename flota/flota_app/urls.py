@@ -296,6 +296,11 @@ urlpatterns = [
         views.panel_frecuencia,
         name="panel_frecuencia"
     ),
+    path(
+        "api/frecuencia/",
+        views.api_panel_frecuencia,
+        name="api_panel_frecuencia"
+    ),
 
     # =========================
     # 🧪 DEBUG
