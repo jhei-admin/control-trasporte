@@ -2514,6 +2514,7 @@ def api_panel_frecuencia(request):
             fecha=hoy,
             activo=True
         )
+        .order_by("vehiculo__codigo")
     )
 
     data = []
@@ -2540,19 +2541,16 @@ def api_panel_frecuencia(request):
                 punto=punto
             ).first()
 
-            if not marcacion:
+            # si no hay marcación
+            if not marcacion or not marcacion.hora_marcada:
                 valor = None
 
-            elif marcacion.hora_marcada:
-
+            else:
                 valor = marcacion.diferencia_minutos
 
                 if punto.orden > ultimo_orden:
                     ultimo_orden = punto.orden
                     ultimo_tiempo = marcacion.hora_marcada
-
-            else:
-                valor = "pendiente"
 
             fila["controles"].append(valor)
 
@@ -2561,8 +2559,10 @@ def api_panel_frecuencia(request):
 
         data.append(fila)
 
+    # ordenar por avance en ruta
     data.sort(key=lambda x: x["avance"], reverse=True)
 
+    # calcular frecuencia entre buses
     for i in range(1, len(data)):
 
         actual = data[i]
@@ -2576,9 +2576,11 @@ def api_panel_frecuencia(request):
 
             actual["frecuencia"] = int(diff)
 
+            # hueco
             if diff > intervalo * 1.5:
                 actual["hueco"] = True
 
+            # convoy (buses pegados)
             if diff < intervalo * 0.5:
                 actual["pegado"] = True
 

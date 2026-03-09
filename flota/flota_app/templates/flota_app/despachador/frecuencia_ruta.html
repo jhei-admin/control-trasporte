@@ -6,10 +6,10 @@
 
 <div style="overflow-x:auto">
 
-<table class="table table-bordered text-center" id="tablaFrecuencia">
+<table class="table table-bordered text-center">
 
 <thead class="table-dark">
-<tr id="headerFrecuencia">
+<tr>
 
 <th>Unidad</th>
 
@@ -23,45 +23,6 @@
 </thead>
 
 <tbody id="bodyFrecuencia">
-
-{% for fila in tabla %}
-
-<tr>
-
-<td class="fw-bold">{{ fila.unidad }}</td>
-
-{% for v in fila.controles %}
-
-<td
-{% if v != "N" and v != "—" %}
-    {% if v > 0 %}
-        class="bg-danger text-white"
-    {% elif v < 0 %}
-        class="bg-info text-dark"
-    {% else %}
-        class="bg-success text-white"
-    {% endif %}
-{% endif %}
->
-
-{% if v == "N" %}
-N
-{% elif v == "—" %}
-•
-{% else %}
-{{ v }}
-{% endif %}
-
-</td>
-
-{% endfor %}
-
-<td>-</td>
-
-</tr>
-
-{% endfor %}
-
 </tbody>
 
 </table>
@@ -107,15 +68,11 @@ async function actualizarFrecuencia(){
                     valor="N"
                 }
 
-                if(v==="pendiente"){
-                    valor="•"
-                }
-
                 if(typeof v==="number"){
 
                     if(v>0) clase="bg-danger text-white"
                     if(v<0) clase="bg-info text-dark"
-                    if(v==0) clase="bg-success text-white"
+                    if(v===0) clase="bg-success text-white"
 
                 }
 
