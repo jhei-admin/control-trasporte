@@ -20,8 +20,8 @@
     <a href="{% url 'panel_frecuencia' %}" class="btn btn-outline-success btn-sm">
         📊 Control de frecuencia
     </a>
-    <a href="{% url 'reporte_salidas_diarias' 0 %}?fecha={{ hoy }}" class="btn btn-outline-warning btn-sm">
-        📋 Salidas del día
+    <a href="{% url 'reporte_salidas_diarias' 0 %}?fecha={{ today|date:'Y-m-d' }}" class="btn btn-warning btn-sm">
+        🚌 Salidas del día
     </a>
 </div>
 
