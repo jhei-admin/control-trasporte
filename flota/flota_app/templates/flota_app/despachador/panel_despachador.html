@@ -4,156 +4,229 @@
 
 {% block content %}
 
-<h2 class="mb-3">Panel del Despachador</h2>
-<hr>
+<h2 class="mb-3">🚍 Panel del Despachador</h2>
 
-{# ================================================== #}
-{# 🔘 BOTONES SUPERIORES                              #}
-{# ================================================== #}
-<div class="mb-3 d-flex gap-2 flex-wrap">
-    <a href="{% url 'historial_salidas' %}" class="btn btn-dark btn-sm">
-        🧾 Historial de salidas
-    </a>
-    <a href="{% url 'despachador_mapa' %}" class="btn btn-outline-primary btn-sm">
-        🗺️ Ver mapa en tiempo real
-    </a>
-    <a href="{% url 'panel_frecuencia' %}" class="btn btn-outline-success btn-sm">
-        📊 Control de frecuencia
-    </a>
-    <a href="{% url 'reporte_salidas_diarias' 1 %}?fecha={% now 'Y-m-d' %}" 
-   class="btn btn-warning btn-sm">
-    🚚 Salidas del día
-    </a>
+<div class="mb-4 d-flex gap-2 flex-wrap">
+
+<a href="{% url 'historial_salidas' %}" class="btn btn-dark btn-sm">
+🧾 Historial
+</a>
+
+<a href="{% url 'despachador_mapa' %}" class="btn btn-outline-primary btn-sm">
+🗺️ Mapa en tiempo real
+</a>
+
+<a href="{% url 'panel_frecuencia' %}" class="btn btn-outline-success btn-sm">
+📊 Frecuencia
+</a>
+
+<a href="{% url 'reporte_salidas_diarias' 1 %}?fecha={% now 'Y-m-d' %}" 
+class="btn btn-warning btn-sm">
+🚚 Salidas del día
+</a>
+
 </div>
 
-{# ================================================== #}
-{# 🔍 BUSCADOR DE UNIDAD                              #}
-{# ================================================== #}
+<div class="card-panel mb-3">
+
 <form method="post"
-      action="{% url 'buscar_unidad_panel' %}"
-      class="mb-3 d-flex gap-2 align-items-center flex-wrap"
-      style="max-width: 480px;">
-    {% csrf_token %}
-    <input type="text"
-           name="codigo"
-           class="form-control"
-           placeholder="🔍 Buscar unidad por código (ej: 01)"
-           autocomplete="off"
-           required>
-    <button class="btn btn-success">➕ Agregar</button>
-</form>
+action="{% url 'buscar_unidad_panel' %}"
+class="d-flex gap-2 flex-wrap">
+
+{% csrf_token %}
 
 <input type="text"
-       id="busquedaUnidad"
-       class="form-control mb-3"
-       placeholder="Filtrar unidades visibles"
-       style="max-width: 320px;">
+name="codigo"
+class="form-control"
+placeholder="Buscar unidad (01, 02...)"
+style="max-width:200px"
+required>
 
-{# ================================================== #}
-{# 📋 TABLA PRINCIPAL (SIMPLE, REAL Y RESPONSIVE)    #}
-{# ================================================== #}
+<button class="btn btn-success">
+➕ Agregar
+</button>
+
+<input type="text"
+id="busquedaUnidad"
+class="form-control"
+placeholder="Filtrar unidades"
+style="max-width:220px">
+
+</form>
+
+</div>
+
 <div class="table-responsive">
-<table class="table table-bordered table-striped table-sm align-middle">
+
+<table class="table table-modern table-bordered align-middle">
+
 <thead class="table-dark text-center">
+
 <tr>
-    <th>Vehículo</th>
-    <th>Ruta</th>
-    <th>Hora llegada</th>
-    <th>Hora salida</th>
-    <th>Estado</th>
-    <th style="min-width:320px">Acciones</th>
+<th>Unidad</th>
+<th>Ruta</th>
+<th>Llegada</th>
+<th>Salida</th>
+<th>Estado</th>
+<th style="min-width:280px">Acciones</th>
 </tr>
+
 </thead>
 
 <tbody>
+
 {% for s in salidas %}
+
 <tr class="fila-unidad" data-unidad="{{ s.vehiculo.codigo|lower }}">
-    <td class="text-center fw-bold">{{ s.vehiculo.codigo }}</td>
-    <td>{{ s.ruta.nombre }}</td>
-    <td class="text-center">{{ s.hora_llegada|date:"H:i" }}</td>
 
-    <td class="text-center">
-        {% if s.hora_salida %}
-            {{ s.hora_salida|date:"H:i" }}
-        {% else %}
-            —
-        {% endif %}
-    </td>
+<td class="text-center fw-bold">
+{{ s.vehiculo.codigo }}
+</td>
 
-    {# ================= ESTADO SOLO VISUAL ================= #}
-    <td class="text-center">
-        {% if not s.hora_salida %}
-            <span class="badge bg-secondary">SIN HORA</span>
-        {% else %}
-            {% now "Y-m-d H:i" as ahora %}
-            {% if s.hora_salida|date:"Y-m-d H:i" > ahora %}
-                <span class="badge bg-info text-dark">PROGRAMADO</span>
-            {% else %}
-                <span class="badge bg-danger">ATRASADO</span>
-            {% endif %}
-        {% endif %}
-    </td>
+<td>
+{{ s.ruta.nombre }}
+</td>
 
-    {# ================= ACCIONES ================= #}
-    <td class="text-center d-flex flex-wrap justify-content-center gap-1">
+<td class="text-center">
+{{ s.hora_llegada|date:"H:i" }}
+</td>
 
-        {# Control de ruta, detalle y QR con texto #}
-<a href="{% url 'control_ruta' s.id %}" class="btn btn-sm btn-outline-primary">
-    🕒 Control ruta
+<td class="text-center">
+
+{% if s.hora_salida %}
+{{ s.hora_salida|date:"H:i" }}
+{% else %}
+—
+{% endif %}
+
+</td>
+
+<td class="text-center">
+
+{% if not s.hora_salida %}
+<span class="badge badge-sinhora">SIN HORA</span>
+
+{% else %}
+
+{% now "Y-m-d H:i" as ahora %}
+
+{% if s.hora_salida|date:"Y-m-d H:i" > ahora %}
+
+<span class="badge badge-programado">
+PROGRAMADO
+</span>
+
+{% else %}
+
+<span class="badge badge-atrasado">
+ATRASADO
+</span>
+
+{% endif %}
+
+{% endif %}
+
+</td>
+
+<td class="text-center d-flex flex-wrap gap-1 justify-content-center">
+
+<a href="{% url 'control_ruta' s.id %}" 
+class="btn btn-sm btn-outline-primary btn-icon"
+title="Control ruta">
+🕒
 </a>
-<a href="{% url 'detalle_salida' s.id %}" class="btn btn-sm btn-outline-info">
-    📍 Ver puntos
+
+<a href="{% url 'detalle_salida' s.id %}"
+class="btn btn-sm btn-outline-info btn-icon"
+title="Ver puntos">
+📍
 </a>
-<a href="{% url 'ver_qr_unidad' s.vehiculo.id %}" class="btn btn-sm btn-outline-dark">
-    📦 Ver QR
+
+<a href="{% url 'ver_qr_unidad' s.vehiculo.id %}"
+class="btn btn-sm btn-outline-dark btn-icon"
+title="QR">
+QR
 </a>
 
-        {# Fijar / Cambiar hora #}
-        <form method="post"
-              action="{% url 'asignar_hora_fija' s.id %}"
-              class="d-inline-flex gap-1">
-            {% csrf_token %}
-            <input type="time"
-                   name="hora_fija"
-                   class="form-control form-control-sm"
-                   style="width:90px"
-                   required>
-            <button class="btn btn-sm btn-warning">
-                {% if s.hora_salida %}✏️ Cambiar{% else %}🔒 Fijar{% endif %}
-            </button>
-        </form>
+<form method="post"
+action="{% url 'asignar_hora_fija' s.id %}"
+class="d-flex gap-1">
 
-        {# Quitar hora #}
-        {% if s.hora_salida %}
-        <form method="post"
-              action="{% url 'desbloquear_hora' s.id %}"
-              class="d-inline">
-            {% csrf_token %}
-            <button class="btn btn-sm btn-outline-secondary">❌</button>
-        </form>
-        {% endif %}
+{% csrf_token %}
 
-    </td>
+<input type="time"
+name="hora_fija"
+class="form-control form-control-sm"
+style="width:85px"
+required>
+
+<button class="btn btn-sm btn-warning btn-icon">
+
+{% if s.hora_salida %}
+✏
+{% else %}
+🔒
+{% endif %}
+
+</button>
+
+</form>
+
+{% if s.hora_salida %}
+
+<form method="post"
+action="{% url 'desbloquear_hora' s.id %}">
+
+{% csrf_token %}
+
+<button class="btn btn-sm btn-outline-secondary btn-icon">
+❌
+</button>
+
+</form>
+
+{% endif %}
+
+</td>
+
 </tr>
+
 {% empty %}
+
 <tr>
-    <td colspan="6" class="text-center text-muted">
-        No hay salidas registradas
-    </td>
+
+<td colspan="6" class="text-center text-muted">
+No hay salidas registradas
+</td>
+
 </tr>
+
 {% endfor %}
+
 </tbody>
+
 </table>
+
 </div>
 
 <script>
-document.getElementById("busquedaUnidad").addEventListener("keyup", function () {
-    const filtro = this.value.toLowerCase().trim();
-    document.querySelectorAll(".fila-unidad").forEach(fila => {
-        const unidad = fila.dataset.unidad || "";
-        fila.style.display = unidad.includes(filtro) ? "" : "none";
-    });
+
+document.getElementById("busquedaUnidad")
+.addEventListener("keyup", function () {
+
+const filtro = this.value.toLowerCase();
+
+document.querySelectorAll(".fila-unidad")
+.forEach(fila => {
+
+const unidad = fila.dataset.unidad || "";
+
+fila.style.display = unidad.includes(filtro) ? "" : "none";
+
 });
+
+});
+
 </script>
 
 {% endblock %}
