@@ -178,7 +178,19 @@ No hay salidas registradas
 
 function actualizarHora(){
 const ahora = new Date()
-document.getElementById("horaSistema").innerText = ahora.toLocaleTimeString()
+
+const opciones = {
+weekday: 'short',
+year: 'numeric',
+month: 'short',
+day: 'numeric',
+hour: '2-digit',
+minute: '2-digit',
+second: '2-digit'
+}
+
+document.getElementById("horaSistema")
+.innerText = ahora.toLocaleDateString('es-PE', opciones)
 }
 
 setInterval(actualizarHora,1000)
