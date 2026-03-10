@@ -2034,12 +2034,27 @@ def asignar_hora_fija(request, salida_id):
     return redirect("panel_despachador")
 
 # =================================================
-# 🔓 DESBLOQUEAR HORA FIJA (VOLVER A AUTOMÁTICO)
+# 🔓 DESBLOQUEAR HORA FIJA (VOLVER A SIN HORA)
 # =================================================
 @require_POST
 def desbloquear_hora(request, salida_id):
+
     salida = get_object_or_404(RegistroSalida, id=salida_id)
 
+    # verificar si ya marcó SALI
+    marco_sali = MarcacionPunto.objects.filter(
+        registro_salida=salida,
+        punto__tipo="SALI"
+    ).exists()
+
+    if marco_sali:
+        messages.error(
+            request,
+            "No se puede cancelar la salida porque la unidad ya inició la ruta."
+        )
+        return redirect("panel_despachador")
+
+    # si no estaba bloqueado
     if not salida.bloqueado:
         messages.info(
             request,
@@ -2047,13 +2062,16 @@ def desbloquear_hora(request, salida_id):
         )
         return redirect("panel_despachador")
 
+    # volver a SIN HORA
+    salida.hora_salida = None
     salida.bloqueado = False
-    salida.save(update_fields=["bloqueado"])
+    salida.save(update_fields=["hora_salida", "bloqueado"])
 
     messages.success(
         request,
-        "Hora fija eliminada. Unidad en modo automático."
+        "Salida cancelada. Unidad nuevamente SIN HORA."
     )
+
     return redirect("panel_despachador")
 
 # =================================================
