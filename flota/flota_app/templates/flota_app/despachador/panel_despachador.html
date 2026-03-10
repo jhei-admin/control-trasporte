@@ -6,6 +6,31 @@
 
 <h2 class="mb-4 fw-bold">🚍 Panel del Despachador</h2>
 
+<div class="dashboard">
+
+<div class="stat-card stat-green">
+<div class="stat-num">{{ salidas|length }}</div>
+<div class="stat-label">Unidades activas</div>
+</div>
+
+<div class="stat-card stat-blue">
+<div class="stat-num" id="countProgramadas">0</div>
+<div class="stat-label">Programadas</div>
+</div>
+
+<div class="stat-card stat-red">
+<div class="stat-num" id="countAtrasado">0</div>
+<div class="stat-label">Atrasadas</div>
+</div>
+
+<div class="stat-card stat-gray">
+<div class="stat-num" id="countSinHora">0</div>
+<div class="stat-label">Sin hora</div>
+</div>
+
+</div>
+
+
 <div class="toolbar">
 
 <a href="{% url 'historial_salidas' %}" class="btn btn-dark btn-sm">
@@ -81,35 +106,25 @@ style="max-width:220px">
 
 <tr class="fila-unidad" data-unidad="{{ s.vehiculo.codigo|lower }}">
 
-<td class="text-center fw-bold">
-{{ s.vehiculo.codigo }}
-</td>
+<td class="text-center fw-bold">{{ s.vehiculo.codigo }}</td>
 
-<td>
-{{ s.ruta.nombre }}
-</td>
+<td>{{ s.ruta.nombre }}</td>
+
+<td class="text-center">{{ s.hora_llegada|date:"H:i" }}</td>
 
 <td class="text-center">
-{{ s.hora_llegada|date:"H:i" }}
-</td>
-
-<td class="text-center">
-
 {% if s.hora_salida %}
 {{ s.hora_salida|date:"H:i" }}
 {% else %}
 —
 {% endif %}
-
 </td>
 
 <td class="text-center">
 
 {% if not s.hora_salida %}
 
-<span class="badge badge-sinhora">
-SIN HORA
-</span>
+<span class="badge badge-sinhora">SIN HORA</span>
 
 {% else %}
 
@@ -117,15 +132,11 @@ SIN HORA
 
 {% if s.hora_salida|date:"Y-m-d H:i" > ahora %}
 
-<span class="badge badge-programado">
-PROGRAMADO
-</span>
+<span class="badge badge-programado">PROGRAMADO</span>
 
 {% else %}
 
-<span class="badge badge-atrasado">
-ATRASADO
-</span>
+<span class="badge badge-atrasado">ATRASADO</span>
 
 {% endif %}
 
@@ -135,61 +146,25 @@ ATRASADO
 
 <td class="text-center d-flex flex-wrap gap-1 justify-content-center">
 
-<a href="{% url 'control_ruta' s.id %}" 
-class="btn btn-sm btn-outline-primary btn-icon"
-title="Control ruta">
-🕒
-</a>
+<a href="{% url 'control_ruta' s.id %}" class="btn btn-sm btn-outline-primary btn-icon">🕒</a>
 
-<a href="{% url 'detalle_salida' s.id %}"
-class="btn btn-sm btn-outline-info btn-icon"
-title="Ver puntos">
-📍
-</a>
+<a href="{% url 'detalle_salida' s.id %}" class="btn btn-sm btn-outline-info btn-icon">📍</a>
 
-<a href="{% url 'ver_qr_unidad' s.vehiculo.id %}"
-class="btn btn-sm btn-outline-dark btn-icon"
-title="QR">
-QR
-</a>
+<a href="{% url 'ver_qr_unidad' s.vehiculo.id %}" class="btn btn-sm btn-outline-dark btn-icon">QR</a>
 
-<form method="post"
-action="{% url 'asignar_hora_fija' s.id %}"
-class="d-flex gap-1">
-
+<form method="post" action="{% url 'asignar_hora_fija' s.id %}" class="d-flex gap-1">
 {% csrf_token %}
-
-<input type="time"
-name="hora_fija"
-class="form-control form-control-sm"
-style="width:85px"
-required>
-
+<input type="time" name="hora_fija" class="form-control form-control-sm" style="width:85px" required>
 <button class="btn btn-sm btn-warning btn-icon">
-
-{% if s.hora_salida %}
-✏
-{% else %}
-🔒
-{% endif %}
-
+{% if s.hora_salida %}✏{% else %}🔒{% endif %}
 </button>
-
 </form>
 
 {% if s.hora_salida %}
-
-<form method="post"
-action="{% url 'desbloquear_hora' s.id %}">
-
+<form method="post" action="{% url 'desbloquear_hora' s.id %}">
 {% csrf_token %}
-
-<button class="btn btn-sm btn-outline-secondary btn-icon">
-❌
-</button>
-
+<button class="btn btn-sm btn-outline-secondary btn-icon">❌</button>
 </form>
-
 {% endif %}
 
 </td>
@@ -199,11 +174,9 @@ action="{% url 'desbloquear_hora' s.id %}">
 {% empty %}
 
 <tr>
-
 <td colspan="6" class="text-center text-muted">
 No hay salidas registradas
 </td>
-
 </tr>
 
 {% endfor %}
@@ -217,21 +190,40 @@ No hay salidas registradas
 
 <script>
 
-document.getElementById("busquedaUnidad")
-.addEventListener("keyup", function () {
+let atrasados=0
+let sinHora=0
+let programados=0
 
-const filtro = this.value.toLowerCase();
+document.querySelectorAll(".fila-unidad").forEach(fila=>{
+
+const texto=fila.innerText
+
+if(texto.includes("ATRASADO")) atrasados++
+if(texto.includes("SIN HORA")) sinHora++
+if(texto.includes("PROGRAMADO")) programados++
+
+})
+
+document.getElementById("countAtrasado").innerText=atrasados
+document.getElementById("countSinHora").innerText=sinHora
+document.getElementById("countProgramadas").innerText=programados
+
+
+document.getElementById("busquedaUnidad")
+.addEventListener("keyup",function(){
+
+const filtro=this.value.toLowerCase()
 
 document.querySelectorAll(".fila-unidad")
-.forEach(fila => {
+.forEach(fila=>{
 
-const unidad = fila.dataset.unidad || "";
+const unidad=fila.dataset.unidad||""
 
-fila.style.display = unidad.includes(filtro) ? "" : "none";
+fila.style.display=unidad.includes(filtro)?"":"none"
 
-});
+})
 
-});
+})
 
 </script>
 
