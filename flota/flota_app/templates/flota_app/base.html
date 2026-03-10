@@ -25,17 +25,16 @@ href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <style>
 
 /* =====================================================
-   FONDO GENERAL DEL SISTEMA
+   FONDO GENERAL
 ===================================================== */
 
 body{
 background:#f1f5f9;
-font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
 }
 
-
 /* =====================================================
-   TARJETAS / PANELES
+   TARJETAS
 ===================================================== */
 
 .card-panel{
@@ -45,67 +44,74 @@ border-radius:10px;
 box-shadow:0 2px 8px rgba(0,0,0,0.06);
 }
 
-
 /* =====================================================
-   TABLAS PROFESIONALES
+   TABLAS MODERNAS (SIN LÍNEAS PESADAS)
 ===================================================== */
 
 .table-modern{
 border-collapse:separate;
-border-spacing:0 6px;
+border-spacing:0 8px;
+}
+
+.table-modern thead th{
+border:none !important;
 }
 
 .table-modern tbody tr{
 background:white;
 box-shadow:0 2px 6px rgba(0,0,0,0.05);
+border-radius:8px;
+}
+
+.table-modern tbody td{
+border:none !important;
 }
 
 .table-modern tbody tr:hover{
 background:#f8fafc;
 }
 
-.table-modern td,
-.table-modern th{
-vertical-align:middle;
-}
-
-
 /* =====================================================
-   BADGES DE ESTADO
+   BADGES
 ===================================================== */
 
 .badge-programado{
 background:#0ea5e9;
 color:white;
 font-weight:500;
+padding:6px 10px;
+border-radius:6px;
 }
 
 .badge-atrasado{
 background:#ef4444;
 color:white;
 font-weight:500;
+padding:6px 10px;
+border-radius:6px;
 }
 
 .badge-sinhora{
 background:#64748b;
 color:white;
 font-weight:500;
+padding:6px 10px;
+border-radius:6px;
 }
 
-
 /* =====================================================
-   BOTONES DE ICONO
+   BOTONES ICONO
 ===================================================== */
 
 .btn-icon{
-padding:5px 8px;
+padding:5px 9px;
 font-size:14px;
 line-height:1;
+min-width:34px;
 }
 
-
 /* =====================================================
-   TOOLBAR SUPERIOR
+   TOOLBAR
 ===================================================== */
 
 .toolbar{
@@ -115,24 +121,20 @@ gap:8px;
 margin-bottom:12px;
 }
 
-
 /* =====================================================
-   TRANSICIONES SUAVES
+   ANIMACIONES
 ===================================================== */
 
-button,
-.btn{
+button,.btn{
 transition:all .15s ease;
 }
 
-button:hover,
-.btn:hover{
+button:hover,.btn:hover{
 transform:translateY(-1px);
 }
 
-
 /* =====================================================
-   INPUTS MÁS LIMPIOS
+   INPUTS
 ===================================================== */
 
 input.form-control{
@@ -179,13 +181,13 @@ data-bs-dismiss="alert">
 <!-- Bootstrap -->
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 
-<!-- Mapbox JS -->
+<!-- Mapbox -->
 <script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js"></script>
 
-<!-- Chart.js -->
+<!-- Chart -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-<!-- Leaflet JS -->
+<!-- Leaflet -->
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
 {% block extra_js %}{% endblock %}

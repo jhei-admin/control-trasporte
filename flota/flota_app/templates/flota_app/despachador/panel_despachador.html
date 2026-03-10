@@ -4,9 +4,9 @@
 
 {% block content %}
 
-<h2 class="mb-3">🚍 Panel del Despachador</h2>
+<h2 class="mb-4 fw-bold">🚍 Panel del Despachador</h2>
 
-<div class="mb-4 d-flex gap-2 flex-wrap">
+<div class="toolbar">
 
 <a href="{% url 'historial_salidas' %}" class="btn btn-dark btn-sm">
 🧾 Historial
@@ -27,7 +27,8 @@ class="btn btn-warning btn-sm">
 
 </div>
 
-<div class="card-panel mb-3">
+
+<div class="card-panel mb-4">
 
 <form method="post"
 action="{% url 'buscar_unidad_panel' %}"
@@ -56,9 +57,10 @@ style="max-width:220px">
 
 </div>
 
+
 <div class="table-responsive">
 
-<table class="table table-modern table-bordered align-middle">
+<table class="table table-modern align-middle">
 
 <thead class="table-dark text-center">
 
@@ -104,7 +106,10 @@ style="max-width:220px">
 <td class="text-center">
 
 {% if not s.hora_salida %}
-<span class="badge badge-sinhora">SIN HORA</span>
+
+<span class="badge badge-sinhora">
+SIN HORA
+</span>
 
 {% else %}
 
@@ -208,6 +213,7 @@ No hay salidas registradas
 </table>
 
 </div>
+
 
 <script>
 
