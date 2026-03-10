@@ -20,6 +20,9 @@
     <a href="{% url 'panel_frecuencia' %}" class="btn btn-outline-success btn-sm">
         📊 Control de frecuencia
     </a>
+    <a href="{% url 'reporte_salidas_diarias' 0 %}?fecha={{ hoy }}" class="btn btn-outline-warning btn-sm">
+        📋 Salidas del día
+    </a>
 </div>
 
 {# ================================================== #}
@@ -93,10 +96,16 @@
     {# ================= ACCIONES ================= #}
     <td class="text-center d-flex flex-wrap justify-content-center gap-1">
 
-        {# Control de ruta, detalle, QR #}
-        <a href="{% url 'control_ruta' s.id %}" class="btn btn-sm btn-outline-primary">🧭</a>
-        <a href="{% url 'detalle_salida' s.id %}" class="btn btn-sm btn-outline-info">📍</a>
-        <a href="{% url 'ver_qr_unidad' s.vehiculo.id %}" class="btn btn-sm btn-outline-dark">📦</a>
+        {# Control de ruta, detalle y QR con texto #}
+<a href="{% url 'control_ruta' s.id %}" class="btn btn-sm btn-outline-primary">
+    🕒 Control ruta
+</a>
+<a href="{% url 'detalle_salida' s.id %}" class="btn btn-sm btn-outline-info">
+    📍 Ver puntos
+</a>
+<a href="{% url 'ver_qr_unidad' s.vehiculo.id %}" class="btn btn-sm btn-outline-dark">
+    📦 Ver QR
+</a>
 
         {# Fijar / Cambiar hora #}
         <form method="post"
