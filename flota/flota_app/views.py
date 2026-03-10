@@ -2041,11 +2041,11 @@ def desbloquear_hora(request, salida_id):
 
     salida = get_object_or_404(RegistroSalida, id=salida_id)
 
-    # verificar si ya marcó SALI realmente
+    # verificar si realmente ya marcó SALI
     marco_sali = MarcacionPunto.objects.filter(
-        salida=salida,
+        registro_salida=salida,
         punto__codigo="SALI",
-        hora_paso__isnull=False
+        hora_marcada__isnull=False
     ).exists()
 
     if marco_sali:
@@ -2055,7 +2055,7 @@ def desbloquear_hora(request, salida_id):
         )
         return redirect("panel_despachador")
 
-    # volver a SIN HORA
+    # cancelar salida
     salida.hora_salida = None
     salida.bloqueado = False
     salida.save(update_fields=["hora_salida", "bloqueado"])
