@@ -27,8 +27,8 @@
 {# ================================================== #}
 <form method="post"
       action="{% url 'buscar_unidad_panel' %}"
-      class="mb-3 d-flex gap-2 align-items-center"
-      style="max-width: 420px;">
+      class="mb-3 d-flex gap-2 align-items-center flex-wrap"
+      style="max-width: 480px;">
     {% csrf_token %}
     <input type="text"
            name="codigo"
@@ -46,9 +46,10 @@
        style="max-width: 320px;">
 
 {# ================================================== #}
-{# 📋 TABLA PRINCIPAL (SIMPLE Y REAL)                 #}
+{# 📋 TABLA PRINCIPAL (SIMPLE, REAL Y RESPONSIVE)    #}
 {# ================================================== #}
-<table class="table table-bordered table-sm align-middle">
+<div class="table-responsive">
+<table class="table table-bordered table-striped table-sm align-middle">
 <thead class="table-dark text-center">
 <tr>
     <th>Vehículo</th>
@@ -89,20 +90,22 @@
         {% endif %}
     </td>
 
-    <td class="text-center">
+    {# ================= ACCIONES ================= #}
+    <td class="text-center d-flex flex-wrap justify-content-center gap-1">
 
+        {# Control de ruta, detalle, QR #}
         <a href="{% url 'control_ruta' s.id %}" class="btn btn-sm btn-outline-primary">🧭</a>
         <a href="{% url 'detalle_salida' s.id %}" class="btn btn-sm btn-outline-info">📍</a>
         <a href="{% url 'ver_qr_unidad' s.vehiculo.id %}" class="btn btn-sm btn-outline-dark">📦</a>
 
-        {# 🔒 FIJAR / EDITAR HORA #}
+        {# Fijar / Cambiar hora #}
         <form method="post"
               action="{% url 'asignar_hora_fija' s.id %}"
-              class="d-inline ms-1">
+              class="d-inline-flex gap-1">
             {% csrf_token %}
             <input type="time"
                    name="hora_fija"
-                   class="form-control form-control-sm d-inline"
+                   class="form-control form-control-sm"
                    style="width:90px"
                    required>
             <button class="btn btn-sm btn-warning">
@@ -110,7 +113,7 @@
             </button>
         </form>
 
-        {# 🔓 QUITAR HORA (VOLVER A SIN HORA) #}
+        {# Quitar hora #}
         {% if s.hora_salida %}
         <form method="post"
               action="{% url 'desbloquear_hora' s.id %}"
@@ -131,6 +134,7 @@
 {% endfor %}
 </tbody>
 </table>
+</div>
 
 <script>
 document.getElementById("busquedaUnidad").addEventListener("keyup", function () {
