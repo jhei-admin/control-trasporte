@@ -20,6 +20,7 @@ from django.core.exceptions import ValidationError
 from django.db import models
 from .models import MensajeGlobal
 from django.db.models import Count
+from django.db.models import Max, F, Q
 
 
 import qrcode
@@ -2494,91 +2495,94 @@ def panel_frecuencia(request):
     )
 
 @require_GET
-def api_panel_frecuencia(request):
+def api_panel_frecuencia_optimizada(request):
+    """
+    Versión ultra optimizada del panel de frecuencia:
+    - Solo unidades en ruta (no finalizadas)
+    - Múltiples vueltas por día
+    - Líder automático
+    - Huecos y buses pegados
+    - Máximo rendimiento con annotate y agregaciones
+    """
 
     hoy = timezone.localdate()
 
-    puntos = list(
-        PuntoControl.objects
-        .filter(activo=True)
-        .order_by("orden")
-    )
+    # 1️⃣ Obtener puntos de control activos
+    puntos = list(PuntoControl.objects.filter(activo=True).order_by("orden"))
+    if not puntos:
+        return JsonResponse({"puntos": [], "data": []})
 
+    # Último punto de la ruta (fin de vuelta)
+    max_orden = max(p.orden for p in puntos)
+
+    # 2️⃣ Configuración de frecuencia
     config = ConfiguracionDespacho.objects.filter(activa=True).first()
     intervalo = config.intervalo_fijo if config and config.intervalo_fijo else 6
 
-    # 🔹 EXACTAMENTE igual que usa el panel despachador
-    salidas = (
+    # 3️⃣ Salidas activas del día con ruta definida
+    salidas_qs = (
         RegistroSalida.objects
-        .select_related("vehiculo")
-        .filter(activo=True)
-        .order_by("vehiculo__codigo")
+        .filter(activo=True, fecha=hoy, ruta__isnull=False)
     )
 
-    data = []
+    # 4️⃣ Agregar último punto marcado y su hora
+    salidas_qs = salidas_qs.annotate(
+        ultimo_punto_orden=Max("marcaciones__punto__orden", filter=Q(marcaciones__hora_marcada__isnull=False)),
+        ultimo_tiempo=Max("marcaciones__hora_marcada")
+    )
 
-    for salida in salidas:
+    unidades_panel = []
 
-        fila = {
+    for salida in salidas_qs:
+        # Si ya terminó la vuelta (último punto de la ruta), marcar como inactiva
+        if salida.ultimo_punto_orden == max_orden:
+            salida.activo = False
+            salida.en_cola = False
+            salida.save(update_fields=["activo", "en_cola"])
+            continue
+
+        # Construir controles por punto usando un dict de marcaciones para acceso rápido
+        marcaciones = {m.punto_id: m for m in salida.marcaciones.all()}
+
+        controles = []
+        for punto in puntos:
+            m = marcaciones.get(punto.id)
+            controles.append(m.diferencia_minutos if m and m.hora_marcada else None)
+
+        unidades_panel.append({
             "unidad": salida.vehiculo.codigo,
-            "controles": [],
-            "avance": 0,
-            "ultimo_tiempo": None,
+            "salida_id": salida.id,
+            "avance": salida.ultimo_punto_orden or 0,
+            "ultimo_tiempo": salida.ultimo_tiempo,
+            "controles": controles,
             "frecuencia": None,
             "hueco": False,
             "pegado": False
-        }
+        })
 
-        ultimo_orden = 0
-        ultimo_tiempo = None
+    # 5️⃣ Ordenar por avance (líder primero)
+    unidades_panel.sort(key=lambda x: x["avance"], reverse=True)
 
-        for punto in puntos:
-
-            marcacion = MarcacionPunto.objects.filter(
-                registro_salida=salida,
-                punto=punto
-            ).first()
-
-            if not marcacion or not marcacion.hora_marcada:
-                valor = None
-
-            else:
-                valor = marcacion.diferencia_minutos
-
-                if punto.orden > ultimo_orden:
-                    ultimo_orden = punto.orden
-                    ultimo_tiempo = marcacion.hora_marcada
-
-            fila["controles"].append(valor)
-
-        fila["avance"] = ultimo_orden
-        fila["ultimo_tiempo"] = ultimo_tiempo
-
-        data.append(fila)
-
-    # ordenar por avance
-    data.sort(key=lambda x: x["avance"], reverse=True)
-
-    for i in range(1, len(data)):
-
-        actual = data[i]
-        anterior = data[i-1]
+    # 6️⃣ Calcular frecuencia y detectar huecos/pegados
+    for i in range(1, len(unidades_panel)):
+        actual = unidades_panel[i]
+        anterior = unidades_panel[i - 1]
 
         if actual["ultimo_tiempo"] and anterior["ultimo_tiempo"]:
-
-            diff = (
-                actual["ultimo_tiempo"] - anterior["ultimo_tiempo"]
-            ).total_seconds() / 60
-
+            diff = (actual["ultimo_tiempo"] - anterior["ultimo_tiempo"]).total_seconds() / 60
             actual["frecuencia"] = int(diff)
-
             if diff > intervalo * 1.5:
                 actual["hueco"] = True
-
             if diff < intervalo * 0.5:
                 actual["pegado"] = True
 
+    # 7️⃣ Marcar líder
+    if unidades_panel:
+        unidades_panel[0]["lider"] = True
+    for u in unidades_panel[1:]:
+        u["lider"] = False
+
     return JsonResponse({
         "puntos": [p.codigo for p in puntos],
-        "data": data
+        "data": unidades_panel
     })
