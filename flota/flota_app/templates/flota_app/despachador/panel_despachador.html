@@ -4,84 +4,65 @@
 
 {% block content %}
 
-<h2 class="mb-4 fw-bold">🚍 Panel del Despachador</h2>
+<h2 class="mb-2 fw-bold">🚍 Panel del Despachador</h2>
+
+<div class="text-muted mb-3">
+Hora sistema: <span id="horaSistema"></span>
+</div>
 
 <div class="dashboard">
 
 <div class="stat-card stat-green">
-<div class="stat-num">{{ salidas|length }}</div>
+<div class="stat-num">🚍 {{ salidas|length }}</div>
 <div class="stat-label">Unidades activas</div>
 </div>
 
 <div class="stat-card stat-blue">
-<div class="stat-num" id="countProgramadas">0</div>
+<div class="stat-num">⏱ <span id="countProgramadas">0</span></div>
 <div class="stat-label">Programadas</div>
 </div>
 
 <div class="stat-card stat-red">
-<div class="stat-num" id="countAtrasado">0</div>
+<div class="stat-num">⚠ <span id="countAtrasado">0</span></div>
 <div class="stat-label">Atrasadas</div>
 </div>
 
 <div class="stat-card stat-gray">
-<div class="stat-num" id="countSinHora">0</div>
+<div class="stat-num">⭕ <span id="countSinHora">0</span></div>
 <div class="stat-label">Sin hora</div>
 </div>
 
 </div>
 
-
 <div class="toolbar">
 
-<a href="{% url 'historial_salidas' %}" class="btn btn-dark btn-sm">
-🧾 Historial
-</a>
+<a href="{% url 'historial_salidas' %}" class="btn btn-dark btn-sm">🧾 Historial</a>
 
-<a href="{% url 'despachador_mapa' %}" class="btn btn-outline-primary btn-sm">
-🗺️ Mapa en tiempo real
-</a>
+<a href="{% url 'despachador_mapa' %}" class="btn btn-outline-primary btn-sm">🗺️ Mapa en tiempo real</a>
 
-<a href="{% url 'panel_frecuencia' %}" class="btn btn-outline-success btn-sm">
-📊 Frecuencia
-</a>
+<a href="{% url 'panel_frecuencia' %}" class="btn btn-outline-success btn-sm">📊 Frecuencia</a>
 
-<a href="{% url 'reporte_salidas_diarias' 1 %}?fecha={% now 'Y-m-d' %}" 
-class="btn btn-warning btn-sm">
+<a href="{% url 'reporte_salidas_diarias' 1 %}?fecha={% now 'Y-m-d' %}" class="btn btn-warning btn-sm">
 🚚 Salidas del día
 </a>
 
 </div>
 
-
 <div class="card-panel mb-4">
 
-<form method="post"
-action="{% url 'buscar_unidad_panel' %}"
-class="d-flex gap-2 flex-wrap">
+<form method="post" action="{% url 'buscar_unidad_panel' %}" class="d-flex gap-2 flex-wrap">
 
 {% csrf_token %}
 
-<input type="text"
-name="codigo"
-class="form-control"
-placeholder="Buscar unidad (01, 02...)"
-style="max-width:200px"
-required>
+<input type="text" name="codigo" class="form-control" placeholder="Buscar unidad (01, 02...)" style="max-width:200px" required>
 
-<button class="btn btn-success">
-➕ Agregar
-</button>
+<button class="btn btn-success">➕ Agregar</button>
 
-<input type="text"
-id="busquedaUnidad"
-class="form-control"
-placeholder="Filtrar unidades"
-style="max-width:220px">
+<input type="text" id="busquedaUnidad" class="form-control" placeholder="Filtrar unidades" style="max-width:220px">
 
 </form>
 
 </div>
-
 
 <div class="table-responsive">
 
@@ -104,7 +85,11 @@ style="max-width:220px">
 
 {% for s in salidas %}
 
+{% if forloop.first %}
+<tr class="fila-unidad proxima" data-unidad="{{ s.vehiculo.codigo|lower }}">
+{% else %}
 <tr class="fila-unidad" data-unidad="{{ s.vehiculo.codigo|lower }}">
+{% endif %}
 
 <td class="text-center fw-bold">{{ s.vehiculo.codigo }}</td>
 
@@ -123,21 +108,15 @@ style="max-width:220px">
 <td class="text-center">
 
 {% if not s.hora_salida %}
-
 <span class="badge badge-sinhora">SIN HORA</span>
-
 {% else %}
 
 {% now "Y-m-d H:i" as ahora %}
 
 {% if s.hora_salida|date:"Y-m-d H:i" > ahora %}
-
 <span class="badge badge-programado">PROGRAMADO</span>
-
 {% else %}
-
 <span class="badge badge-atrasado">ATRASADO</span>
-
 {% endif %}
 
 {% endif %}
@@ -187,40 +166,39 @@ No hay salidas registradas
 
 </div>
 
-
 <script>
+
+function actualizarHora(){
+const ahora = new Date()
+document.getElementById("horaSistema").innerText = ahora.toLocaleTimeString()
+}
+
+setInterval(actualizarHora,1000)
+actualizarHora()
 
 let atrasados=0
 let sinHora=0
 let programados=0
 
 document.querySelectorAll(".fila-unidad").forEach(fila=>{
-
 const texto=fila.innerText
 
 if(texto.includes("ATRASADO")) atrasados++
 if(texto.includes("SIN HORA")) sinHora++
 if(texto.includes("PROGRAMADO")) programados++
-
 })
 
 document.getElementById("countAtrasado").innerText=atrasados
 document.getElementById("countSinHora").innerText=sinHora
 document.getElementById("countProgramadas").innerText=programados
 
-
-document.getElementById("busquedaUnidad")
-.addEventListener("keyup",function(){
+document.getElementById("busquedaUnidad").addEventListener("keyup",function(){
 
 const filtro=this.value.toLowerCase()
 
-document.querySelectorAll(".fila-unidad")
-.forEach(fila=>{
-
+document.querySelectorAll(".fila-unidad").forEach(fila=>{
 const unidad=fila.dataset.unidad||""
-
 fila.style.display=unidad.includes(filtro)?"":"none"
-
 })
 
 })
