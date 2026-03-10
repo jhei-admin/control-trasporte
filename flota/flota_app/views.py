@@ -2041,24 +2041,17 @@ def desbloquear_hora(request, salida_id):
 
     salida = get_object_or_404(RegistroSalida, id=salida_id)
 
-    # verificar si ya marcó el punto SALI
+    # verificar si ya marcó SALI realmente
     marco_sali = MarcacionPunto.objects.filter(
-        registro_salida=salida,
-        punto__codigo="SALI"
+        salida=salida,
+        punto__codigo="SALI",
+        hora_paso__isnull=False
     ).exists()
 
     if marco_sali:
         messages.error(
             request,
             "No se puede cancelar la salida porque la unidad ya inició la ruta."
-        )
-        return redirect("panel_despachador")
-
-    # si ya estaba en automático
-    if not salida.bloqueado:
-        messages.info(
-            request,
-            "La unidad ya está en modo automático."
         )
         return redirect("panel_despachador")
 
