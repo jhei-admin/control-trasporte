@@ -2495,7 +2495,7 @@ def panel_frecuencia(request):
     )
 
 @require_GET
-def api_panel_frecuencia_optimizada(request):
+def api_panel_frecuencia(request):
     """
     Versión ultra optimizada del panel de frecuencia:
     - Solo unidades en ruta (no finalizadas)
