@@ -15,7 +15,9 @@
 
 <style>
 
-/* FONDO GENERAL */
+/* =========================
+FONDO GENERAL
+========================= */
 
 body{
 height:100vh;
@@ -26,7 +28,28 @@ background:linear-gradient(135deg,#0f172a,#1e293b,#334155);
 font-family:system-ui,-apple-system,Segoe UI,Roboto;
 }
 
-/* CONTENEDOR PRINCIPAL */
+/* =========================
+ANIMACION LOGIN
+========================= */
+
+.login-wrapper{
+animation:fadeLogin .5s ease;
+}
+
+@keyframes fadeLogin{
+from{
+opacity:0;
+transform:translateY(20px);
+}
+to{
+opacity:1;
+transform:translateY(0);
+}
+}
+
+/* =========================
+CONTENEDOR PRINCIPAL
+========================= */
 
 .login-wrapper{
 width:950px;
@@ -38,7 +61,9 @@ display:flex;
 box-shadow:0 25px 60px rgba(0,0,0,.35);
 }
 
-/* PANEL IZQUIERDO */
+/* =========================
+PANEL IZQUIERDO
+========================= */
 
 .login-left{
 flex:1;
@@ -53,8 +78,8 @@ text-align:center;
 }
 
 .login-left img{
-width:250px;
-margin-bottom:20px;
+width:220px;
+margin-bottom:25px;
 }
 
 .login-left h2{
@@ -64,19 +89,24 @@ margin-bottom:10px;
 
 .login-left p{
 opacity:.9;
+font-size:15px;
 }
 
-/* PANEL DERECHO */
+/* =========================
+PANEL DERECHO
+========================= */
 
 .login-right{
 flex:1;
-padding:50px;
+padding:55px;
 display:flex;
 flex-direction:column;
 justify-content:center;
 }
 
-/* LOGO */
+/* =========================
+LOGO
+========================= */
 
 .logo{
 font-size:26px;
@@ -84,14 +114,18 @@ font-weight:700;
 margin-bottom:10px;
 }
 
-/* SUBTITULO */
+/* =========================
+SUBTITULO
+========================= */
 
 .subtitle{
 color:#6b7280;
 margin-bottom:30px;
 }
 
-/* INPUTS */
+/* =========================
+INPUTS
+========================= */
 
 .input-group{
 margin-bottom:18px;
@@ -106,14 +140,17 @@ border:none;
 border:none;
 background:#f1f5f9;
 padding:12px;
+transition:all .2s ease;
 }
 
 .form-control:focus{
-box-shadow:none;
 background:#e2e8f0;
+box-shadow:0 0 0 2px #0ea5e9;
 }
 
-/* BOTON */
+/* =========================
+BOTON LOGIN
+========================= */
 
 .btn-login{
 width:100%;
@@ -128,9 +165,12 @@ transition:.2s;
 .btn-login:hover{
 background:#0284c7;
 transform:translateY(-1px);
+box-shadow:0 6px 14px rgba(14,165,233,.35);
 }
 
-/* ERROR */
+/* =========================
+ERROR LOGIN
+========================= */
 
 .alert-error{
 background:#fee2e2;
@@ -142,7 +182,9 @@ text-align:center;
 font-size:14px;
 }
 
-/* RESPONSIVE */
+/* =========================
+RESPONSIVE
+========================= */
 
 @media (max-width:900px){
 
@@ -152,6 +194,10 @@ flex-direction:column;
 
 .login-left{
 display:none;
+}
+
+.login-right{
+padding:35px;
 }
 
 }
