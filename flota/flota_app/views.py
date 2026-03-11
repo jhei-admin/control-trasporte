@@ -21,6 +21,7 @@ from django.db import models
 from .models import MensajeGlobal
 from django.db.models import Count
 from django.db.models import Max, F, Q
+from django.contrib.auth.decorators import login_required
 
 
 import qrcode
@@ -49,7 +50,7 @@ from .services import (
 
 # ================= UTILS =================
 from .utils import distancia_metros
-
+@login_required
 def reporte_salidas_diarias(request, vehiculo_id):
     """
     FASE 4A + 4C
@@ -206,6 +207,7 @@ def reporte_salidas_diarias(request, vehiculo_id):
 # =================================================
 # 🧭 PANEL DESPACHADOR (REFORMADO Y COHERENTE)
 # =================================================
+@login_required
 def panel_despachador(request):
     """
     PANEL PRINCIPAL DEL DESPACHADOR (REFORMADO)
@@ -263,6 +265,7 @@ def panel_despachador(request):
 # 🔍 BUSCAR UNIDAD Y CREAR SALIDA DEL DÍA
 # SOLUCIÓN DEFINITIVA (SIN es_default / SIN 500)
 # =================================================
+@login_required
 def buscar_unidad_panel(request):
     if request.method != "POST":
         return redirect("panel_despachador")
@@ -359,6 +362,7 @@ def buscar_unidad_panel(request):
 # =================================================
 # 🗺️ DESPACHADOR — MAPA TIEMPO REAL (VISTA SEPARADA)
 # =================================================
+@login_required
 def despachador_mapa(request):
     """
     Vista exclusiva del mapa en tiempo real.
@@ -375,6 +379,7 @@ def despachador_mapa(request):
 # =================================================
 # 🧭 DESPACHADOR — RECORRIDO HISTÓRICO (VISTA)
 # =================================================
+@login_required
 def recorrido_vehiculo(request):
     """
     Vista del despachador para visualizar
@@ -843,6 +848,7 @@ def api_gps(request):
 # =================================================
 # 🗺️ API — MAPA EN TIEMPO REAL (DESPACHADOR)
 # =================================================
+@login_required
 @require_GET
 def api_despachador_mapa(request):
     """
@@ -915,6 +921,7 @@ def api_despachador_mapa(request):
 # =================================================
 # 📍 API — PUNTOS DE CONTROL (MAPA DESPACHADOR)
 # =================================================
+@login_required
 @require_GET
 def api_puntos_control(request):
     """
@@ -950,6 +957,7 @@ def api_puntos_control(request):
 # =================================================
 # 🔎 API — BÚSQUEDA RÁPIDA DE VEHÍCULO POR CÓDIGO
 # =================================================
+@login_required
 @require_GET
 def api_buscar_vehiculo_por_codigo(request):
     """
@@ -995,6 +1003,7 @@ def api_buscar_vehiculo_por_codigo(request):
 # =================================================
 # 🧭 API — RECORRIDO HISTÓRICO (DESPACHADOR)
 # =================================================
+@login_required
 @require_GET
 def api_recorrido_vehiculo(request):
     """
@@ -1060,6 +1069,7 @@ def api_recorrido_vehiculo(request):
 # =================================================
 # 🛑 API — PARADAS POR VEHÍCULO Y FECHA (DESPACHADOR)
 # =================================================
+@login_required
 @require_GET
 def api_paradas_vehiculo(request):
     vehiculo_id = request.GET.get("vehiculo")
@@ -1752,6 +1762,7 @@ def app_conductor(request):
 # =================================================
 # 📦 QR DE UNIDAD (JSON PURO – DEFINITIVO)
 # =================================================
+@login_required
 def ver_qr_unidad(request, vehiculo_id):
     """
     Genera el QR de la unidad.
@@ -1780,6 +1791,7 @@ def ver_qr_unidad(request, vehiculo_id):
 # =================================================
 # 🚦 COLA DE SALIDA (FIX DEFINITIVO PROFESIONAL)
 # =================================================
+@login_required
 @require_POST
 def poner_en_cola(request, salida_id):
     salida = get_object_or_404(RegistroSalida, id=salida_id)
@@ -1870,6 +1882,7 @@ def poner_en_cola(request, salida_id):
 # =================================================
 # 🚦 QUITAR DE COLA (CANCELA SALIDA DEL DÍA)
 # =================================================
+@login_required
 @require_POST
 def quitar_de_cola(request, salida_id):
     salida = get_object_or_404(RegistroSalida, id=salida_id)
@@ -1950,6 +1963,7 @@ def cambiar_intervalo_global(request):
 # =================================================
 # 🔒 ASIGNAR / REPROGRAMAR HORA FIJA A SALIDA
 # =================================================
+@login_required
 @require_POST
 def asignar_hora_fija(request, salida_id):
     salida = get_object_or_404(RegistroSalida, id=salida_id)
@@ -2036,6 +2050,7 @@ def asignar_hora_fija(request, salida_id):
 # =================================================
 # 🔓 DESBLOQUEAR HORA FIJA (VOLVER A SIN HORA)
 # =================================================
+@login_required
 @require_POST
 def desbloquear_hora(request, salida_id):
 
@@ -2070,6 +2085,7 @@ def desbloquear_hora(request, salida_id):
 # =================================================
 # 📄 DETALLE DE SALIDA (CORREGIDO + CONTEXTO ATRÁS)
 # =================================================
+@login_required
 def detalle_salida(request, salida_id):
     salida = get_object_or_404(RegistroSalida, id=salida_id)
 
@@ -2140,6 +2156,7 @@ def detalle_salida(request, salida_id):
 # =================================================
 # 📊 HISTORIAL DE VEHÍCULO
 # =================================================
+@login_required
 def historial_vehiculo(request, vehiculo_id):
 
     vehiculo = get_object_or_404(Vehiculo, id=vehiculo_id)
@@ -2188,6 +2205,7 @@ def historial_vehiculo(request, vehiculo_id):
 # =================================================
 # 🧭 CONTROL DE RUTA (DESPACHADOR)
 # =================================================
+@login_required
 def control_ruta(request, salida_id):
     salida = get_object_or_404(RegistroSalida, id=salida_id)
 
@@ -2242,6 +2260,7 @@ def control_ruta(request, salida_id):
 # =================================================
 # ✍️ MARCAR PASO (MANUAL DESPACHADOR)
 # =================================================
+@login_required
 @require_POST
 def marcar_paso(request, salida_id, punto_id):
     salida = get_object_or_404(RegistroSalida, id=salida_id)
@@ -2264,6 +2283,7 @@ def marcar_paso(request, salida_id, punto_id):
 # =================================================
 # ✍️ MARCAR SIGUIENTE PUNTO (DESPACHADOR)
 # =================================================
+@login_required
 @require_POST
 def marcar_siguiente_punto(request, salida_id):
     salida = get_object_or_404(RegistroSalida, id=salida_id)
@@ -2328,6 +2348,7 @@ def marcar_siguiente_punto(request, salida_id):
 # =================================================
 # 🔁 ALIAS: MARCAR SIGUIENTE PUNTO (AUTO / LEGACY)
 # =================================================
+@login_required
 def marcar_siguiente_punto_auto(request, salida_id):
     """
     Alias para compatibilidad con URLs antiguas.
@@ -2352,6 +2373,7 @@ def marcar_siguiente_punto_auto(request, salida_id):
 # =================================================
 # 📊 AUDITORÍA DE HORAS (PLACEHOLDER)
 # =================================================
+@login_required
 def auditoria_horas(request):
     """
     Vista de auditoría de horas.
@@ -2374,6 +2396,7 @@ def auditoria_horas(request):
 # =================================================
 # 📜 HISTORIAL GENERAL DE SALIDAS (CORREGIDO BIEN)
 # =================================================
+@login_required
 def historial_salidas(request):
     """
     Historial de salidas basado en marcaciones reales (GPS).
@@ -2441,6 +2464,7 @@ def historial_salidas(request):
 # =================================================
 # 📈 REPORTE DE CONTROL (PLACEHOLDER)
 # =================================================
+@login_required
 def reporte_control(request):
     """
     Vista de reporte general de control.
@@ -2463,6 +2487,7 @@ def reporte_control(request):
 # =================================================
 # 📤 EXPORTAR EXCEL (PLACEHOLDER)
 # =================================================
+@login_required
 def exportar_excel(request):
     """
     Exportación a Excel (pendiente).
@@ -2477,6 +2502,7 @@ def exportar_excel(request):
 from django.http import JsonResponse
 from .models import UbicacionVehiculo
 
+@login_required
 def debug_gps(request):
     data = []
 
@@ -2493,6 +2519,7 @@ def debug_gps(request):
 # =================================================
 # 📊 PANEL FRECUENCIA DE RUTA
 # =================================================
+@login_required
 def panel_frecuencia(request):
 
     puntos = PuntoControl.objects.filter(activo=True).order_by("orden")
@@ -2505,6 +2532,7 @@ def panel_frecuencia(request):
         }
     )
 
+@login_required
 @require_GET
 def api_panel_frecuencia(request):
     """

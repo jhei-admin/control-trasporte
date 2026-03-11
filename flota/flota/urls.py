@@ -4,6 +4,7 @@ from django.shortcuts import redirect
 from django.http import HttpResponse
 from django.views.decorators.http import require_GET
 from django.template import loader
+from django.contrib.auth import views as auth_views
 
 # =========================
 # SERVICE WORKER
@@ -32,4 +33,7 @@ urlpatterns = [
 
     # 🚍 TODO EL SISTEMA (AQUÍ ESTABA EL ERROR)
     path("sistema/", include("flota_app.urls")),
+
+    path("login/", auth_views.LoginView.as_view(template_name="login.html"), name="login"),
+    path("logout/", auth_views.LogoutView.as_view(), name="logout"),
 ]
