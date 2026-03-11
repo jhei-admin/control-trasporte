@@ -133,24 +133,51 @@
 
 <td class="text-center d-flex flex-wrap gap-1 justify-content-center">
 
-<a href="{% url 'control_ruta' s.id %}" class="btn btn-sm btn-outline-primary btn-icon">🕒</a>
+<a href="{% url 'control_ruta' s.id %}" 
+class="btn btn-sm btn-outline-primary btn-icon"
+title="Control de ruta">
+🕒
+</a>
 
-<a href="{% url 'detalle_salida' s.id %}" class="btn btn-sm btn-outline-info btn-icon">📍</a>
+<a href="{% url 'detalle_salida' s.id %}" 
+class="btn btn-sm btn-outline-info btn-icon"
+title="Detalle de salida">
+📍
+</a>
 
-<a href="{% url 'ver_qr_unidad' s.vehiculo.id %}" class="btn btn-sm btn-outline-dark btn-icon">QR</a>
+<a href="{% url 'ver_qr_unidad' s.vehiculo.id %}" 
+class="btn btn-sm btn-outline-dark btn-icon"
+title="Ver código QR">
+QR
+</a>
 
 <form method="post" action="{% url 'asignar_hora_fija' s.id %}" class="d-flex gap-1">
 {% csrf_token %}
+
 <input type="time" name="hora_fija" class="form-control form-control-sm" style="width:85px" required>
-<button class="btn btn-sm btn-warning btn-icon">
-{% if s.hora_salida %}✏{% else %}🔒{% endif %}
+
+<button class="btn btn-sm btn-warning btn-icon"
+title="{% if s.hora_salida %}Editar hora programada{% else %}Confirmar hora de salida{% endif %}">
+
+{% if s.hora_salida %}
+✏
+{% else %}
+✔
+{% endif %}
+
 </button>
+
 </form>
 
 {% if s.hora_salida %}
 <form method="post" action="{% url 'desbloquear_hora' s.id %}">
 {% csrf_token %}
-<button class="btn btn-sm btn-outline-secondary btn-icon">❌</button>
+
+<button class="btn btn-sm btn-outline-secondary btn-icon"
+title="Desbloquear hora programada">
+❌
+</button>
+
 </form>
 {% endif %}
 
