@@ -224,3 +224,4 @@ MAPBOX_TOKEN = os.getenv(
 LOGIN_URL = "/login/"
 LOGIN_REDIRECT_URL = "/sistema/despachador/"
 LOGOUT_REDIRECT_URL = "/login/"
+SESSION_EXPIRE_AT_BROWSER_CLOSE = True
