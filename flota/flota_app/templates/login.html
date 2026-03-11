@@ -240,6 +240,8 @@ Acceso panel del despachador
 
 {% csrf_token %}
 
+<input type="hidden" name="next" value="{{ next }}">
+
 <div class="input-group">
 
 <span class="input-group-text">
