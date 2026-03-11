@@ -1,11 +1,113 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+
+<meta charset="UTF-8">
+<title>Acceso Despachador</title>
+
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+
+<style>
+
+body{
+background:#0f172a;
+height:100vh;
+display:flex;
+align-items:center;
+justify-content:center;
+font-family:system-ui;
+}
+
+.login-card{
+width:420px;
+background:white;
+border-radius:14px;
+padding:40px;
+box-shadow:0 15px 40px rgba(0,0,0,0.25);
+}
+
+.logo{
+font-size:28px;
+font-weight:700;
+text-align:center;
+margin-bottom:10px;
+}
+
+.subtitle{
+text-align:center;
+color:#6b7280;
+margin-bottom:30px;
+}
+
+.btn-login{
+width:100%;
+padding:12px;
+font-weight:600;
+}
+
+</style>
+
+</head>
+
+<body>
+
+<div class="login-card">
+
+<div class="logo">
+🚍 Control Transporte
+</div>
+
+<div class="subtitle">
+Acceso panel del despachador
+</div>
+
 <form method="post">
+
 {% csrf_token %}
 
-<h2>Login</h2>
+<div class="mb-3">
 
-<input type="text" name="username" placeholder="Usuario" required>
-<input type="password" name="password" placeholder="Contraseña" required>
+<label class="form-label">Usuario</label>
 
-<button type="submit">Entrar</button>
+<input
+type="text"
+name="username"
+class="form-control"
+required
+>
+
+</div>
+
+<div class="mb-4">
+
+<label class="form-label">Contraseña</label>
+
+<input
+type="password"
+name="password"
+class="form-control"
+required
+>
+
+</div>
+
+<button class="btn btn-primary btn-login">
+Entrar al sistema
+</button>
+
+{% if form.errors %}
+
+<div class="alert alert-danger mt-3 text-center">
+
+Usuario o contraseña incorrectos
+
+</div>
+
+{% endif %}
 
 </form>
+
+</div>
+
+</body>
+</html>
