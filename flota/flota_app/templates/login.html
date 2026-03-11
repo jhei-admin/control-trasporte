@@ -10,7 +10,6 @@
 <title>Acceso | Control Transporte</title>
 
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 
 <style>
@@ -236,11 +235,11 @@ Sistema profesional para gestión y despacho de flota
 Acceso panel del despachador
 </div>
 
-<form method="post">
+<form method="post" action="{% url 'login' %}">
 
 {% csrf_token %}
 
-<input type="hidden" name="next" value="{{ next }}">
+<input type="hidden" name="next" value="{{ next|default:'/sistema/despachador/' }}">
 
 <div class="input-group">
 
