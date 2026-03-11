@@ -14,10 +14,6 @@
 
 <style>
 
-/* =========================
-FONDO GENERAL
-========================= */
-
 body{
 height:100vh;
 display:flex;
@@ -27,28 +23,14 @@ background:linear-gradient(135deg,#0f172a,#1e293b,#334155);
 font-family:system-ui,-apple-system,Segoe UI,Roboto;
 }
 
-/* =========================
-ANIMACION LOGIN
-========================= */
-
 .login-wrapper{
 animation:fadeLogin .5s ease;
 }
 
 @keyframes fadeLogin{
-from{
-opacity:0;
-transform:translateY(20px);
+from{opacity:0; transform:translateY(20px);}
+to{opacity:1; transform:translateY(0);}
 }
-to{
-opacity:1;
-transform:translateY(0);
-}
-}
-
-/* =========================
-CONTENEDOR PRINCIPAL
-========================= */
 
 .login-wrapper{
 width:950px;
@@ -59,10 +41,6 @@ overflow:hidden;
 display:flex;
 box-shadow:0 25px 60px rgba(0,0,0,.35);
 }
-
-/* =========================
-PANEL IZQUIERDO
-========================= */
 
 .login-left{
 flex:1;
@@ -91,10 +69,6 @@ opacity:.9;
 font-size:15px;
 }
 
-/* =========================
-PANEL DERECHO
-========================= */
-
 .login-right{
 flex:1;
 padding:55px;
@@ -103,28 +77,16 @@ flex-direction:column;
 justify-content:center;
 }
 
-/* =========================
-LOGO
-========================= */
-
 .logo{
 font-size:26px;
 font-weight:700;
 margin-bottom:10px;
 }
 
-/* =========================
-SUBTITULO
-========================= */
-
 .subtitle{
 color:#6b7280;
 margin-bottom:30px;
 }
-
-/* =========================
-INPUTS
-========================= */
 
 .input-group{
 margin-bottom:18px;
@@ -147,10 +109,6 @@ background:#e2e8f0;
 box-shadow:0 0 0 2px #0ea5e9;
 }
 
-/* =========================
-BOTON LOGIN
-========================= */
-
 .btn-login{
 width:100%;
 padding:12px;
@@ -167,10 +125,6 @@ transform:translateY(-1px);
 box-shadow:0 6px 14px rgba(14,165,233,.35);
 }
 
-/* =========================
-ERROR LOGIN
-========================= */
-
 .alert-error{
 background:#fee2e2;
 color:#991b1b;
@@ -181,24 +135,10 @@ text-align:center;
 font-size:14px;
 }
 
-/* =========================
-RESPONSIVE
-========================= */
-
 @media (max-width:900px){
-
-.login-wrapper{
-flex-direction:column;
-}
-
-.login-left{
-display:none;
-}
-
-.login-right{
-padding:35px;
-}
-
+.login-wrapper{flex-direction:column;}
+.login-left{display:none;}
+.login-right{padding:35px;}
 }
 
 </style>
@@ -208,8 +148,6 @@ padding:35px;
 <body>
 
 <div class="login-wrapper">
-
-<!-- PANEL IZQUIERDO -->
 
 <div class="login-left">
 
@@ -223,8 +161,6 @@ Sistema profesional para gestión y despacho de flota
 
 </div>
 
-<!-- PANEL DERECHO -->
-
 <div class="login-right">
 
 <div class="logo">
@@ -235,11 +171,11 @@ Sistema profesional para gestión y despacho de flota
 Acceso panel del despachador
 </div>
 
-<form method="post" action="{% url 'login' %}">
+<form method="POST" action="{% url 'login' %}">
 
 {% csrf_token %}
 
-<input type="hidden" name="next" value="{{ next|default:'/sistema/despachador/' }}">
+<input type="hidden" name="next" value="{{ request.GET.next|default:'/sistema/despachador/' }}">
 
 <div class="input-group">
 
@@ -252,7 +188,8 @@ type="text"
 name="username"
 class="form-control"
 placeholder="Usuario"
-required>
+required
+autofocus>
 
 </div>
 
@@ -271,7 +208,7 @@ required>
 
 </div>
 
-<button class="btn btn-login">
+<button type="submit" class="btn btn-login">
 Entrar al sistema
 </button>
 
