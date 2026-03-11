@@ -221,5 +221,38 @@ background:#1f2937 !important;
 
 {% block extra_js %}{% endblock %}
 
+<script>
+
+/*
+CONTROL DE SESIÓN PROFESIONAL
+
+Cerrar pestaña → logout
+Cerrar navegador → logout
+Recargar página → mantiene sesión
+*/
+
+let recargando = false;
+
+// Detectar recarga
+window.addEventListener("beforeunload", function () {
+    if (!recargando) {
+        navigator.sendBeacon("/logout/");
+    }
+});
+
+// Detectar recarga real
+window.addEventListener("keydown", function(e){
+    if (e.key === "F5" || (e.ctrlKey && e.key === "r")) {
+        recargando = true;
+    }
+});
+
+// Detectar botón de recargar navegador
+window.addEventListener("load", function(){
+    recargando = false;
+});
+
+</script>
+
 </body>
 </html>
