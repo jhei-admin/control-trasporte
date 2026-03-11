@@ -226,21 +226,3 @@ LOGIN_REDIRECT_URL = "/sistema/despachador/"
 LOGOUT_REDIRECT_URL = "/login/"
 SESSION_EXPIRE_AT_BROWSER_CLOSE = True
 SESSION_COOKIE_AGE = 0
-
-# =========================
-# AUTO CREATE SUPERUSER (Render Free Fix)
-# =========================
-from django.contrib.auth import get_user_model
-
-User = get_user_model()
-
-try:
-    username = os.environ.get("DJANGO_SUPERUSER_USERNAME")
-    email = os.environ.get("DJANGO_SUPERUSER_EMAIL")
-    password = os.environ.get("DJANGO_SUPERUSER_PASSWORD")
-
-    if username and password:
-        if not User.objects.filter(username=username).exists():
-            User.objects.create_superuser(username, email, password)
-except Exception:
-    pass
