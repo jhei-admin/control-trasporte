@@ -28,9 +28,8 @@ def root_redirect(request):
     """
     Redirección inicial del sistema.
 
-    Si el usuario ya está autenticado:
+    Si el usuario está autenticado:
         → panel despachador
-
     Si no:
         → login
     """
@@ -50,13 +49,13 @@ urlpatterns = [
     # 🔁 ROOT
     path("", root_redirect),
 
-    # 🔐 ADMIN
+    # 🔐 ADMIN DJANGO
     path("admin/", admin.site.urls),
 
     # 🚍 SISTEMA
     path("sistema/", include("flota_app.urls")),
 
-    # 🔐 LOGIN
+    # 🔐 LOGIN DEL SISTEMA
     path(
         "login/",
         auth_views.LoginView.as_view(
@@ -66,10 +65,12 @@ urlpatterns = [
         name="login"
     ),
 
-    # 🔓 LOGOUT
+    # 🔓 LOGOUT DEL SISTEMA
     path(
         "logout/",
-        auth_views.LogoutView.as_view(),
+        auth_views.LogoutView.as_view(
+            next_page="/login/"
+        ),
         name="logout"
     ),
 ]
