@@ -20,7 +20,6 @@ SECRET_KEY = os.getenv(
     "django-insecure-fallback-key-solo-local"
 )
 
-# 🔴 DEBUG FORZADO TEMPORALMENTE (PARA VER ERROR 500 EN RENDER)
 DEBUG = False
 
 
@@ -31,8 +30,6 @@ ALLOWED_HOSTS = [
     "127.0.0.1",
     "localhost",
     ".onrender.com",
-
-    # 🔥 AGREGADO PARA CLOUDFLARE TUNNEL
     ".trycloudflare.com",
 ]
 
@@ -41,17 +38,20 @@ ALLOWED_HOSTS = [
 # CSRF
 # =========================
 CSRF_TRUSTED_ORIGINS = [
+    "https://control-trasporte.onrender.com",
     "https://*.onrender.com",
-
-    # 🔥 AGREGADO PARA CLOUDFLARE TUNNEL
     "https://*.trycloudflare.com",
 ]
+
+CSRF_COOKIE_SECURE = True
+SESSION_COOKIE_SECURE = True
 
 
 # =========================
 # INSTALLED APPS
 # =========================
 INSTALLED_APPS = [
+
     # Django
     "django.contrib.admin",
     "django.contrib.auth",
@@ -63,7 +63,7 @@ INSTALLED_APPS = [
     # CORS
     "corsheaders",
 
-    # App principal
+    # App
     "flota_app.apps.FlotaAppConfig",
 ]
 
@@ -72,15 +72,23 @@ INSTALLED_APPS = [
 # MIDDLEWARE
 # =========================
 MIDDLEWARE = [
+
     "corsheaders.middleware.CorsMiddleware",
+
     "django.middleware.security.SecurityMiddleware",
+
     "whitenoise.middleware.WhiteNoiseMiddleware",
 
     "django.contrib.sessions.middleware.SessionMiddleware",
+
     "django.middleware.common.CommonMiddleware",
+
     "django.middleware.csrf.CsrfViewMiddleware",
+
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+
     "django.contrib.messages.middleware.MessageMiddleware",
+
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
@@ -91,6 +99,7 @@ MIDDLEWARE = [
 CORS_ALLOWED_ORIGINS = [
     "https://control-trasporte.onrender.com"
 ]
+
 CORS_ALLOW_CREDENTIALS = True
 
 
@@ -109,14 +118,22 @@ ASGI_APPLICATION = "flota.asgi.application"
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [],  # usamos solo APP_DIRS
+
+        "DIRS": [],
+
         "APP_DIRS": True,
+
         "OPTIONS": {
             "context_processors": [
+
                 "django.template.context_processors.debug",
+
                 "django.template.context_processors.request",
+
                 "django.contrib.auth.context_processors.auth",
+
                 "django.contrib.messages.context_processors.messages",
+
             ],
         },
     },
@@ -124,7 +141,7 @@ TEMPLATES = [
 
 
 # =========================
-# DATABASE (LOCAL + RENDER)
+# DATABASE
 # =========================
 DATABASE_URL = os.environ.get("DATABASE_URL")
 
@@ -157,12 +174,14 @@ AUTH_PASSWORD_VALIDATORS = [
 
 
 # =========================
-# I18N / TIMEZONE
+# I18N
 # =========================
 LANGUAGE_CODE = "es-pe"
+
 TIME_ZONE = os.getenv("TIME_ZONE", "America/Lima")
 
 USE_I18N = True
+
 USE_TZ = True
 
 
@@ -177,13 +196,11 @@ STATICFILES_DIRS = [
 
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
-STATICFILES_STORAGE = (
-    "whitenoise.storage.CompressedManifestStaticFilesStorage"
-)
+STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 
 
 # =========================
-# LOGGING (🔥 CLAVE PARA RENDER FREE 🔥)
+# LOGGING (IMPORTANTE EN RENDER)
 # =========================
 LOGGING = {
     "version": 1,
@@ -204,7 +221,9 @@ LOGGING = {
 # SECURITY HEADERS
 # =========================
 SECURE_CONTENT_TYPE_NOSNIFF = False
+
 SECURE_CROSS_ORIGIN_OPENER_POLICY = None
+
 SECURE_REFERRER_POLICY = "same-origin"
 
 
@@ -212,17 +231,31 @@ SECURE_REFERRER_POLICY = "same-origin"
 # MISC
 # =========================
 APPEND_SLASH = True
+
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
 
 # =========================
 # MAPBOX
 # =========================
-MAPBOX_TOKEN = os.getenv(
-    "MAPBOX_TOKEN",
-)
+MAPBOX_TOKEN = os.getenv("MAPBOX_TOKEN")
 
+
+# =========================
+# LOGIN CONFIG
+# =========================
 LOGIN_URL = "/login/"
+
 LOGIN_REDIRECT_URL = "/sistema/despachador/"
+
 LOGOUT_REDIRECT_URL = "/login/"
+
+
+# =========================
+# SESSION
+# =========================
 SESSION_EXPIRE_AT_BROWSER_CLOSE = True
+
 SESSION_COOKIE_AGE = 0
+
+SESSION_SAVE_EVERY_REQUEST = True
