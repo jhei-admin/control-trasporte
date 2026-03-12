@@ -35,7 +35,7 @@ ALLOWED_HOSTS = [
 
 
 # =========================
-# CSRF
+# CSRF / SESSION
 # =========================
 CSRF_TRUSTED_ORIGINS = [
     "https://control-trasporte.onrender.com",
@@ -45,6 +45,13 @@ CSRF_TRUSTED_ORIGINS = [
 
 CSRF_COOKIE_SECURE = True
 SESSION_COOKIE_SECURE = True
+
+CSRF_COOKIE_SAMESITE = "Lax"
+SESSION_COOKIE_SAMESITE = "Lax"
+
+SESSION_EXPIRE_AT_BROWSER_CLOSE = True
+SESSION_COOKIE_AGE = 0
+SESSION_SAVE_EVERY_REQUEST = True
 
 
 # =========================
@@ -181,7 +188,6 @@ LANGUAGE_CODE = "es-pe"
 TIME_ZONE = os.getenv("TIME_ZONE", "America/Lima")
 
 USE_I18N = True
-
 USE_TZ = True
 
 
@@ -200,7 +206,7 @@ STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 
 
 # =========================
-# LOGGING (IMPORTANTE EN RENDER)
+# LOGGING
 # =========================
 LOGGING = {
     "version": 1,
@@ -221,19 +227,20 @@ LOGGING = {
 # SECURITY HEADERS
 # =========================
 SECURE_CONTENT_TYPE_NOSNIFF = False
-
 SECURE_CROSS_ORIGIN_OPENER_POLICY = None
-
 SECURE_REFERRER_POLICY = "same-origin"
 
+# Render proxy HTTPS
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+
+# opcional pero recomendado
+SECURE_SSL_REDIRECT = True
 
 
 # =========================
 # MISC
 # =========================
 APPEND_SLASH = True
-
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 
@@ -247,17 +254,5 @@ MAPBOX_TOKEN = os.getenv("MAPBOX_TOKEN")
 # LOGIN CONFIG
 # =========================
 LOGIN_URL = "/login/"
-
 LOGIN_REDIRECT_URL = "/sistema/despachador/"
-
 LOGOUT_REDIRECT_URL = "/login/"
-
-
-# =========================
-# SESSION
-# =========================
-SESSION_EXPIRE_AT_BROWSER_CLOSE = True
-
-SESSION_COOKIE_AGE = 0
-
-SESSION_SAVE_EVERY_REQUEST = True
