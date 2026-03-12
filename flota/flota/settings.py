@@ -6,6 +6,7 @@ from pathlib import Path
 import os
 import dj_database_url
 
+
 # =========================
 # BASE
 # =========================
@@ -43,14 +44,17 @@ CSRF_TRUSTED_ORIGINS = [
     "https://*.trycloudflare.com",
 ]
 
-CSRF_COOKIE_SECURE = False
-SESSION_COOKIE_SECURE = False
+# Render trabaja detrás de proxy HTTPS
+CSRF_COOKIE_SECURE = True
+SESSION_COOKIE_SECURE = True
 
 CSRF_COOKIE_SAMESITE = "Lax"
 SESSION_COOKIE_SAMESITE = "Lax"
 
+# La sesión dura 24 horas
 SESSION_EXPIRE_AT_BROWSER_CLOSE = True
-SESSION_COOKIE_AGE = 0
+SESSION_COOKIE_AGE = 86400
+
 SESSION_SAVE_EVERY_REQUEST = True
 
 
@@ -230,10 +234,8 @@ SECURE_CONTENT_TYPE_NOSNIFF = False
 SECURE_CROSS_ORIGIN_OPENER_POLICY = None
 SECURE_REFERRER_POLICY = "same-origin"
 
-# Render proxy HTTPS
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
-# opcional pero recomendado
 SECURE_SSL_REDIRECT = False
 
 
