@@ -175,10 +175,11 @@ Acceso panel del despachador
 
 {% csrf_token %}
 
-<input type="hidden" name="next" value="{{ request.GET.next|default:'/sistema/despachador/' }}">
+{% if next %}
+<input type="hidden" name="next" value="{{ next }}">
+{% endif %}
 
 <div class="input-group">
-
 <span class="input-group-text">
 <i class="fa fa-user"></i>
 </span>
@@ -188,13 +189,10 @@ type="text"
 name="username"
 class="form-control"
 placeholder="Usuario"
-required
-autofocus>
-
+required>
 </div>
 
 <div class="input-group">
-
 <span class="input-group-text">
 <i class="fa fa-lock"></i>
 </span>
@@ -205,7 +203,6 @@ name="password"
 class="form-control"
 placeholder="Contraseña"
 required>
-
 </div>
 
 <button type="submit" class="btn btn-login">
@@ -213,11 +210,9 @@ Entrar al sistema
 </button>
 
 {% if form.errors %}
-
 <div class="alert-error">
 Usuario o contraseña incorrectos
 </div>
-
 {% endif %}
 
 </form>
