@@ -6,6 +6,7 @@ from django.views.decorators.http import require_GET
 from django.template import loader
 from django.contrib.auth import views as auth_views
 
+
 # =========================
 # SERVICE WORKER
 # =========================
@@ -20,20 +21,55 @@ def service_worker(request):
     return response
 
 
+# =========================
+# REDIRECT ROOT
+# =========================
+def root_redirect(request):
+    """
+    Redirección inicial del sistema.
+
+    Si el usuario ya está autenticado:
+        → panel despachador
+
+    Si no:
+        → login
+    """
+    if request.user.is_authenticated:
+        return redirect("/sistema/despachador/")
+    return redirect("/login/")
+
+
+# =========================
+# URLS PRINCIPALES
+# =========================
 urlpatterns = [
 
     # 🔧 SERVICE WORKER
     path("service-worker.js", service_worker),
 
-    # 🔁 ROOT → SISTEMA
-    path("", lambda request: redirect("/sistema/conductor/")),
+    # 🔁 ROOT
+    path("", root_redirect),
 
     # 🔐 ADMIN
     path("admin/", admin.site.urls),
 
-    # 🚍 TODO EL SISTEMA (AQUÍ ESTABA EL ERROR)
+    # 🚍 SISTEMA
     path("sistema/", include("flota_app.urls")),
 
-    path("login/", auth_views.LoginView.as_view(template_name="login.html"), name="login"),
-    path("logout/", auth_views.LogoutView.as_view(), name="logout"),
+    # 🔐 LOGIN
+    path(
+        "login/",
+        auth_views.LoginView.as_view(
+            template_name="login.html",
+            redirect_authenticated_user=True
+        ),
+        name="login"
+    ),
+
+    # 🔓 LOGOUT
+    path(
+        "logout/",
+        auth_views.LogoutView.as_view(),
+        name="logout"
+    ),
 ]
