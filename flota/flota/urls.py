@@ -4,11 +4,14 @@ from django.shortcuts import redirect
 from django.http import HttpResponse
 from django.views.decorators.http import require_GET
 from django.template import loader
-from django.contrib.auth import views as auth_views
+from django.contrib.auth import logout
 
 from flota_app.views import LoginSistemaView
 
 
+# =========================
+# SERVICE WORKER
+# =========================
 @require_GET
 def service_worker(request):
     template = loader.get_template("service-worker.js")
@@ -20,6 +23,9 @@ def service_worker(request):
     return response
 
 
+# =========================
+# REDIRECT ROOT
+# =========================
 def root_redirect(request):
 
     if not request.user.is_authenticated:
@@ -36,6 +42,24 @@ def root_redirect(request):
     return redirect("/login/")
 
 
+# =========================
+# LOGOUT INTELIGENTE
+# =========================
+def sistema_logout(request):
+
+    es_admin = request.user.is_superuser
+
+    logout(request)
+
+    if es_admin:
+        return redirect("/admin/login/")
+
+    return redirect("/login/")
+
+
+# =========================
+# URLS
+# =========================
 urlpatterns = [
 
     path("service-worker.js", service_worker),
@@ -54,9 +78,7 @@ urlpatterns = [
 
     path(
         "logout/",
-        auth_views.LogoutView.as_view(
-            next_page="/login/"
-        ),
+        sistema_logout,
         name="logout"
     ),
 ]
