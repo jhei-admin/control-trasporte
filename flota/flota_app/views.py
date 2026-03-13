@@ -22,7 +22,8 @@ from .models import MensajeGlobal
 from django.db.models import Count
 from django.db.models import Max, F, Q
 from django.contrib.auth.decorators import login_required
-
+from django.contrib.auth.views import LoginView
+from django.urls import reverse_lazy
 
 import qrcode
 
@@ -2625,3 +2626,21 @@ def api_panel_frecuencia(request):
         "puntos": [p.codigo for p in puntos],
         "data": unidades_panel
     })
+
+class LoginSistemaView(LoginView):
+    template_name = "login.html"
+    redirect_authenticated_user = True
+
+    def get_success_url(self):
+        user = self.request.user
+
+        # ADMIN DJANGO
+        if user.is_superuser:
+            return "/admin/"
+
+        # DESPACHADOR
+        if user.groups.filter(name="despachador").exists():
+            return "/sistema/despachador/"
+
+        # fallback
+        return reverse_lazy("panel_despachador")

@@ -6,6 +6,7 @@ from django.views.decorators.http import require_GET
 from django.template import loader
 from django.contrib.auth import views as auth_views
 from django.views.decorators.csrf import ensure_csrf_cookie
+from flota_app.views import LoginSistemaView
 
 
 # =========================
@@ -60,10 +61,7 @@ urlpatterns = [
     path(
         "login/",
         ensure_csrf_cookie(
-            auth_views.LoginView.as_view(
-                template_name="login.html",
-                redirect_authenticated_user=True
-            )
+        LoginSistemaView.as_view()
         ),
         name="login"
     ),
