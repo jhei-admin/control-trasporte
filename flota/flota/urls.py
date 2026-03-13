@@ -5,6 +5,7 @@ from django.http import HttpResponse
 from django.views.decorators.http import require_GET
 from django.template import loader
 from django.contrib.auth import views as auth_views
+from django.views.decorators.csrf import ensure_csrf_cookie
 
 
 # =========================
@@ -58,9 +59,11 @@ urlpatterns = [
     # 🔐 LOGIN DEL SISTEMA
     path(
         "login/",
-        auth_views.LoginView.as_view(
-            template_name="login.html",
-            redirect_authenticated_user=True
+        ensure_csrf_cookie(
+            auth_views.LoginView.as_view(
+                template_name="login.html",
+                redirect_authenticated_user=True
+            )
         ),
         name="login"
     ),
