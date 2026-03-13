@@ -278,4 +278,3 @@ MAPBOX_TOKEN = os.getenv("MAPBOX_TOKEN")
 # =================================================
 LOGIN_URL = "/login/"
 LOGIN_REDIRECT_URL = "/sistema/despachador/"
-LOGOUT_REDIRECT_URL = "/login/"
