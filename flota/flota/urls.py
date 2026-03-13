@@ -6,6 +6,7 @@ from django.views.decorators.http import require_GET
 from django.template import loader
 
 from flota_app.views import LoginSistemaView
+from django.contrib.auth import views as auth_views
 
 
 # =========================
@@ -59,6 +60,8 @@ urlpatterns = [
         LoginSistemaView.as_view(),
         name="login"
     ),
+
+    path("logout/", auth_views.LogoutView.as_view(), name="logout"),
 
     # SISTEMA DESPACHADOR
     path(
