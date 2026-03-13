@@ -9,9 +9,6 @@ from django.contrib.auth import logout
 from flota_app.views import LoginSistemaView
 
 
-# =========================
-# SERVICE WORKER
-# =========================
 @require_GET
 def service_worker(request):
     template = loader.get_template("service-worker.js")
@@ -23,9 +20,6 @@ def service_worker(request):
     return response
 
 
-# =========================
-# REDIRECT ROOT
-# =========================
 def root_redirect(request):
 
     if not request.user.is_authenticated:
@@ -42,29 +36,20 @@ def root_redirect(request):
     return redirect("/login/")
 
 
-# =========================
-# LOGOUT INTELIGENTE
-# =========================
-def sistema_logout(request):
-
-    es_admin = request.user.is_superuser
-
+# 🔥 LOGOUT ADMIN CORRECTO
+def admin_logout_fix(request):
     logout(request)
-
-    if es_admin:
-        return redirect("/admin/login/")
-
-    return redirect("/login/")
+    return redirect("/admin/login/")
 
 
-# =========================
-# URLS
-# =========================
 urlpatterns = [
 
     path("service-worker.js", service_worker),
 
     path("", root_redirect),
+
+    # 🔥 ESTA LÍNEA ARREGLA TODO
+    path("admin/logout/", admin_logout_fix),
 
     path("admin/", admin.site.urls),
 
@@ -74,11 +59,5 @@ urlpatterns = [
         "login/",
         LoginSistemaView.as_view(),
         name="login"
-    ),
-
-    path(
-        "logout/",
-        sistema_logout,
-        name="logout"
     ),
 ]
