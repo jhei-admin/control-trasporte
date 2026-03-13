@@ -60,7 +60,7 @@ SESSION_EXPIRE_AT_BROWSER_CLOSE = True
 SESSION_COOKIE_AGE = 86400
 
 # 🔥 FIX DEFINITIVO CSRF
-SESSION_SAVE_EVERY_REQUEST = False
+SESSION_SAVE_EVERY_REQUEST = True
 
 
 # =================================================
