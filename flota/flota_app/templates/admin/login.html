@@ -1,50 +1,30 @@
+{% extends "admin/base_site.html" %}
 {% load static %}
-<!DOCTYPE html>
-<html lang="es">
-<head>
 
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-
-<title>Admin | Control Transporte</title>
-
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-
+{% block extrastyle %}
 <style>
 
-body{
-height:100vh;
+body.login{
+background:linear-gradient(135deg,#0f172a,#1e293b,#334155);
 display:flex;
 align-items:center;
 justify-content:center;
-background:linear-gradient(135deg,#0f172a,#1e293b,#334155);
-font-family:system-ui;
+height:100vh;
 }
 
-.login-box{
-width:420px;
+.login #container{
 background:white;
 padding:40px;
 border-radius:14px;
 box-shadow:0 20px 60px rgba(0,0,0,.4);
+width:420px;
 }
 
-.title{
-font-size:22px;
-font-weight:700;
-margin-bottom:10px;
+.login #header{
+display:none;
 }
 
-.subtitle{
-color:#6b7280;
-margin-bottom:25px;
-}
-
-.form-control{
-margin-bottom:15px;
-}
-
-.btn-login{
+.login .submit-row input{
 width:100%;
 background:#0ea5e9;
 border:none;
@@ -53,44 +33,12 @@ font-weight:600;
 }
 
 </style>
+{% endblock %}
 
-</head>
+{% block content %}
+<h2 style="margin-bottom:10px;">⚙️ Panel Administrador</h2>
+<p style="color:#6b7280;margin-bottom:20px;">Acceso administrativo del sistema</p>
 
-<body>
+{{ block.super }}
 
-<div class="login-box">
-
-<div class="title">
-⚙️ Administración
-</div>
-
-<div class="subtitle">
-Panel administrativo del sistema
-</div>
-
-<form method="post">
-
-{% csrf_token %}
-
-<input type="text"
-name="username"
-class="form-control"
-placeholder="Usuario"
-required>
-
-<input type="password"
-name="password"
-class="form-control"
-placeholder="Contraseña"
-required>
-
-<button class="btn btn-login">
-Entrar al admin
-</button>
-
-</form>
-
-</div>
-
-</body>
-</html>
+{% endblock %}
