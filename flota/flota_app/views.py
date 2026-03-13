@@ -212,7 +212,13 @@ def reporte_salidas_diarias(request, vehiculo_id):
 # =================================================
 # 🧭 PANEL DESPACHADOR (REFORMADO Y COHERENTE)
 # =================================================
+from django.contrib.auth.decorators import login_required, user_passes_test
+
+def es_despachador(user):
+    return user.groups.filter(name="despachador").exists() or user.is_superuser
+
 @login_required
+@user_passes_test(es_despachador)
 def panel_despachador(request):
     """
     PANEL PRINCIPAL DEL DESPACHADOR (REFORMADO)
@@ -239,7 +245,7 @@ def panel_despachador(request):
     # -------------------------------------------------
     salidas = (
         RegistroSalida.objects
-        .select_related("vehiculo", "ruta")
+        .select_related("vehiculo", "ruta").filter(ruta__isnull=False)
         .filter(
             activo=True,
             fecha=hoy
@@ -2640,32 +2646,28 @@ class LoginSistemaView(LoginView):
     redirect_authenticated_user = True
 
     def form_valid(self, form):
-
         user = form.get_user()
-
         login(self.request, user)
-
         return super().form_valid(form)
 
     def form_invalid(self, form):
-
         messages.error(
             self.request,
             "Usuario o contraseña incorrectos."
         )
-
         return super().form_invalid(form)
 
     def get_success_url(self):
 
         user = self.request.user
 
-        # admin
+        # ADMIN
         if user.is_superuser:
             return "/admin/"
 
-        # grupo despachador
+        # DESPACHADOR
         if user.groups.filter(name="despachador").exists():
             return "/sistema/despachador/"
 
-        return "/sistema/despachador/"
+        # fallback
+        return "/admin/"

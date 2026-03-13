@@ -4,11 +4,14 @@ from django.shortcuts import redirect
 from django.http import HttpResponse
 from django.views.decorators.http import require_GET
 from django.template import loader
-from django.contrib.auth import logout
+from django.contrib.auth import views as auth_views
 
 from flota_app.views import LoginSistemaView
 
 
+# =========================
+# SERVICE WORKER
+# =========================
 @require_GET
 def service_worker(request):
     template = loader.get_template("service-worker.js")
@@ -20,6 +23,9 @@ def service_worker(request):
     return response
 
 
+# =========================
+# ROOT REDIRECT
+# =========================
 def root_redirect(request):
 
     if not request.user.is_authenticated:
@@ -33,13 +39,7 @@ def root_redirect(request):
     if user.groups.filter(name="despachador").exists():
         return redirect("/sistema/despachador/")
 
-    return redirect("/login/")
-
-
-# 🔥 LOGOUT ADMIN CORRECTO
-def admin_logout_fix(request):
-    logout(request)
-    return redirect("/admin/login/")
+    return redirect("/admin/")
 
 
 urlpatterns = [
@@ -48,16 +48,25 @@ urlpatterns = [
 
     path("", root_redirect),
 
-    # 🔥 ESTA LÍNEA ARREGLA TODO
-    path("admin/logout/", admin_logout_fix),
-
+    # ADMIN DJANGO (usa su propio login/logout)
     path("admin/", admin.site.urls),
 
+    # SISTEMA
     path("sistema/", include("flota_app.urls")),
 
+    # LOGIN SISTEMA
     path(
         "login/",
         LoginSistemaView.as_view(),
         name="login"
+    ),
+
+    # LOGOUT SISTEMA
+    path(
+        "logout/",
+        auth_views.LogoutView.as_view(
+            next_page="/login/"
+        ),
+        name="logout"
     ),
 ]
