@@ -24,6 +24,10 @@ from django.db.models import Max, F, Q
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.views import LoginView
 from django.urls import reverse_lazy
+from django.contrib.auth import login
+from django.utils.decorators import method_decorator
+from django.views.decorators.csrf import csrf_protect
+from django.contrib.auth.forms import AuthenticationForm
 
 import qrcode
 
@@ -2627,11 +2631,42 @@ def api_panel_frecuencia(request):
         "data": unidades_panel
     })
 
+@method_decorator(never_cache, name="dispatch")
+@method_decorator(csrf_protect, name="dispatch")
 class LoginSistemaView(LoginView):
+
     template_name = "login.html"
     redirect_authenticated_user = True
+    authentication_form = AuthenticationForm
+
+    def form_valid(self, form):
+        """
+        Login seguro:
+        - Previene session fixation
+        - Regenera sesión
+        """
+
+        user = form.get_user()
+
+        # 🔒 regenerar sesión
+        self.request.session.flush()
+
+        login(self.request, user)
+
+        return super().form_valid(form)
+
+    def form_invalid(self, form):
+        """
+        Manejo profesional de error
+        """
+        messages.error(
+            self.request,
+            "Usuario o contraseña incorrectos."
+        )
+        return super().form_invalid(form)
 
     def get_success_url(self):
+
         user = self.request.user
 
         # ADMIN DJANGO

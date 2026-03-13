@@ -62,6 +62,18 @@ SESSION_EXPIRE_AT_BROWSER_CLOSE = True
 SESSION_COOKIE_AGE = 86400
 SESSION_SAVE_EVERY_REQUEST = True
 
+# =================================================
+# LOGIN SECURITY
+# =================================================
+
+AUTHENTICATION_BACKENDS = [
+    "django.contrib.auth.backends.ModelBackend"
+]
+
+# protección básica contra brute force
+LOGIN_ATTEMPTS_LIMIT = 5
+LOGIN_TIMEOUT = 300
+
 
 # =================================================
 # INSTALLED APPS
@@ -236,6 +248,10 @@ SECURE_CONTENT_TYPE_NOSNIFF = True
 SECURE_REFERRER_POLICY = "same-origin"
 
 SECURE_BROWSER_XSS_FILTER = True
+
+SECURE_CROSS_ORIGIN_OPENER_POLICY = "same-origin"
+SECURE_CROSS_ORIGIN_RESOURCE_POLICY = "same-origin"
+SECURE_CROSS_ORIGIN_EMBEDDER_POLICY = "require-corp"
 
 X_FRAME_OPTIONS = "SAMEORIGIN"
 
