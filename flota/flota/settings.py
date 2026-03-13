@@ -44,7 +44,6 @@ CSRF_TRUSTED_ORIGINS = [
     "https://*.trycloudflare.com",
 ]
 
-# Render usa proxy HTTPS
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
 CSRF_COOKIE_SECURE = True
@@ -53,24 +52,24 @@ SESSION_COOKIE_SECURE = True
 CSRF_COOKIE_SAMESITE = "Lax"
 SESSION_COOKIE_SAMESITE = "Lax"
 
-# 🔥 FIX PROBLEMA LOGIN PRIMER INTENTO
 CSRF_COOKIE_HTTPONLY = False
 CSRF_COOKIE_NAME = "csrftoken"
 CSRF_USE_SESSIONS = False
 
 SESSION_EXPIRE_AT_BROWSER_CLOSE = True
 SESSION_COOKIE_AGE = 86400
-SESSION_SAVE_EVERY_REQUEST = True
+
+# 🔥 FIX DEFINITIVO CSRF
+SESSION_SAVE_EVERY_REQUEST = False
+
 
 # =================================================
 # LOGIN SECURITY
 # =================================================
-
 AUTHENTICATION_BACKENDS = [
     "django.contrib.auth.backends.ModelBackend"
 ]
 
-# protección básica contra brute force
 LOGIN_ATTEMPTS_LIMIT = 5
 LOGIN_TIMEOUT = 300
 
@@ -80,7 +79,6 @@ LOGIN_TIMEOUT = 300
 # =================================================
 INSTALLED_APPS = [
 
-    # Django
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
@@ -88,10 +86,8 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
 
-    # CORS
     "corsheaders",
 
-    # App
     "flota_app.apps.FlotaAppConfig",
 ]
 

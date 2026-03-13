@@ -4,7 +4,6 @@ from django.shortcuts import redirect
 from django.http import HttpResponse
 from django.views.decorators.http import require_GET
 from django.template import loader
-from django.contrib.auth import views as auth_views
 
 from flota_app.views import LoginSistemaView
 
@@ -24,7 +23,7 @@ def service_worker(request):
 
 
 # =========================
-# ROOT REDIRECT
+# REDIRECCIÓN RAÍZ
 # =========================
 def root_redirect(request):
 
@@ -39,34 +38,31 @@ def root_redirect(request):
     if user.groups.filter(name="despachador").exists():
         return redirect("/sistema/despachador/")
 
-    return redirect("/admin/")
+    return redirect("/login/")
 
 
+# =========================
+# URLS
+# =========================
 urlpatterns = [
 
     path("service-worker.js", service_worker),
 
     path("", root_redirect),
 
-    # ADMIN DJANGO (usa su propio login/logout)
+    # PANEL ADMIN DJANGO
     path("admin/", admin.site.urls),
 
-    # SISTEMA
-    path("sistema/", include("flota_app.urls")),
-
-    # LOGIN SISTEMA
+    # LOGIN DEL SISTEMA
     path(
         "login/",
         LoginSistemaView.as_view(),
         name="login"
     ),
 
-    # LOGOUT SISTEMA
+    # SISTEMA DESPACHADOR
     path(
-        "logout/",
-        auth_views.LogoutView.as_view(
-            next_page="/login/"
-        ),
-        name="logout"
+        "sistema/",
+        include("flota_app.urls")
     ),
 ]
