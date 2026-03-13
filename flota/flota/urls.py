@@ -6,6 +6,8 @@ from django.views.decorators.http import require_GET
 from django.template import loader
 from django.contrib.auth import views as auth_views
 from django.views.decorators.csrf import ensure_csrf_cookie
+from django.contrib.auth import logout
+
 from flota_app.views import LoginSistemaView
 
 
@@ -41,6 +43,18 @@ def root_redirect(request):
 
 
 # =========================
+# FIX LOGOUT ADMIN (CSRF)
+# =========================
+def admin_logout(request):
+    """
+    Logout seguro para Django Admin.
+    Evita error CSRF cuando se cierra sesión.
+    """
+    logout(request)
+    return redirect("/login/")
+
+
+# =========================
 # URLS PRINCIPALES
 # =========================
 urlpatterns = [
@@ -51,6 +65,9 @@ urlpatterns = [
     # 🔁 ROOT
     path("", root_redirect),
 
+    # 🔐 FIX LOGOUT ADMIN
+    path("admin/logout/", admin_logout),
+
     # 🔐 ADMIN DJANGO
     path("admin/", admin.site.urls),
 
@@ -60,8 +77,8 @@ urlpatterns = [
     # 🔐 LOGIN DEL SISTEMA
     path(
         "login/",
-         ensure_csrf_cookie(
-         LoginSistemaView.as_view()
+        ensure_csrf_cookie(
+            LoginSistemaView.as_view()
         ),
         name="login"
     ),
