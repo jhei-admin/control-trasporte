@@ -61,7 +61,11 @@ urlpatterns = [
         name="login"
     ),
 
-    path("logout/", auth_views.LogoutView.as_view(), name="logout"),
+    path(
+        "logout/",
+        auth_views.LogoutView.as_view(next_page="/login/"),
+        name="logout",
+    ),
 
     # SISTEMA DESPACHADOR
     path(
