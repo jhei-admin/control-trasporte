@@ -5,15 +5,10 @@ from django.http import HttpResponse
 from django.views.decorators.http import require_GET
 from django.template import loader
 from django.contrib.auth import views as auth_views
-from django.views.decorators.csrf import ensure_csrf_cookie
-from django.contrib.auth import logout
 
 from flota_app.views import LoginSistemaView
 
 
-# =========================
-# SERVICE WORKER
-# =========================
 @require_GET
 def service_worker(request):
     template = loader.get_template("service-worker.js")
@@ -25,65 +20,38 @@ def service_worker(request):
     return response
 
 
-# =========================
-# REDIRECT ROOT
-# =========================
 def root_redirect(request):
-    """
-    Redirección inicial del sistema.
 
-    Si el usuario está autenticado:
-        → panel despachador
-    Si no:
-        → login
-    """
-    if request.user.is_authenticated:
+    if not request.user.is_authenticated:
+        return redirect("/login/")
+
+    user = request.user
+
+    if user.is_superuser:
+        return redirect("/admin/")
+
+    if user.groups.filter(name="despachador").exists():
         return redirect("/sistema/despachador/")
+
     return redirect("/login/")
 
 
-# =========================
-# FIX LOGOUT ADMIN (CSRF)
-# =========================
-def admin_logout(request):
-    """
-    Logout seguro para Django Admin.
-    Evita error CSRF cuando se cierra sesión.
-    """
-    logout(request)
-    return redirect("/login/")
-
-
-# =========================
-# URLS PRINCIPALES
-# =========================
 urlpatterns = [
 
-    # 🔧 SERVICE WORKER
     path("service-worker.js", service_worker),
 
-    # 🔁 ROOT
     path("", root_redirect),
 
-    # 🔐 FIX LOGOUT ADMIN
-    path("admin/logout/", admin_logout),
-
-    # 🔐 ADMIN DJANGO
     path("admin/", admin.site.urls),
 
-    # 🚍 SISTEMA
     path("sistema/", include("flota_app.urls")),
 
-    # 🔐 LOGIN DEL SISTEMA
     path(
         "login/",
-        ensure_csrf_cookie(
-            LoginSistemaView.as_view()
-        ),
+        LoginSistemaView.as_view(),
         name="login"
     ),
 
-    # 🔓 LOGOUT DEL SISTEMA
     path(
         "logout/",
         auth_views.LogoutView.as_view(

@@ -2636,46 +2636,36 @@ def api_panel_frecuencia(request):
 class LoginSistemaView(LoginView):
 
     template_name = "login.html"
-    redirect_authenticated_user = True
     authentication_form = AuthenticationForm
+    redirect_authenticated_user = True
 
     def form_valid(self, form):
-        """
-        Login seguro:
-        - Previene session fixation
-        - Regenera sesión
-        """
 
         user = form.get_user()
-
-        # 🔒 regenerar sesión
-        self.request.session.flush()
 
         login(self.request, user)
 
         return super().form_valid(form)
 
     def form_invalid(self, form):
-        """
-        Manejo profesional de error
-        """
+
         messages.error(
             self.request,
             "Usuario o contraseña incorrectos."
         )
+
         return super().form_invalid(form)
 
     def get_success_url(self):
 
         user = self.request.user
 
-        # ADMIN DJANGO
+        # admin
         if user.is_superuser:
             return "/admin/"
 
-        # DESPACHADOR
+        # grupo despachador
         if user.groups.filter(name="despachador").exists():
             return "/sistema/despachador/"
 
-        # fallback
-        return reverse_lazy("panel_despachador")
+        return "/sistema/despachador/"
