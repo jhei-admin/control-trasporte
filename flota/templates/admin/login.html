@@ -2,85 +2,162 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
+
 <meta charset="UTF-8">
 <title>Panel Administrador</title>
 
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+
 <style>
 
-body{
-    margin:0;
-    font-family:Arial, Helvetica, sans-serif;
-    height:100vh;
-    display:flex;
+*{
+box-sizing:border-box;
+margin:0;
+padding:0;
+font-family:'Inter', sans-serif;
 }
 
-/* lado izquierdo decorativo */
+body{
+height:100vh;
+display:flex;
+background:linear-gradient(120deg,#1f2937,#111827);
+}
+
+/* lado izquierdo */
 
 .left{
-    flex:1;
-    background:linear-gradient(135deg,#0f2027,#203a43,#2c5364);
+flex:1;
+background:linear-gradient(160deg,#1e3a8a,#1e40af);
+display:flex;
+align-items:center;
+justify-content:center;
+color:white;
+padding:60px;
 }
 
-/* contenedor login */
+.left-content{
+max-width:400px;
+}
+
+.left h1{
+font-size:40px;
+margin-bottom:20px;
+}
+
+.left p{
+opacity:0.8;
+line-height:1.6;
+}
+
+/* lado derecho */
 
 .right{
-    flex:1;
-    display:flex;
-    justify-content:center;
-    align-items:center;
-    background:#f5f7fa;
+flex:1;
+display:flex;
+justify-content:center;
+align-items:center;
+background:#f3f4f6;
 }
 
-.login-box{
-    background:white;
-    padding:40px;
-    width:350px;
-    border-radius:10px;
-    box-shadow:0 10px 30px rgba(0,0,0,0.15);
+/* tarjeta login */
+
+.login-card{
+
+width:380px;
+background:white;
+padding:45px;
+border-radius:12px;
+
+box-shadow:
+0 10px 25px rgba(0,0,0,0.1),
+0 20px 40px rgba(0,0,0,0.08);
+
+animation:fade .6s ease;
 }
 
-.login-box h1{
-    text-align:center;
-    margin-bottom:10px;
+@keyframes fade{
+from{
+opacity:0;
+transform:translateY(15px);
+}
+to{
+opacity:1;
+transform:translateY(0);
+}
+}
+
+.logo{
+text-align:center;
+font-size:40px;
+margin-bottom:10px;
+}
+
+.title{
+text-align:center;
+font-size:24px;
+font-weight:600;
+margin-bottom:5px;
 }
 
 .subtitle{
-    text-align:center;
-    color:#666;
-    margin-bottom:30px;
+text-align:center;
+font-size:14px;
+color:#6b7280;
+margin-bottom:30px;
 }
 
 .input-group{
-    margin-bottom:20px;
+margin-bottom:18px;
 }
 
 input{
-    width:100%;
-    padding:12px;
-    border-radius:6px;
-    border:1px solid #ccc;
-    font-size:14px;
+
+width:100%;
+padding:12px;
+border-radius:8px;
+border:1px solid #d1d5db;
+font-size:14px;
+
+transition:all .2s;
+}
+
+input:focus{
+outline:none;
+border-color:#2563eb;
+box-shadow:0 0 0 2px rgba(37,99,235,0.2);
 }
 
 button{
-    width:100%;
-    padding:12px;
-    background:#1f6feb;
-    border:none;
-    border-radius:6px;
-    color:white;
-    font-size:15px;
-    cursor:pointer;
+
+width:100%;
+padding:12px;
+border-radius:8px;
+border:none;
+background:#2563eb;
+color:white;
+font-weight:600;
+font-size:14px;
+cursor:pointer;
+
+transition:all .2s;
 }
 
 button:hover{
-    background:#1557c0;
+background:#1d4ed8;
 }
 
 .error{
-    color:red;
-    text-align:center;
-    margin-bottom:15px;
+color:#dc2626;
+font-size:13px;
+margin-bottom:15px;
+text-align:center;
+}
+
+.footer{
+margin-top:20px;
+text-align:center;
+font-size:12px;
+color:#9ca3af;
 }
 
 </style>
@@ -89,14 +166,30 @@ button:hover{
 
 <body>
 
-<div class="left"></div>
+<div class="left">
+
+<div class="left-content">
+
+<h1>Control de Transporte</h1>
+
+<p>
+Panel administrativo del sistema.
+Gestione flota, conductores, rutas y despachos
+de manera segura.
+</p>
+
+</div>
+
+</div>
 
 <div class="right">
 
-<div class="login-box">
+<div class="login-card">
 
-<h1>Panel Admin</h1>
-<p class="subtitle">Sistema de Transporte</p>
+<div class="logo">⚙️</div>
+
+<div class="title">Panel Admin</div>
+<div class="subtitle">Acceso administrativo</div>
 
 {% if form.errors %}
 <p class="error">Usuario o contraseña incorrectos</p>
@@ -115,11 +208,18 @@ button:hover{
 
 <input type="hidden" name="next" value="{{ next }}">
 
-<button type="submit">Iniciar sesión</button>
+<button type="submit">
+Iniciar sesión
+</button>
 
 </form>
 
+<div class="footer">
+Sistema de Transporte
 </div>
+
+</div>
+
 </div>
 
 </body>
