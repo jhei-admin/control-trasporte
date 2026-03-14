@@ -59,10 +59,6 @@ SESSION_COOKIE_SAMESITE = "Lax"
 CSRF_COOKIE_HTTPONLY = False
 CSRF_USE_SESSIONS = False
 
-# dominio compartido
-CSRF_COOKIE_DOMAIN = ".onrender.com"
-SESSION_COOKIE_DOMAIN = ".onrender.com"
-
 # duración sesiones
 SESSION_COOKIE_AGE = 86400
 SESSION_EXPIRE_AT_BROWSER_CLOSE = True
