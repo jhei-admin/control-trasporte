@@ -33,27 +33,21 @@ background-position:center;
 /* ---------- PARTICLES ---------- */
 
 #particles{
-
 position:absolute;
 top:0;
 left:0;
 width:100%;
 height:100%;
-
 z-index:0;
-
 pointer-events:none;
-
 }
 
 /* ---------- CITY LIGHT ---------- */
 
 .city-light{
-
 position:absolute;
 top:0;
 left:0;
-
 width:100%;
 height:100%;
 
@@ -65,74 +59,114 @@ radial-gradient(circle at 60% 90%, rgba(2,132,199,.25), transparent 40%);
 animation:lightMove 12s linear infinite;
 
 pointer-events:none;
-
 z-index:1;
-
 }
 
 @keyframes lightMove{
-
 0%{opacity:.6}
 50%{opacity:1}
 100%{opacity:.6}
-
 }
 
-/* ---------- BUS ---------- */
+/* ---------- AREA VEHICULOS ---------- */
+
+.vehicle-area{
+position:absolute;
+left:4%;
+bottom:6%;
+width:620px;
+height:320px;
+z-index:2;
+}
+
+/* ---------- VAN ATRAS ---------- */
+
+.van{
+position:absolute;
+left:260px;
+bottom:40px;
+width:300px;
+
+opacity:.85;
+
+transform:scale(.85);
+
+filter:blur(.2px) drop-shadow(0 25px 50px rgba(0,0,0,.6));
+
+animation:vanFloat 7s ease-in-out infinite;
+}
+
+@keyframes vanFloat{
+0%{transform:translateY(0) scale(.85)}
+50%{transform:translateY(-6px) scale(.85)}
+100%{transform:translateY(0) scale(.85)}
+}
+
+/* ---------- BUS PRINCIPAL ---------- */
 
 .bus{
-
 position:absolute;
-
-left:6%;
-bottom:6%;
-
+left:0;
+bottom:0;
 width:420px;
 
-filter:drop-shadow(0 40px 70px rgba(0,0,0,.7));
+filter:drop-shadow(0 35px 70px rgba(0,0,0,.8));
 
 animation:busFloat 6s ease-in-out infinite;
-
-z-index:2;
-
 }
 
 @keyframes busFloat{
-
 0%{transform:translateY(0)}
 50%{transform:translateY(-10px)}
 100%{transform:translateY(0)}
-
 }
 
-/* ---------- GPS LINE ---------- */
+/* ---------- SUELO ---------- */
+
+.ground{
+position:absolute;
+left:40px;
+bottom:-5px;
+
+width:420px;
+height:12px;
+
+background:
+radial-gradient(ellipse at center,
+rgba(56,189,248,.9),
+rgba(14,165,233,.4),
+transparent 80%);
+
+filter:blur(6px);
+
+animation:groundPulse 3s infinite;
+}
+
+@keyframes groundPulse{
+0%{opacity:.5}
+50%{opacity:1}
+100%{opacity:.5}
+}
+
+/* ---------- LINEA GPS ---------- */
 
 .gps{
-
 position:absolute;
-
-left:10%;
-bottom:12%;
-
-width:300px;
+left:50px;
+bottom:20px;
+width:380px;
 height:3px;
 
 background:linear-gradient(90deg,#38bdf8,#0ea5e9);
-
 border-radius:10px;
 
 animation:gpsMove 2s infinite;
-
-z-index:2;
-
 }
 
 @keyframes gpsMove{
-
 0%{opacity:.3}
 50%{opacity:1}
 100%{opacity:.3}
-
 }
 
 /* ---------- LOGIN BOX ---------- */
@@ -140,19 +174,16 @@ z-index:2;
 .login-box{
 
 position:absolute;
-
 right:8%;
 top:50%;
-
 transform:translateY(-50%);
 
 width:420px;
-
 padding:40px;
 
 border-radius:18px;
 
-background:rgba(20,30,50,.75);
+background:rgba(20,30,50,.78);
 
 backdrop-filter:blur(25px);
 
@@ -165,138 +196,100 @@ color:white;
 animation:fade .8s ease;
 
 z-index:3;
-
 }
 
 @keyframes fade{
-
 from{opacity:0; transform:translateY(30px)}
 to{opacity:1; transform:translateY(0)}
-
 }
 
 /* ---------- TITULO ---------- */
 
 .logo{
-
 font-size:28px;
 font-weight:700;
 margin-bottom:6px;
-
 }
 
 .subtitle{
-
 opacity:.8;
 margin-bottom:30px;
-
 }
 
 /* ---------- INPUTS ---------- */
 
 .input-group{
-
 margin-bottom:18px;
-
 }
 
 .input-group-text{
-
 background:rgba(255,255,255,.1);
 border:none;
 color:white;
-
 }
 
 .form-control{
-
 background:rgba(255,255,255,.1);
 border:none;
-
 color:white;
-
 }
 
 .form-control::placeholder{
-
 color:#cbd5f5;
-
 }
 
 .form-control:focus{
-
 background:rgba(255,255,255,.15);
 box-shadow:0 0 0 2px #38bdf8;
-
 }
 
 /* ---------- BOTON ---------- */
 
 .btn-login{
-
 width:100%;
-
 padding:12px;
 
 background:linear-gradient(135deg,#38bdf8,#0284c7);
 
 border:none;
-
 border-radius:8px;
 
 font-weight:600;
-
 color:white;
 
 transition:.25s;
-
 }
 
 .btn-login:hover{
-
 transform:translateY(-2px);
-
 box-shadow:0 10px 25px rgba(2,132,199,.5);
-
 }
 
-/* ---------- TEXTO ---------- */
+/* ---------- LINKS ---------- */
 
 .links{
-
 margin-top:20px;
-
 font-size:14px;
-
 opacity:.85;
-
 }
 
 .links a{
-
 color:#38bdf8;
 text-decoration:none;
-
 }
 
 /* ---------- RESPONSIVE ---------- */
 
 @media(max-width:900px){
 
-.bus{
-display:none;
-}
-
-.gps{
+.vehicle-area{
 display:none;
 }
 
 .login-box{
-
 left:50%;
 transform:translate(-50%,-50%);
 width:90%;
-
 }
 
 }
@@ -311,11 +304,19 @@ width:90%;
 
 <div class="city-light"></div>
 
-<!-- BUS -->
+<!-- VEHICULOS -->
+
+<div class="vehicle-area">
+
+<img src="{% static 'img/van.png' %}" class="van">
 
 <img src="{% static 'img/combi.png' %}" class="bus">
 
+<div class="ground"></div>
+
 <div class="gps"></div>
+
+</div>
 
 <!-- LOGIN -->
 
@@ -380,7 +381,6 @@ Usuario o contraseña incorrectos
 <div class="links">
 
 ¿Olvidaste tu contraseña?<br>
-
 ¿No tienes cuenta? <a href="#">Regístrate</a>
 
 </div>
@@ -389,7 +389,7 @@ Usuario o contraseña incorrectos
 
 <script>
 
-/* ---------- PARTICLES ---------- */
+/* PARTICULAS */
 
 const canvas = document.getElementById("particles");
 const ctx = canvas.getContext("2d");
@@ -397,15 +397,17 @@ const ctx = canvas.getContext("2d");
 canvas.width = window.innerWidth;
 canvas.height = window.innerHeight;
 
-let particles = [];
+let particles=[];
 
-for(let i=0;i<70;i++){
+for(let i=0;i<80;i++){
 
 particles.push({
+
 x:Math.random()*canvas.width,
 y:Math.random()*canvas.height,
 r:Math.random()*2,
 d:Math.random()*1
+
 })
 
 }
@@ -432,12 +434,12 @@ function update(){
 
 particles.forEach(p=>{
 
-p.y += p.d;
+p.y+=p.d;
 
-if(p.y > canvas.height){
+if(p.y>canvas.height){
 
-p.y = 0;
-p.x = Math.random()*canvas.width;
+p.y=0;
+p.x=Math.random()*canvas.width;
 
 }
 
