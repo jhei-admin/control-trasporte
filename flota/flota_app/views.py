@@ -28,6 +28,7 @@ from django.contrib.auth import login
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_protect
 from django.contrib.auth.forms import AuthenticationForm
+from django.views.decorators.csrf import ensure_csrf_cookie
 
 import qrcode
 
@@ -2639,6 +2640,7 @@ def api_panel_frecuencia(request):
 
 @method_decorator(never_cache, name="dispatch")
 @method_decorator(csrf_protect, name="dispatch")
+@method_decorator(ensure_csrf_cookie, name="dispatch")
 class LoginSistemaView(LoginView):
 
     template_name = "login.html"
