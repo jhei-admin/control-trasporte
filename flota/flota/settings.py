@@ -1,5 +1,6 @@
 """
-Django settings for flota project (PRODUCCIÓN)
+Django settings for flota project (PRODUCCIÓN ESTABLE)
+Optimizado para Render + Seguridad + CSRF estable
 """
 
 from pathlib import Path
@@ -30,29 +31,41 @@ DEBUG = False
 ALLOWED_HOSTS = [
     "127.0.0.1",
     "localhost",
+    ".onrender.com",
     "control-trasporte.onrender.com",
 ]
 
 
 # =================================================
-# CSRF / SESSION
+# CSRF / SESSION (FIX DEFINITIVO RENDER)
 # =================================================
+
 CSRF_TRUSTED_ORIGINS = [
     "https://control-trasporte.onrender.com",
+    "https://*.onrender.com",
 ]
 
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 USE_X_FORWARDED_HOST = True
 
+# Cookies seguras
 CSRF_COOKIE_SECURE = True
 SESSION_COOKIE_SECURE = True
 
 CSRF_COOKIE_SAMESITE = "Lax"
 SESSION_COOKIE_SAMESITE = "Lax"
 
+# 🔥 evita errores CSRF en Render
+CSRF_COOKIE_HTTPONLY = False
+CSRF_USE_SESSIONS = False
+
+# dominio compartido
+CSRF_COOKIE_DOMAIN = ".onrender.com"
+SESSION_COOKIE_DOMAIN = ".onrender.com"
+
+# duración sesiones
 SESSION_COOKIE_AGE = 86400
 SESSION_EXPIRE_AT_BROWSER_CLOSE = True
-
 SESSION_SAVE_EVERY_REQUEST = True
 
 
@@ -187,7 +200,7 @@ AUTH_PASSWORD_VALIDATORS = [
 
 
 # =================================================
-# I18N
+# INTERNACIONALIZACIÓN
 # =================================================
 LANGUAGE_CODE = "es-pe"
 
@@ -268,3 +281,4 @@ MAPBOX_TOKEN = os.getenv("MAPBOX_TOKEN")
 # =================================================
 LOGIN_URL = "/login/"
 LOGIN_REDIRECT_URL = "/sistema/despachador/"
+LOGOUT_REDIRECT_URL = "/login/"
