@@ -55,13 +55,13 @@ z-index:1;
 100%{opacity:.6}
 }
 
-/* ---------- VEHICLE AREA ---------- */
+/* ---------- AREA BUS ---------- */
 
 .vehicle-area{
 
 position:absolute;
 left:5%;
-bottom:6%;
+bottom:7%;
 
 width:480px;
 height:260px;
@@ -89,68 +89,56 @@ animation:busFloat 6s ease-in-out infinite;
 @keyframes busFloat{
 
 0%{transform:translateY(0)}
-50%{transform:translateY(-10px)}
+50%{transform:translateY(-8px)}
 100%{transform:translateY(0)}
 
 }
 
-/* ---------- SUELO ---------- */
+/* ---------- SOMBRA REALISTA ---------- */
 
-.ground{
+.bus-shadow{
 
 position:absolute;
 
-left:40px;
-bottom:-6px;
+left:70px;
+bottom:-5px;
 
-width:420px;
-height:12px;
+width:280px;
+height:35px;
 
-background:
-radial-gradient(ellipse at center,
-rgba(56,189,248,.9),
-rgba(14,165,233,.4),
-transparent 80%);
+background:radial-gradient(
+ellipse at center,
+rgba(0,0,0,.55) 0%,
+rgba(0,0,0,.35) 40%,
+rgba(0,0,0,0) 80%
+);
 
 filter:blur(6px);
 
-animation:groundPulse 3s infinite;
-
 }
 
-@keyframes groundPulse{
+/* ---------- GLOW DE SUELO ---------- */
 
-0%{opacity:.5}
-50%{opacity:1}
-100%{opacity:.5}
-
-}
-
-/* ---------- LINEA GPS ---------- */
-
-.gps{
+.bus-glow{
 
 position:absolute;
 
-left:60px;
-bottom:20px;
+left:90px;
+bottom:-8px;
 
-width:350px;
-height:3px;
+width:250px;
+height:20px;
 
-background:linear-gradient(90deg,#38bdf8,#0ea5e9);
+background:radial-gradient(
+ellipse at center,
+rgba(56,189,248,.6),
+rgba(14,165,233,.2),
+transparent
+);
 
-border-radius:10px;
+filter:blur(8px);
 
-animation:gpsMove 2s infinite;
-
-}
-
-@keyframes gpsMove{
-
-0%{opacity:.3}
-50%{opacity:1}
-100%{opacity:.3}
+opacity:.6;
 
 }
 
@@ -196,18 +184,14 @@ to{opacity:1; transform:translateY(0)}
 /* ---------- TITULO ---------- */
 
 .logo{
-
 font-size:28px;
 font-weight:700;
 margin-bottom:6px;
-
 }
 
 .subtitle{
-
 opacity:.8;
 margin-bottom:30px;
-
 }
 
 /* ---------- INPUTS ---------- */
@@ -287,15 +271,15 @@ width:90%;
 
 <div class="city-light"></div>
 
-<!-- VEHICULO -->
+<!-- BUS -->
 
 <div class="vehicle-area">
 
 <img src="{% static 'img/combi.png' %}" class="bus">
 
-<div class="ground"></div>
+<div class="bus-shadow"></div>
 
-<div class="gps"></div>
+<div class="bus-glow"></div>
 
 </div>
 
