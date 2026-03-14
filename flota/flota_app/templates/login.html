@@ -68,68 +68,83 @@ z-index:1;
 100%{opacity:.6}
 }
 
-/* ---------- AREA VEHICULOS ---------- */
+/* ---------- VEHICLE AREA ---------- */
 
 .vehicle-area{
+
 position:absolute;
-left:4%;
+left:3%;
 bottom:6%;
-width:620px;
-height:320px;
+
+width:700px;
+height:300px;
+
 z-index:2;
+
 }
 
-/* ---------- VAN ATRAS ---------- */
-
-.van{
-position:absolute;
-left:260px;
-bottom:40px;
-width:300px;
-
-opacity:.85;
-
-transform:scale(.85);
-
-filter:blur(.2px) drop-shadow(0 25px 50px rgba(0,0,0,.6));
-
-animation:vanFloat 7s ease-in-out infinite;
-}
-
-@keyframes vanFloat{
-0%{transform:translateY(0) scale(.85)}
-50%{transform:translateY(-6px) scale(.85)}
-100%{transform:translateY(0) scale(.85)}
-}
-
-/* ---------- BUS PRINCIPAL ---------- */
+/* ---------- BUS ---------- */
 
 .bus{
+
 position:absolute;
 left:0;
 bottom:0;
+
 width:420px;
 
 filter:drop-shadow(0 35px 70px rgba(0,0,0,.8));
 
 animation:busFloat 6s ease-in-out infinite;
+
 }
 
 @keyframes busFloat{
+
 0%{transform:translateY(0)}
 50%{transform:translateY(-10px)}
 100%{transform:translateY(0)}
+
+}
+
+/* ---------- VAN ---------- */
+
+.van{
+
+position:absolute;
+
+left:380px;
+bottom:5px;
+
+width:360px;
+
+opacity:.95;
+
+filter:drop-shadow(0 35px 70px rgba(0,0,0,.7));
+
+animation:vanFloat 7s ease-in-out infinite;
+
+}
+
+@keyframes vanFloat{
+
+0%{transform:translateY(0)}
+50%{transform:translateY(-8px)}
+100%{transform:translateY(0)}
+
 }
 
 /* ---------- SUELO ---------- */
 
 .ground{
-position:absolute;
-left:40px;
-bottom:-5px;
 
-width:420px;
-height:12px;
+position:absolute;
+
+left:40px;
+bottom:-8px;
+
+width:620px;
+height:14px;
 
 background:
 radial-gradient(ellipse at center,
@@ -137,36 +152,45 @@ rgba(56,189,248,.9),
 rgba(14,165,233,.4),
 transparent 80%);
 
-filter:blur(6px);
+filter:blur(8px);
 
 animation:groundPulse 3s infinite;
+
 }
 
 @keyframes groundPulse{
+
 0%{opacity:.5}
 50%{opacity:1}
 100%{opacity:.5}
+
 }
 
 /* ---------- LINEA GPS ---------- */
 
 .gps{
+
 position:absolute;
-left:50px;
-bottom:20px;
-width:380px;
+left:80px;
+bottom:22px;
+
+width:520px;
 height:3px;
 
 background:linear-gradient(90deg,#38bdf8,#0ea5e9);
+
 border-radius:10px;
 
 animation:gpsMove 2s infinite;
+
 }
 
 @keyframes gpsMove{
+
 0%{opacity:.3}
 50%{opacity:1}
 100%{opacity:.3}
+
 }
 
 /* ---------- LOGIN BOX ---------- */
@@ -176,9 +200,11 @@ animation:gpsMove 2s infinite;
 position:absolute;
 right:8%;
 top:50%;
+
 transform:translateY(-50%);
 
 width:420px;
+
 padding:40px;
 
 border-radius:18px;
@@ -196,24 +222,31 @@ color:white;
 animation:fade .8s ease;
 
 z-index:3;
+
 }
 
 @keyframes fade{
+
 from{opacity:0; transform:translateY(30px)}
 to{opacity:1; transform:translateY(0)}
+
 }
 
 /* ---------- TITULO ---------- */
 
 .logo{
+
 font-size:28px;
 font-weight:700;
 margin-bottom:6px;
+
 }
 
 .subtitle{
+
 opacity:.8;
 margin-bottom:30px;
+
 }
 
 /* ---------- INPUTS ---------- */
@@ -246,6 +279,7 @@ box-shadow:0 0 0 2px #38bdf8;
 /* ---------- BOTON ---------- */
 
 .btn-login{
+
 width:100%;
 padding:12px;
 
@@ -258,24 +292,14 @@ font-weight:600;
 color:white;
 
 transition:.25s;
+
 }
 
 .btn-login:hover{
+
 transform:translateY(-2px);
 box-shadow:0 10px 25px rgba(2,132,199,.5);
-}
 
-/* ---------- LINKS ---------- */
-
-.links{
-margin-top:20px;
-font-size:14px;
-opacity:.85;
-}
-
-.links a{
-color:#38bdf8;
-text-decoration:none;
 }
 
 /* ---------- RESPONSIVE ---------- */
@@ -300,17 +324,15 @@ width:90%;
 
 <body>
 
-<canvas id="particles"></canvas>
-
 <div class="city-light"></div>
 
 <!-- VEHICULOS -->
 
 <div class="vehicle-area">
 
-<img src="{% static 'img/van.png' %}" class="van">
-
 <img src="{% static 'img/combi.png' %}" class="bus">
+
+<img src="{% static 'img/van.png' %}" class="van">
 
 <div class="ground"></div>
 
@@ -340,12 +362,7 @@ Sistema de Gestión de Flotas | Arequipa
 <i class="fa fa-user"></i>
 </span>
 
-<input
-type="text"
-name="username"
-class="form-control"
-placeholder="Usuario"
-required>
+<input type="text" name="username" class="form-control" placeholder="Usuario" required>
 
 </div>
 
@@ -355,12 +372,7 @@ required>
 <i class="fa fa-lock"></i>
 </span>
 
-<input
-type="password"
-name="password"
-class="form-control"
-placeholder="Contraseña"
-required>
+<input type="password" name="password" class="form-control" placeholder="Contraseña" required>
 
 </div>
 
@@ -378,78 +390,7 @@ Usuario o contraseña incorrectos
 
 </form>
 
-<div class="links">
-
-¿Olvidaste tu contraseña?<br>
-¿No tienes cuenta? <a href="#">Regístrate</a>
-
 </div>
-
-</div>
-
-<script>
-
-/* PARTICULAS */
-
-const canvas = document.getElementById("particles");
-const ctx = canvas.getContext("2d");
-
-canvas.width = window.innerWidth;
-canvas.height = window.innerHeight;
-
-let particles=[];
-
-for(let i=0;i<80;i++){
-
-particles.push({
-
-x:Math.random()*canvas.width,
-y:Math.random()*canvas.height,
-r:Math.random()*2,
-d:Math.random()*1
-
-})
-
-}
-
-function draw(){
-
-ctx.clearRect(0,0,canvas.width,canvas.height);
-
-ctx.fillStyle="rgba(255,255,255,.6)";
-
-particles.forEach(p=>{
-
-ctx.beginPath();
-ctx.arc(p.x,p.y,p.r,0,Math.PI*2);
-ctx.fill();
-
-});
-
-update();
-
-}
-
-function update(){
-
-particles.forEach(p=>{
-
-p.y+=p.d;
-
-if(p.y>canvas.height){
-
-p.y=0;
-p.x=Math.random()*canvas.width;
-
-}
-
-})
-
-}
-
-setInterval(draw,33);
-
-</script>
 
 </body>
 </html>
