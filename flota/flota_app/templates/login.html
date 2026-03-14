@@ -18,203 +18,117 @@
 
 body{
 height:100vh;
-display:flex;
-align-items:center;
-justify-content:center;
+margin:0;
 font-family:system-ui,-apple-system,Segoe UI,Roboto;
 overflow:hidden;
 
 background:
-linear-gradient(rgba(10,20,40,.75),rgba(10,20,40,.85)),
-url("{% static 'img/arequipa.jpg' %}");
+linear-gradient(rgba(10,20,40,.65),rgba(10,20,40,.85)),
+url("{% static 'img/arequipa.png' %}");
 
 background-size:cover;
 background-position:center;
 }
 
-/* ---------- CONTENEDOR ---------- */
+/* ---------- CONTENEDOR LOGIN ---------- */
 
-.login-wrapper{
+.login-box{
 
-width:1100px;
-max-width:95%;
+position:absolute;
 
-display:flex;
+right:8%;
+top:50%;
 
-border-radius:20px;
-overflow:hidden;
+transform:translateY(-50%);
 
-background:rgba(255,255,255,.05);
-backdrop-filter:blur(20px);
+width:420px;
+
+padding:40px;
+
+border-radius:18px;
+
+background:rgba(255,255,255,.08);
+
+backdrop-filter:blur(25px);
 
 border:1px solid rgba(255,255,255,.15);
 
 box-shadow:0 40px 120px rgba(0,0,0,.7);
 
-animation:fadeLogin .6s ease;
-
-}
-
-@keyframes fadeLogin{
-
-from{opacity:0; transform:translateY(30px);}
-to{opacity:1; transform:translateY(0);}
-
-}
-
-/* ---------- LADO IZQUIERDO ---------- */
-
-.login-left{
-
-flex:1;
-
-display:flex;
-flex-direction:column;
-align-items:center;
-justify-content:center;
-
-padding:60px;
-
 color:white;
-text-align:center;
 
-position:relative;
-
-}
-
-/* BUS */
-
-.bus{
-
-width:420px;
-max-width:100%;
-
-filter:drop-shadow(0 40px 80px rgba(0,0,0,.7));
-
-animation:floatBus 6s ease-in-out infinite;
+animation:fade .8s ease;
 
 }
 
-@keyframes floatBus{
+@keyframes fade{
 
-0%{transform:translateY(0)}
-50%{transform:translateY(-12px)}
-100%{transform:translateY(0)}
-
-}
-
-/* GPS LINE */
-
-.gps-line{
-
-position:absolute;
-bottom:80px;
-left:20%;
-
-width:300px;
-height:2px;
-
-background:linear-gradient(90deg,#38bdf8,#0ea5e9);
-
-animation:gpsMove 3s linear infinite;
+from{opacity:0; transform:translateY(30px)}
+to{opacity:1; transform:translateY(0)}
 
 }
 
-@keyframes gpsMove{
-
-0%{opacity:.3}
-50%{opacity:1}
-100%{opacity:.3}
-
-}
-
-.login-left h2{
-
-margin-top:20px;
-font-weight:700;
-
-}
-
-.login-left p{
-
-opacity:.85;
-font-size:15px;
-
-}
-
-/* ---------- LADO DERECHO ---------- */
-
-.login-right{
-
-flex:1;
-
-background:rgba(255,255,255,.95);
-
-padding:70px;
-
-display:flex;
-flex-direction:column;
-justify-content:center;
-
-}
-
-/* TITULO */
+/* ---------- TITULO ---------- */
 
 .logo{
 
-font-size:30px;
+font-size:28px;
 font-weight:700;
-
-margin-bottom:8px;
+margin-bottom:6px;
 
 }
 
 .subtitle{
 
-color:#64748b;
-margin-bottom:35px;
+opacity:.8;
+margin-bottom:30px;
 
 }
 
-/* INPUTS */
+/* ---------- INPUTS ---------- */
 
 .input-group{
 
-margin-bottom:20px;
+margin-bottom:18px;
 
 }
 
 .input-group-text{
 
-background:#f1f5f9;
+background:rgba(255,255,255,.1);
 border:none;
+color:white;
 
 }
 
 .form-control{
 
+background:rgba(255,255,255,.1);
 border:none;
-background:#f1f5f9;
 
-padding:12px;
+color:white;
 
-transition:.2s;
+}
+
+.form-control::placeholder{
+
+color:#cbd5f5;
 
 }
 
 .form-control:focus{
 
-background:#e2e8f0;
-
-box-shadow:0 0 0 2px #0ea5e9;
+background:rgba(255,255,255,.15);
+box-shadow:0 0 0 2px #38bdf8;
 
 }
 
-/* BOTON */
+/* ---------- BOTON ---------- */
 
 .btn-login{
 
 width:100%;
+
 padding:12px;
 
 background:linear-gradient(135deg,#38bdf8,#0284c7);
@@ -227,7 +141,7 @@ font-weight:600;
 
 color:white;
 
-transition:.2s;
+transition:.25s;
 
 }
 
@@ -235,43 +149,96 @@ transition:.2s;
 
 transform:translateY(-2px);
 
-box-shadow:0 10px 25px rgba(2,132,199,.45);
+box-shadow:0 10px 25px rgba(2,132,199,.5);
 
 }
 
-/* ERROR */
+/* ---------- TEXTO ---------- */
 
-.alert-error{
+.links{
 
-background:#fee2e2;
-color:#991b1b;
-
-padding:10px;
-
-border-radius:6px;
-
-margin-top:15px;
-
-text-align:center;
+margin-top:20px;
 
 font-size:14px;
+
+opacity:.85;
+
+}
+
+.links a{
+
+color:#38bdf8;
+text-decoration:none;
+
+}
+
+/* ---------- BUS ---------- */
+
+.bus{
+
+position:absolute;
+
+left:5%;
+bottom:5%;
+
+width:480px;
+
+filter:drop-shadow(0 40px 80px rgba(0,0,0,.8));
+
+animation:busFloat 6s ease-in-out infinite;
+
+}
+
+@keyframes busFloat{
+
+0%{transform:translateY(0)}
+50%{transform:translateY(-10px)}
+100%{transform:translateY(0)}
+
+}
+
+/* ---------- GPS LINE ---------- */
+
+.gps{
+
+position:absolute;
+
+left:8%;
+bottom:10%;
+
+width:350px;
+height:3px;
+
+background:linear-gradient(90deg,#38bdf8,#0ea5e9);
+
+border-radius:10px;
+
+animation:gpsMove 2s infinite;
+
+}
+
+@keyframes gpsMove{
+
+0%{opacity:.3}
+50%{opacity:1}
+100%{opacity:.3}
 
 }
 
 /* ---------- RESPONSIVE ---------- */
 
-@media (max-width:900px){
+@media(max-width:900px){
 
-.login-wrapper{
-flex-direction:column;
-}
-
-.login-left{
+.bus{
 display:none;
 }
 
-.login-right{
-padding:40px;
+.login-box{
+
+left:50%;
+transform:translate(-50%,-50%);
+width:90%;
+
 }
 
 }
@@ -282,27 +249,15 @@ padding:40px;
 
 <body>
 
-<div class="login-wrapper">
+<!-- BUS PNG -->
 
-<!-- IZQUIERDA -->
+<img src="{% static 'img/combi.png' %}" class="bus">
 
-<div class="login-left">
+<div class="gps"></div>
 
-<img src="{% static 'img/bus.png' %}" class="bus">
+<!-- LOGIN -->
 
-<div class="gps-line"></div>
-
-<h2>Control Transporte</h2>
-
-<p>
-Sistema inteligente para gestión y control de flotas
-</p>
-
-</div>
-
-<!-- DERECHA -->
-
-<div class="login-right">
+<div class="login-box">
 
 <div class="logo">
 🚍 Control Transporte
@@ -352,13 +307,19 @@ Entrar al sistema
 
 {% if form.errors %}
 
-<div class="alert-error">
+<div class="alert alert-danger mt-3">
 Usuario o contraseña incorrectos
 </div>
 
 {% endif %}
 
 </form>
+
+<div class="links">
+
+¿Olvidaste tu contraseña?<br>
+
+¿No tienes cuenta? <a href="#">Regístrate</a>
 
 </div>
 
