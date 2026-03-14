@@ -19,37 +19,89 @@ height:100vh;
 display:flex;
 align-items:center;
 justify-content:center;
-background:linear-gradient(135deg,#0f172a,#1e293b,#334155);
 font-family:system-ui,-apple-system,Segoe UI,Roboto;
-}
-
-.login-container{
-width:1000px;
-max-width:95%;
-background:white;
-border-radius:16px;
 overflow:hidden;
-display:flex;
-box-shadow:0 30px 70px rgba(0,0,0,.35);
+
+/* fondo estilo mapa oscuro */
+
+background:
+linear-gradient(rgba(15,23,42,.9),rgba(15,23,42,.9)),
+url("https://images.unsplash.com/photo-1524661135-423995f22d0b");
+
+background-size:cover;
+background-position:center;
 }
 
-.login-image{
-flex:1;
-background:#0ea5e9;
+/* contenedor principal */
+
+.login-wrapper{
+width:1050px;
+max-width:95%;
 display:flex;
+border-radius:18px;
+overflow:hidden;
+
+/* efecto glass */
+
+background:rgba(255,255,255,.05);
+backdrop-filter:blur(20px);
+
+box-shadow:0 30px 80px rgba(0,0,0,.6);
+
+animation:fadeLogin .6s ease;
+}
+
+@keyframes fadeLogin{
+from{opacity:0; transform:translateY(30px);}
+to{opacity:1; transform:translateY(0);}
+}
+
+/* lado izquierdo */
+
+.login-left{
+flex:1;
+display:flex;
+flex-direction:column;
 align-items:center;
 justify-content:center;
-padding:40px;
+padding:50px;
+color:white;
+text-align:center;
 }
 
-.login-image img{
-width:100%;
-max-width:420px;
-filter:drop-shadow(0 20px 40px rgba(0,0,0,.4));
+.login-left img{
+width:360px;
+max-width:100%;
+margin-bottom:20px;
+
+filter:drop-shadow(0 25px 45px rgba(0,0,0,.5));
+
+animation:floatBus 6s ease-in-out infinite;
 }
 
-.login-form{
+/* animación del bus */
+
+@keyframes floatBus{
+0%{transform:translateY(0)}
+50%{transform:translateY(-10px)}
+100%{transform:translateY(0)}
+}
+
+.login-left h2{
+font-weight:700;
+margin-bottom:10px;
+}
+
+.login-left p{
+opacity:.85;
+font-size:15px;
+}
+
+/* lado derecho */
+
+.login-right{
 flex:1;
+background:white;
 padding:60px;
 display:flex;
 flex-direction:column;
@@ -57,15 +109,17 @@ justify-content:center;
 }
 
 .logo{
-font-size:28px;
+font-size:30px;
 font-weight:700;
-margin-bottom:5px;
+margin-bottom:8px;
 }
 
 .subtitle{
 color:#64748b;
 margin-bottom:35px;
 }
+
+/* inputs */
 
 .input-group{
 margin-bottom:18px;
@@ -80,12 +134,15 @@ border:none;
 border:none;
 background:#f1f5f9;
 padding:12px;
+transition:.2s;
 }
 
 .form-control:focus{
 background:#e2e8f0;
 box-shadow:0 0 0 2px #0ea5e9;
 }
+
+/* botón */
 
 .btn-login{
 width:100%;
@@ -94,11 +151,16 @@ background:#0ea5e9;
 border:none;
 border-radius:8px;
 font-weight:600;
+transition:.2s;
 }
 
 .btn-login:hover{
 background:#0284c7;
+transform:translateY(-1px);
+box-shadow:0 6px 14px rgba(14,165,233,.35);
 }
+
+/* error */
 
 .alert-error{
 background:#fee2e2;
@@ -107,19 +169,22 @@ padding:10px;
 border-radius:6px;
 margin-top:15px;
 text-align:center;
+font-size:14px;
 }
+
+/* responsive */
 
 @media (max-width:900px){
 
-.login-container{
+.login-wrapper{
 flex-direction:column;
 }
 
-.login-image{
+.login-left{
 display:none;
 }
 
-.login-form{
+.login-right{
 padding:40px;
 }
 
@@ -131,15 +196,25 @@ padding:40px;
 
 <body>
 
-<div class="login-container">
+<div class="login-wrapper">
 
-<div class="login-image">
+<!-- LADO IZQUIERDO -->
+
+<div class="login-left">
 
 <img src="{% static 'img/van.jpg' %}">
 
+<h2>Control Transporte</h2>
+
+<p>
+Sistema inteligente para gestión y control de flota
+</p>
+
 </div>
 
-<div class="login-form">
+<!-- LADO DERECHO -->
+
+<div class="login-right">
 
 <div class="logo">
 🚍 Control Transporte
@@ -150,9 +225,11 @@ Acceso al sistema
 </div>
 
 <form method="POST">
+
 {% csrf_token %}
 
 <div class="input-group">
+
 <span class="input-group-text">
 <i class="fa fa-user"></i>
 </span>
@@ -163,9 +240,11 @@ name="username"
 class="form-control"
 placeholder="Usuario"
 required>
+
 </div>
 
 <div class="input-group">
+
 <span class="input-group-text">
 <i class="fa fa-lock"></i>
 </span>
@@ -176,6 +255,7 @@ name="password"
 class="form-control"
 placeholder="Contraseña"
 required>
+
 </div>
 
 <button type="submit" class="btn btn-login">
@@ -183,9 +263,11 @@ Entrar al sistema
 </button>
 
 {% if form.errors %}
+
 <div class="alert-error">
 Usuario o contraseña incorrectos
 </div>
+
 {% endif %}
 
 </form>
