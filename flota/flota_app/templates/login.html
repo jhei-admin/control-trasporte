@@ -172,8 +172,7 @@ Sistema profesional para gestión y despacho de flota
 Acceso panel del despachador
 </div>
 
-<form method="POST" action="{% url 'login' %}">
-
+<form method="POST">
 {% csrf_token %}
 
 {% if next %}
