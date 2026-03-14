@@ -23,45 +23,49 @@ font-family:system-ui,-apple-system,Segoe UI,Roboto;
 overflow:hidden;
 
 background:
-linear-gradient(rgba(10,20,40,.55),rgba(10,20,40,.85)),
+linear-gradient(rgba(15,23,42,.20),rgba(15,23,42,.35)),
 url("{% static 'img/arequipa.png' %}");
 
 background-size:cover;
 background-position:center;
 }
 
-/* ---------- CITY LIGHT ---------- */
+/* ---------- CITY LIGHT DEPTH ---------- */
 
-.city-light{
+.city-lights{
+
 position:absolute;
-top:0;
-left:0;
 width:100%;
 height:100%;
 
-background:
-radial-gradient(circle at 30% 70%, rgba(56,189,248,.25), transparent 40%),
-radial-gradient(circle at 80% 20%, rgba(14,165,233,.25), transparent 40%);
+background-image:
+radial-gradient(rgba(255,255,255,.7) 1px, transparent 1px),
+radial-gradient(rgba(255,255,255,.5) 1px, transparent 1px);
 
-animation:lightMove 12s linear infinite;
+background-size:120px 120px;
 
-pointer-events:none;
+opacity:.15;
+
+animation:cityBlink 4s infinite alternate;
+
 z-index:1;
+
 }
 
-@keyframes lightMove{
-0%{opacity:.6}
-50%{opacity:1}
-100%{opacity:.6}
+@keyframes cityBlink{
+
+0%{opacity:.08}
+100%{opacity:.18}
+
 }
 
-/* ---------- AREA BUS ---------- */
+/* ---------- AREA VEHICULO ---------- */
 
 .vehicle-area{
 
 position:absolute;
 left:5%;
-bottom:7%;
+bottom:8%;
 
 width:480px;
 height:260px;
@@ -80,7 +84,9 @@ bottom:0;
 
 width:420px;
 
-filter:drop-shadow(0 35px 70px rgba(0,0,0,.8));
+filter:
+brightness(.92)
+drop-shadow(0 35px 70px rgba(0,0,0,.8));
 
 animation:busFloat 6s ease-in-out infinite;
 
@@ -94,14 +100,14 @@ animation:busFloat 6s ease-in-out infinite;
 
 }
 
-/* ---------- SOMBRA REALISTA ---------- */
+/* ---------- SOMBRA ---------- */
 
 .bus-shadow{
 
 position:absolute;
 
 left:70px;
-bottom:-5px;
+bottom:-6px;
 
 width:280px;
 height:35px;
@@ -117,14 +123,14 @@ filter:blur(6px);
 
 }
 
-/* ---------- GLOW DE SUELO ---------- */
+/* ---------- GLOW URBANO ---------- */
 
 .bus-glow{
 
 position:absolute;
 
 left:90px;
-bottom:-8px;
+bottom:-10px;
 
 width:250px;
 height:20px;
@@ -136,7 +142,7 @@ rgba(14,165,233,.2),
 transparent
 );
 
-filter:blur(8px);
+filter:blur(10px);
 
 opacity:.6;
 
@@ -184,14 +190,18 @@ to{opacity:1; transform:translateY(0)}
 /* ---------- TITULO ---------- */
 
 .logo{
+
 font-size:28px;
 font-weight:700;
 margin-bottom:6px;
+
 }
 
 .subtitle{
+
 opacity:.8;
 margin-bottom:30px;
+
 }
 
 /* ---------- INPUTS ---------- */
@@ -269,9 +279,9 @@ width:90%;
 
 <body>
 
-<div class="city-light"></div>
+<div class="city-lights"></div>
 
-<!-- BUS -->
+<!-- VEHICULO -->
 
 <div class="vehicle-area">
 
