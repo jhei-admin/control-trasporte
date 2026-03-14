@@ -30,8 +30,7 @@ DEBUG = False
 ALLOWED_HOSTS = [
     "127.0.0.1",
     "localhost",
-    ".onrender.com",
-    ".trycloudflare.com",
+    "control-trasporte.onrender.com",
 ]
 
 
@@ -40,11 +39,10 @@ ALLOWED_HOSTS = [
 # =================================================
 CSRF_TRUSTED_ORIGINS = [
     "https://control-trasporte.onrender.com",
-    "https://*.onrender.com",
-    "https://*.trycloudflare.com",
 ]
 
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+USE_X_FORWARDED_HOST = True
 
 CSRF_COOKIE_SECURE = True
 SESSION_COOKIE_SECURE = True
@@ -52,14 +50,9 @@ SESSION_COOKIE_SECURE = True
 CSRF_COOKIE_SAMESITE = "Lax"
 SESSION_COOKIE_SAMESITE = "Lax"
 
-CSRF_COOKIE_HTTPONLY = False
-CSRF_COOKIE_NAME = "csrftoken"
-CSRF_USE_SESSIONS = False
-
-SESSION_EXPIRE_AT_BROWSER_CLOSE = True
 SESSION_COOKIE_AGE = 86400
+SESSION_EXPIRE_AT_BROWSER_CLOSE = True
 
-# 🔥 FIX DEFINITIVO CSRF
 SESSION_SAVE_EVERY_REQUEST = True
 
 
@@ -69,9 +62,6 @@ SESSION_SAVE_EVERY_REQUEST = True
 AUTHENTICATION_BACKENDS = [
     "django.contrib.auth.backends.ModelBackend"
 ]
-
-LOGIN_ATTEMPTS_LIMIT = 5
-LOGIN_TIMEOUT = 300
 
 
 # =================================================
