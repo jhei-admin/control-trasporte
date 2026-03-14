@@ -1,44 +1,126 @@
-{% extends "admin/login.html" %}
 {% load static %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Panel Administrador</title>
 
-{% block extrastyle %}
 <style>
 
-body.login{
-background:linear-gradient(135deg,#0f172a,#1e293b,#334155);
-display:flex;
-align-items:center;
-justify-content:center;
-height:100vh;
+body{
+    margin:0;
+    font-family:Arial, Helvetica, sans-serif;
+    height:100vh;
+    display:flex;
 }
 
-.login #container{
-background:white;
-padding:40px;
-border-radius:14px;
-box-shadow:0 20px 60px rgba(0,0,0,.4);
-width:420px;
+/* lado izquierdo decorativo */
+
+.left{
+    flex:1;
+    background:linear-gradient(135deg,#0f2027,#203a43,#2c5364);
 }
 
-.login #header{
-display:none;
+/* contenedor login */
+
+.right{
+    flex:1;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    background:#f5f7fa;
 }
 
-.login .submit-row input{
-width:100%;
-background:#0ea5e9;
-border:none;
-padding:10px;
-font-weight:600;
+.login-box{
+    background:white;
+    padding:40px;
+    width:350px;
+    border-radius:10px;
+    box-shadow:0 10px 30px rgba(0,0,0,0.15);
+}
+
+.login-box h1{
+    text-align:center;
+    margin-bottom:10px;
+}
+
+.subtitle{
+    text-align:center;
+    color:#666;
+    margin-bottom:30px;
+}
+
+.input-group{
+    margin-bottom:20px;
+}
+
+input{
+    width:100%;
+    padding:12px;
+    border-radius:6px;
+    border:1px solid #ccc;
+    font-size:14px;
+}
+
+button{
+    width:100%;
+    padding:12px;
+    background:#1f6feb;
+    border:none;
+    border-radius:6px;
+    color:white;
+    font-size:15px;
+    cursor:pointer;
+}
+
+button:hover{
+    background:#1557c0;
+}
+
+.error{
+    color:red;
+    text-align:center;
+    margin-bottom:15px;
 }
 
 </style>
-{% endblock %}
 
-{% block content %}
-<h2 style="margin-bottom:10px;">⚙️ Panel Administrador</h2>
-<p style="color:#6b7280;margin-bottom:20px;">Acceso administrativo del sistema</p>
+</head>
 
-{{ block.super }}
+<body>
 
-{% endblock %}
+<div class="left"></div>
+
+<div class="right">
+
+<div class="login-box">
+
+<h1>Panel Admin</h1>
+<p class="subtitle">Sistema de Transporte</p>
+
+{% if form.errors %}
+<p class="error">Usuario o contraseña incorrectos</p>
+{% endif %}
+
+<form method="post" action="{% url 'admin:login' %}">
+{% csrf_token %}
+
+<div class="input-group">
+<input type="text" name="username" placeholder="Usuario" required>
+</div>
+
+<div class="input-group">
+<input type="password" name="password" placeholder="Contraseña" required>
+</div>
+
+<input type="hidden" name="next" value="{{ next }}">
+
+<button type="submit">Iniciar sesión</button>
+
+</form>
+
+</div>
+</div>
+
+</body>
+</html>
