@@ -30,18 +30,6 @@ background-size:cover;
 background-position:center;
 }
 
-/* ---------- PARTICLES ---------- */
-
-#particles{
-position:absolute;
-top:0;
-left:0;
-width:100%;
-height:100%;
-z-index:0;
-pointer-events:none;
-}
-
 /* ---------- CITY LIGHT ---------- */
 
 .city-light{
@@ -53,8 +41,7 @@ height:100%;
 
 background:
 radial-gradient(circle at 30% 70%, rgba(56,189,248,.25), transparent 40%),
-radial-gradient(circle at 80% 20%, rgba(14,165,233,.25), transparent 40%),
-radial-gradient(circle at 60% 90%, rgba(2,132,199,.25), transparent 40%);
+radial-gradient(circle at 80% 20%, rgba(14,165,233,.25), transparent 40%);
 
 animation:lightMove 12s linear infinite;
 
@@ -73,11 +60,11 @@ z-index:1;
 .vehicle-area{
 
 position:absolute;
-left:3%;
+left:5%;
 bottom:6%;
 
-width:700px;
-height:300px;
+width:480px;
+height:260px;
 
 z-index:2;
 
@@ -107,33 +94,6 @@ animation:busFloat 6s ease-in-out infinite;
 
 }
 
-/* ---------- VAN ---------- */
-
-.van{
-
-position:absolute;
-
-left:380px;
-bottom:5px;
-
-width:360px;
-
-opacity:.95;
-
-filter:drop-shadow(0 35px 70px rgba(0,0,0,.7));
-
-animation:vanFloat 7s ease-in-out infinite;
-
-}
-
-@keyframes vanFloat{
-
-0%{transform:translateY(0)}
-50%{transform:translateY(-8px)}
-100%{transform:translateY(0)}
-
-}
-
 /* ---------- SUELO ---------- */
 
 .ground{
@@ -141,10 +101,10 @@ animation:vanFloat 7s ease-in-out infinite;
 position:absolute;
 
 left:40px;
-bottom:-8px;
+bottom:-6px;
 
-width:620px;
-height:14px;
+width:420px;
+height:12px;
 
 background:
 radial-gradient(ellipse at center,
@@ -152,7 +112,7 @@ rgba(56,189,248,.9),
 rgba(14,165,233,.4),
 transparent 80%);
 
-filter:blur(8px);
+filter:blur(6px);
 
 animation:groundPulse 3s infinite;
 
@@ -171,10 +131,11 @@ animation:groundPulse 3s infinite;
 .gps{
 
 position:absolute;
-left:80px;
-bottom:22px;
 
-width:520px;
+left:60px;
+bottom:20px;
+
+width:350px;
 height:3px;
 
 background:linear-gradient(90deg,#38bdf8,#0ea5e9);
@@ -326,13 +287,11 @@ width:90%;
 
 <div class="city-light"></div>
 
-<!-- VEHICULOS -->
+<!-- VEHICULO -->
 
 <div class="vehicle-area">
 
 <img src="{% static 'img/combi.png' %}" class="bus">
-
-<img src="{% static 'img/van.png' %}" class="van">
 
 <div class="ground"></div>
 
