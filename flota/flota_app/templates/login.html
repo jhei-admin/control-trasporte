@@ -24,18 +24,14 @@ background:linear-gradient(135deg,#0f172a,#1e293b,#334155);
 font-family:system-ui,-apple-system,Segoe UI,Roboto;
 }
 
-/* animación */
-
 .login-wrapper{
-animation:fadeLogin .6s ease;
+animation:fadeLogin .5s ease;
 }
 
 @keyframes fadeLogin{
-from{opacity:0; transform:translateY(25px);}
+from{opacity:0; transform:translateY(20px);}
 to{opacity:1; transform:translateY(0);}
 }
-
-/* contenedor principal */
 
 .login-wrapper{
 width:950px;
@@ -47,23 +43,9 @@ display:flex;
 box-shadow:0 25px 60px rgba(0,0,0,.35);
 }
 
-/* PANEL IZQUIERDO */
-
 .login-left{
 flex:1;
-
-/* fondo con bus */
-
-background:
-linear-gradient(
-rgba(0,0,0,0.55),
-rgba(0,0,0,0.55)
-),
-url("{% static 'img/van.jpg' %}");
-
-background-size:cover;
-background-position:center;
-
+background:linear-gradient(135deg,#14b8a6,#0ea5e9);
 color:white;
 display:flex;
 flex-direction:column;
@@ -73,24 +55,10 @@ padding:40px;
 text-align:center;
 }
 
-/* contenedor glass */
-
-.left-content{
-background:rgba(255,255,255,0.08);
-padding:35px;
-border-radius:14px;
-backdrop-filter: blur(6px);
-box-shadow:0 10px 30px rgba(0,0,0,0.25);
-}
-
-/* icono */
-
 .login-left img{
-width:200px;
-margin-bottom:20px;
+width:220px;
+margin-bottom:25px;
 }
-
-/* textos */
 
 .login-left h2{
 font-weight:700;
@@ -102,8 +70,6 @@ opacity:.9;
 font-size:15px;
 }
 
-/* PANEL DERECHO */
-
 .login-right{
 flex:1;
 padding:55px;
@@ -111,8 +77,6 @@ display:flex;
 flex-direction:column;
 justify-content:center;
 }
-
-/* titulo */
 
 .logo{
 font-size:26px;
@@ -124,8 +88,6 @@ margin-bottom:10px;
 color:#6b7280;
 margin-bottom:30px;
 }
-
-/* inputs */
 
 .input-group{
 margin-bottom:18px;
@@ -148,8 +110,6 @@ background:#e2e8f0;
 box-shadow:0 0 0 2px #0ea5e9;
 }
 
-/* botón */
-
 .btn-login{
 width:100%;
 padding:12px;
@@ -157,16 +117,14 @@ font-weight:600;
 background:#0ea5e9;
 border:none;
 border-radius:8px;
-transition:.25s;
+transition:.2s;
 }
 
 .btn-login:hover{
 background:#0284c7;
-transform:translateY(-2px);
-box-shadow:0 8px 20px rgba(14,165,233,.35);
+transform:translateY(-1px);
+box-shadow:0 6px 14px rgba(14,165,233,.35);
 }
-
-/* error */
 
 .alert-error{
 background:#fee2e2;
@@ -178,22 +136,10 @@ text-align:center;
 font-size:14px;
 }
 
-/* responsive */
-
 @media (max-width:900px){
-
-.login-wrapper{
-flex-direction:column;
-}
-
-.login-left{
-display:none;
-}
-
-.login-right{
-padding:35px;
-}
-
+.login-wrapper{flex-direction:column;}
+.login-left{display:none;}
+.login-right{padding:35px;}
 }
 
 </style>
@@ -204,11 +150,7 @@ padding:35px;
 
 <div class="login-wrapper">
 
-<!-- PANEL IZQUIERDO -->
-
 <div class="login-left">
-
-<div class="left-content">
 
 <img src="https://cdn-icons-png.flaticon.com/512/1995/1995470.png">
 
@@ -219,10 +161,6 @@ Sistema profesional para gestión y despacho de flota
 </p>
 
 </div>
-
-</div>
-
-<!-- PANEL DERECHO -->
 
 <div class="login-right">
 
