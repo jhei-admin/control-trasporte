@@ -25,15 +25,6 @@ font-family:system-ui,-apple-system,Segoe UI,Roboto;
 }
 
 .login-wrapper{
-animation:fadeLogin .5s ease;
-}
-
-@keyframes fadeLogin{
-from{opacity:0; transform:translateY(20px);}
-to{opacity:1; transform:translateY(0);}
-}
-
-.login-wrapper{
 width:950px;
 max-width:95%;
 background:white;
@@ -41,6 +32,12 @@ border-radius:16px;
 overflow:hidden;
 display:flex;
 box-shadow:0 25px 60px rgba(0,0,0,.35);
+animation:fadeLogin .5s ease;
+}
+
+@keyframes fadeLogin{
+from{opacity:0; transform:translateY(20px);}
+to{opacity:1; transform:translateY(0);}
 }
 
 .login-left{
@@ -56,8 +53,10 @@ text-align:center;
 }
 
 .login-left img{
-width:220px;
-margin-bottom:25px;
+width:300px;
+margin-bottom:20px;
+border-radius:10px;
+box-shadow:0 10px 30px rgba(0,0,0,.3);
 }
 
 .login-left h2{
@@ -152,12 +151,12 @@ font-size:14px;
 
 <div class="login-left">
 
-<img src="https://cdn-icons-png.flaticon.com/512/1995/1995470.png">
+<img src="{% static 'img/van.jpg' %}">
 
 <h2>Control Transporte</h2>
 
 <p>
-Sistema profesional para gestión y despacho de flota
+Sistema profesional para gestión y control de flota
 </p>
 
 </div>
@@ -169,7 +168,7 @@ Sistema profesional para gestión y despacho de flota
 </div>
 
 <div class="subtitle">
-Acceso panel del despachador
+Acceso al sistema
 </div>
 
 <form method="POST">
