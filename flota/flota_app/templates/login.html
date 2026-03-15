@@ -58,26 +58,18 @@ z-index:1;
 /* ---------- VEHICULO ---------- */
 
 .vehicle-area{
-
 position:absolute;
-
 left:5%;
-bottom:14%;
-
+bottom:18%;
 width:480px;
 height:260px;
-
 z-index:2;
-
 }
 
 .bus{
-
 position:absolute;
-
 left:0;
 bottom:0;
-
 width:420px;
 
 filter:
@@ -85,31 +77,24 @@ brightness(.92)
 drop-shadow(0 35px 70px rgba(0,0,0,.8));
 
 animation:busFloat 6s ease-in-out infinite;
-
 }
 
 @keyframes busFloat{
-
 0%{transform:translateY(0)}
 50%{transform:translateY(-8px)}
 100%{transform:translateY(0)}
-
 }
 
-/* ---------- SOMBRA BUS ---------- */
+/* ---------- SOMBRA ---------- */
 
 .bus-shadow{
-
 position:absolute;
-
 left:70px;
 bottom:-6px;
-
 width:280px;
 height:35px;
 
-background:
-radial-gradient(
+background:radial-gradient(
 ellipse at center,
 rgba(0,0,0,.55) 0%,
 rgba(0,0,0,.35) 40%,
@@ -117,23 +102,18 @@ rgba(0,0,0,0) 80%
 );
 
 filter:blur(6px);
-
 }
 
-/* ---------- GLOW BUS ---------- */
+/* ---------- GLOW ---------- */
 
 .bus-glow{
-
 position:absolute;
-
 left:90px;
 bottom:-10px;
-
 width:250px;
 height:20px;
 
-background:
-radial-gradient(
+background:radial-gradient(
 ellipse at center,
 rgba(56,189,248,.6),
 rgba(14,165,233,.2),
@@ -141,58 +121,18 @@ transparent
 );
 
 filter:blur(10px);
-
 opacity:.6;
-
 }
-
-/* ---------- GPS PINS ---------- */
-
-.gps-pin{
-
-position:absolute;
-
-width:22px;
-height:22px;
-
-background:#38bdf8;
-
-border-radius:50%;
-
-box-shadow:
-0 0 10px #38bdf8,
-0 0 25px #38bdf8,
-0 0 40px #38bdf8;
-
-animation:gpsPulse 2s infinite;
-
-}
-
-@keyframes gpsPulse{
-
-0%{transform:scale(.8);opacity:.7}
-50%{transform:scale(1.2);opacity:1}
-100%{transform:scale(.8);opacity:.7}
-
-}
-
-.pin1{left:22%;bottom:20%}
-.pin2{left:36%;bottom:14%}
-.pin3{left:50%;bottom:21%}
 
 /* ---------- LOGIN BOX ---------- */
 
 .login-box{
-
 position:absolute;
-
 right:8%;
 top:45%;
-
 transform:translateY(-50%);
 
 width:420px;
-
 padding:40px;
 
 border-radius:18px;
@@ -208,7 +148,6 @@ box-shadow:0 40px 120px rgba(0,0,0,.7);
 color:white;
 
 z-index:3;
-
 }
 
 .logo{
@@ -252,7 +191,6 @@ box-shadow:0 0 0 2px #38bdf8;
 /* ---------- BOTON ---------- */
 
 .btn-login{
-
 width:100%;
 padding:12px;
 
@@ -262,19 +200,14 @@ border:none;
 border-radius:8px;
 
 font-weight:600;
-
 color:white;
 
 transition:.25s;
-
 }
 
 .btn-login:hover{
-
 transform:translateY(-2px);
-
 box-shadow:0 10px 25px rgba(2,132,199,.5);
-
 }
 
 /* ---------- FEATURES ---------- */
@@ -283,17 +216,17 @@ box-shadow:0 10px 25px rgba(2,132,199,.5);
 
 position:absolute;
 
-bottom:60px;
+bottom:30px;
 
 left:50%;
 
 transform:translateX(-50%);
 
-width:85%;
+width:70%;
 
 display:flex;
 
-gap:25px;
+gap:20px;
 
 justify-content:center;
 
@@ -301,61 +234,71 @@ z-index:3;
 
 }
 
-/* ---------- FEATURE CARD ---------- */
+/* ---------- TARJETAS ---------- */
 
 .feature-card{
 
 flex:1;
 
-padding:24px;
+padding:16px;
 
-border-radius:16px;
+border-radius:14px;
 
 background:rgba(20,30,50,.75);
 
 backdrop-filter:blur(14px);
 
-border:1px solid rgba(255,255,255,.18);
+border:1px solid rgba(255,255,255,.15);
 
 color:white;
 
-transition:.35s;
+transition:.3s;
 
-box-shadow:0 15px 40px rgba(0,0,0,.5);
+box-shadow:0 10px 30px rgba(0,0,0,.5);
 
 }
 
 .feature-card:hover{
 
-transform:translateY(-8px) scale(1.02);
+transform:translateY(-6px);
 
-box-shadow:0 25px 60px rgba(0,0,0,.7);
+box-shadow:0 20px 45px rgba(0,0,0,.6);
 
 }
 
+/* ---------- ICONO ---------- */
+
 .feature-icon{
 
-font-size:28px;
+font-size:22px;
 
-margin-bottom:12px;
+margin-bottom:8px;
 
 color:#38bdf8;
 
 }
 
+/* ---------- TITULO ---------- */
+
 .feature-title{
+
+font-size:15px;
 
 font-weight:600;
 
-margin-bottom:6px;
+margin-bottom:4px;
 
 }
 
+/* ---------- TEXTO ---------- */
+
 .feature-text{
 
-font-size:14px;
+font-size:13px;
 
 opacity:.8;
+
+line-height:1.4;
 
 }
 
@@ -399,12 +342,6 @@ width:90%;
 
 </div>
 
-<!-- GPS -->
-
-<div class="gps-pin pin1"></div>
-<div class="gps-pin pin2"></div>
-<div class="gps-pin pin3"></div>
-
 <!-- LOGIN -->
 
 <div class="login-box">
@@ -422,23 +359,13 @@ Sistema de Gestión de Flotas | Arequipa
 {% csrf_token %}
 
 <div class="input-group">
-
-<span class="input-group-text">
-<i class="fa fa-user"></i>
-</span>
-
+<span class="input-group-text"><i class="fa fa-user"></i></span>
 <input type="text" name="username" class="form-control" placeholder="Usuario" required>
-
 </div>
 
 <div class="input-group">
-
-<span class="input-group-text">
-<i class="fa fa-lock"></i>
-</span>
-
+<span class="input-group-text"><i class="fa fa-lock"></i></span>
 <input type="password" name="password" class="form-control" placeholder="Contraseña" required>
-
 </div>
 
 <button type="submit" class="btn btn-login">
@@ -446,11 +373,9 @@ Entrar al sistema
 </button>
 
 {% if form.errors %}
-
 <div class="alert alert-danger mt-3">
 Usuario o contraseña incorrectos
 </div>
-
 {% endif %}
 
 </form>
@@ -472,7 +397,7 @@ Monitoreo GPS en Tiempo Real
 </div>
 
 <div class="feature-text">
-Ubica y rastrea tus vehículos en tiempo real con precisión GPS.
+Ubica y rastrea tus vehículos con precisión GPS.
 </div>
 
 </div>
@@ -484,11 +409,11 @@ Ubica y rastrea tus vehículos en tiempo real con precisión GPS.
 </div>
 
 <div class="feature-title">
-Control de Conductores y Vehículos
+Control de Conductores
 </div>
 
 <div class="feature-text">
-Administra y supervisa conductores y flotas de manera eficiente.
+Gestiona conductores y unidades de forma eficiente.
 </div>
 
 </div>
@@ -504,7 +429,7 @@ Reportes y Estadísticas
 </div>
 
 <div class="feature-text">
-Accede a reportes y análisis detallados de la operación.
+Accede a análisis detallados de tu operación.
 </div>
 
 </div>
