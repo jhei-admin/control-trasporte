@@ -23,7 +23,7 @@ font-family:system-ui,-apple-system,Segoe UI,Roboto;
 overflow:hidden;
 
 background:
-linear-gradient(rgba(15,23,42,.18),rgba(15,23,42,.32)),
+linear-gradient(rgba(15,23,42,.18),rgba(15,23,42,.35)),
 url("{% static 'img/arequipa.png' %}");
 
 background-size:cover;
@@ -36,14 +36,16 @@ background-position:center;
 position:absolute;
 width:100%;
 height:100%;
+
 background-image:
 radial-gradient(rgba(255,255,255,.7) 1px, transparent 1px),
 radial-gradient(rgba(255,255,255,.5) 1px, transparent 1px);
 
-background-size:120px 120px;
-opacity:.14;
+background-size:140px 140px;
+
+opacity:.12;
+
 animation:cityBlink 4s infinite alternate;
-z-index:1;
 }
 
 @keyframes cityBlink{
@@ -51,102 +53,133 @@ z-index:1;
 100%{opacity:.18}
 }
 
-/* ---------- VEHICULO ---------- */
+/* ---------- GPS POINTS ---------- */
 
-.vehicle-area{
+.gps-point{
+
 position:absolute;
-left:5%;
-bottom:24%;
-width:480px;
-height:260px;
-z-index:3;
+
+width:10px;
+height:10px;
+
+background:#38bdf8;
+
+border-radius:50%;
+
+box-shadow:
+0 0 0 0 rgba(56,189,248,.7);
+
+animation:gpsPulse 2s infinite;
+
 }
 
-.bus{
+@keyframes gpsPulse{
+
+0%{
+box-shadow:0 0 0 0 rgba(56,189,248,.7);
+}
+
+70%{
+box-shadow:0 0 0 20px rgba(56,189,248,0);
+}
+
+100%{
+box-shadow:0 0 0 0 rgba(56,189,248,0);
+}
+
+}
+
+.gps1{ left:35%; bottom:18%; }
+.gps2{ left:50%; bottom:24%; }
+.gps3{ left:65%; bottom:20%; }
+
+/* ---------- BUS AREA ---------- */
+
+.vehicle-area{
+
 position:absolute;
-left:0;
-bottom:0;
+
+left:5%;
+bottom:26%;
+
+width:420px;
+height:260px;
+
+}
+
+/* BUS */
+
+.bus{
+
+position:absolute;
+
 width:420px;
 
 filter:
-brightness(.92)
+brightness(.95)
 drop-shadow(0 35px 70px rgba(0,0,0,.8));
 
 animation:busFloat 6s ease-in-out infinite;
+
 }
 
 @keyframes busFloat{
+
 0%{transform:translateY(0)}
 50%{transform:translateY(-8px)}
 100%{transform:translateY(0)}
+
 }
 
+/* SHADOW */
+
 .bus-shadow{
+
 position:absolute;
+
 left:70px;
-bottom:-6px;
-width:280px;
+bottom:-8px;
+
+width:260px;
 height:35px;
 
-background:radial-gradient(
+background:
+
+radial-gradient(
 ellipse at center,
 rgba(0,0,0,.55) 0%,
-rgba(0,0,0,.35) 40%,
+rgba(0,0,0,.3) 40%,
 rgba(0,0,0,0) 80%
 );
 
 filter:blur(6px);
+
 }
 
-.bus-glow{
-position:absolute;
-left:90px;
-bottom:-10px;
-width:250px;
-height:20px;
+/* BLUE GLOW */
 
-background:radial-gradient(
+.bus-glow{
+
+position:absolute;
+
+left:90px;
+bottom:-12px;
+
+width:230px;
+height:18px;
+
+background:
+
+radial-gradient(
 ellipse at center,
-rgba(56,189,248,.6),
-rgba(14,165,233,.2),
+rgba(56,189,248,.5),
+rgba(14,165,233,.15),
 transparent
 );
 
 filter:blur(10px);
-opacity:.6;
-}
 
-/* ---------- GPS LINE ---------- */
-
-.gps-line{
-
-position:absolute;
-
-bottom:18%;
-left:15%;
-
-width:60%;
-height:2px;
-
-background:linear-gradient(
-90deg,
-transparent,
-#38bdf8,
-transparent
-);
-
-animation:gpsMove 4s linear infinite;
-
-opacity:.8;
-
-z-index:2;
-
-}
-
-@keyframes gpsMove{
-
-0%{background-position:0%}
-100%{background-position:200%}
+opacity:.7;
 
 }
 
@@ -155,6 +188,7 @@ z-index:2;
 .login-box{
 
 position:absolute;
+
 right:8%;
 top:45%;
 
@@ -175,8 +209,6 @@ border:1px solid rgba(255,255,255,.22);
 box-shadow:0 40px 120px rgba(0,0,0,.7);
 
 color:white;
-
-z-index:4;
 
 }
 
@@ -218,26 +250,34 @@ background:rgba(255,255,255,.15);
 box-shadow:0 0 0 2px #38bdf8;
 }
 
-/* ---------- BOTON ---------- */
+/* ---------- BUTTON ---------- */
 
 .btn-login{
+
 width:100%;
+
 padding:12px;
 
 background:linear-gradient(135deg,#38bdf8,#0284c7);
 
 border:none;
+
 border-radius:8px;
 
 font-weight:600;
+
 color:white;
 
 transition:.25s;
+
 }
 
 .btn-login:hover{
+
 transform:translateY(-2px);
+
 box-shadow:0 10px 25px rgba(2,132,199,.5);
+
 }
 
 /* ---------- FEATURES ---------- */
@@ -246,7 +286,7 @@ box-shadow:0 10px 25px rgba(2,132,199,.5);
 
 position:absolute;
 
-bottom:-5px;
+bottom:50px;
 
 left:50%;
 
@@ -260,11 +300,9 @@ gap:20px;
 
 justify-content:center;
 
-z-index:4;
-
 }
 
-/* ---------- TARJETAS ---------- */
+/* ---------- FEATURE CARD ---------- */
 
 .feature-card{
 
@@ -297,21 +335,33 @@ box-shadow:0 20px 45px rgba(0,0,0,.6);
 }
 
 .feature-icon{
+
 font-size:22px;
+
 margin-bottom:8px;
+
 color:#38bdf8;
+
 }
 
 .feature-title{
+
 font-size:15px;
+
 font-weight:600;
+
 margin-bottom:4px;
+
 }
 
 .feature-text{
+
 font-size:13px;
+
 opacity:.85;
+
 line-height:1.4;
+
 }
 
 /* ---------- RESPONSIVE ---------- */
@@ -342,7 +392,11 @@ width:90%;
 
 <div class="city-lights"></div>
 
-<div class="gps-line"></div>
+<!-- GPS POINTS -->
+
+<div class="gps-point gps1"></div>
+<div class="gps-point gps2"></div>
+<div class="gps-point gps3"></div>
 
 <!-- BUS -->
 
@@ -373,13 +427,31 @@ Sistema de Gestión de Flotas | Arequipa
 {% csrf_token %}
 
 <div class="input-group">
-<span class="input-group-text"><i class="fa fa-user"></i></span>
-<input type="text" name="username" class="form-control" placeholder="Usuario" required>
+<span class="input-group-text">
+<i class="fa fa-user"></i>
+</span>
+
+<input
+type="text"
+name="username"
+class="form-control"
+placeholder="Usuario"
+required>
+
 </div>
 
 <div class="input-group">
-<span class="input-group-text"><i class="fa fa-lock"></i></span>
-<input type="password" name="password" class="form-control" placeholder="Contraseña" required>
+<span class="input-group-text">
+<i class="fa fa-lock"></i>
+</span>
+
+<input
+type="password"
+name="password"
+class="form-control"
+placeholder="Contraseña"
+required>
+
 </div>
 
 <button type="submit" class="btn btn-login">
@@ -387,16 +459,18 @@ Entrar al sistema
 </button>
 
 {% if form.errors %}
+
 <div class="alert alert-danger mt-3">
 Usuario o contraseña incorrectos
 </div>
+
 {% endif %}
 
 </form>
 
 </div>
 
-<!-- TARJETAS -->
+<!-- FEATURE CARDS -->
 
 <div class="features">
 
