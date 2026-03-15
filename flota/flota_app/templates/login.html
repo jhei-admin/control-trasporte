@@ -17,8 +17,7 @@
 /* ---------- BACKGROUND ---------- */
 
 body{
-
-min-height:100vh;
+height:100vh;
 margin:0;
 font-family:system-ui,-apple-system,Segoe UI,Roboto;
 overflow:hidden;
@@ -91,15 +90,11 @@ animation:cityBlink 4s infinite;
 /* ---------- BUS ---------- */
 
 .vehicle-area{
-
 position:absolute;
-
-left:4%;
-bottom:20%;
-
+left:5%;
+bottom:26%;
 width:420px;
 height:260px;
-
 }
 
 .bus{
@@ -197,7 +192,7 @@ from{stroke-dashoffset:0;}
 to{stroke-dashoffset:-120;}
 }
 
-/* ---------- NODOS GPS ---------- */
+/* ---------- NODOS GPS (CORREGIDOS) ---------- */
 
 .gps-node{
 
@@ -207,6 +202,7 @@ filter:drop-shadow(0 0 8px rgba(56,189,248,1));
 
 animation:gpsBlink 2.5s infinite;
 
+/* SOLUCION */
 transform-box: fill-box;
 transform-origin: center;
 
@@ -241,32 +237,19 @@ filter:drop-shadow(0 0 6px #38bdf8);
 /* ---------- LOGIN ---------- */
 
 .login-box{
-
 position:absolute;
-
 right:8%;
 top:45%;
-
 transform:translateY(-50%);
-
 width:420px;
-
 padding:40px;
-
 border-radius:18px;
-
 background:rgba(30,45,70,.65);
-
 backdrop-filter:blur(25px);
-
 border:1px solid rgba(255,255,255,.22);
-
 box-shadow:0 40px 120px rgba(0,0,0,.7);
-
 color:white;
-
 animation:loginFade 1s ease;
-
 }
 
 @keyframes loginFade{
@@ -334,31 +317,20 @@ transform:translateY(-2px);
 box-shadow:0 10px 25px rgba(2,132,199,.5);
 }
 
-/* ---------- TARJETAS (CENTRADO PROFESIONAL) ---------- */
+/* ---------- TARJETAS ---------- */
 
 .features{
-
 position:absolute;
-
-bottom:40px;
-
-left:0;
-
-width:100%;
-
+bottom:50px;
+left:50%;
+transform:translateX(-50%);
+width:70%;
 display:flex;
-
-justify-content:center;
-
 gap:20px;
-
-padding:0 40px;
-
 }
 
 .feature-card{
 flex:1;
-max-width:320px;
 padding:16px;
 border-radius:14px;
 background:rgba(30,45,70,.65);
@@ -443,20 +415,26 @@ S520 210 580 180
 S680 140 750 160"
 class="gps-path"/>
 
+<!-- NODOS -->
+
 <circle cx="50" cy="250" r="6" class="gps-node"/>
 <circle cx="240" cy="200" r="6" class="gps-node"/>
 <circle cx="420" cy="170" r="6" class="gps-node"/>
 <circle cx="580" cy="180" r="6" class="gps-node"/>
 <circle cx="750" cy="160" r="6" class="gps-node"/>
 
+<!-- VEHICULO 1 -->
+
 <circle r="7" class="vehicle-route">
-<animateMotion dur="10s" rotate="auto" repeatCount="indefinite">
+<animateMotion dur="10s" repeatCount="indefinite">
 <mpath href="#route"/>
 </animateMotion>
 </circle>
 
+<!-- VEHICULO 2 -->
+
 <circle r="6" fill="#7dd3fc">
-<animateMotion dur="14s" begin="3s" rotate="auto" repeatCount="indefinite">
+<animateMotion dur="14s" repeatCount="indefinite">
 <mpath href="#route"/>
 </animateMotion>
 </circle>
@@ -500,9 +478,11 @@ Entrar al sistema
 </button>
 
 {% if form.errors %}
+
 <div class="alert alert-danger mt-3">
 Usuario o contraseña incorrectos
 </div>
+
 {% endif %}
 
 </form>
@@ -514,39 +494,51 @@ Usuario o contraseña incorrectos
 <div class="features">
 
 <div class="feature-card">
+
 <div class="feature-icon">
 <i class="fa fa-location-dot"></i>
 </div>
+
 <div class="feature-title">
 Monitoreo GPS en Tiempo Real
 </div>
+
 <div class="feature-text">
 Ubica y rastrea tus vehículos con precisión GPS.
 </div>
+
 </div>
 
 <div class="feature-card">
+
 <div class="feature-icon">
 <i class="fa fa-id-card"></i>
 </div>
+
 <div class="feature-title">
 Control de Conductores
 </div>
+
 <div class="feature-text">
 Gestiona conductores y unidades de forma eficiente.
 </div>
+
 </div>
 
 <div class="feature-card">
+
 <div class="feature-icon">
 <i class="fa fa-chart-column"></i>
 </div>
+
 <div class="feature-title">
 Reportes y Estadísticas
 </div>
+
 <div class="feature-text">
 Accede a análisis detallados de tu operación.
 </div>
+
 </div>
 
 </div>
