@@ -23,96 +23,48 @@ font-family:system-ui,-apple-system,Segoe UI,Roboto;
 overflow:hidden;
 
 background:
-linear-gradient(rgba(15,23,42,.18),rgba(15,23,42,.35)),
+linear-gradient(rgba(15,23,42,.2),rgba(15,23,42,.4)),
 url("{% static 'img/arequipa.png' %}");
 
 background-size:cover;
 background-position:center;
 }
 
-/* ---------- CITY LIGHTS ---------- */
+/* MAPA ILUMINADO */
 
-.city-lights{
+.map-glow{
 position:absolute;
 width:100%;
 height:100%;
 
-background-image:
-radial-gradient(rgba(255,255,255,.7) 1px, transparent 1px),
-radial-gradient(rgba(255,255,255,.5) 1px, transparent 1px);
+background:
+radial-gradient(circle at 40% 60%, rgba(56,189,248,.25), transparent 50%),
+radial-gradient(circle at 70% 40%, rgba(56,189,248,.15), transparent 50%);
 
-background-size:140px 140px;
-
-opacity:.12;
-
-animation:cityBlink 4s infinite alternate;
-}
-
-@keyframes cityBlink{
-0%{opacity:.08}
-100%{opacity:.18}
-}
-
-/* ---------- GPS POINTS ---------- */
-
-.gps-point{
-
-position:absolute;
-
-width:10px;
-height:10px;
-
-background:#38bdf8;
-
-border-radius:50%;
-
-box-shadow:
-0 0 0 0 rgba(56,189,248,.7);
-
-animation:gpsPulse 2s infinite;
+animation:mapPulse 8s infinite alternate;
 
 }
 
-@keyframes gpsPulse{
-
-0%{
-box-shadow:0 0 0 0 rgba(56,189,248,.7);
+@keyframes mapPulse{
+from{opacity:.4}
+to{opacity:.7}
 }
 
-70%{
-box-shadow:0 0 0 20px rgba(56,189,248,0);
-}
-
-100%{
-box-shadow:0 0 0 0 rgba(56,189,248,0);
-}
-
-}
-
-.gps1{ left:35%; bottom:18%; }
-.gps2{ left:50%; bottom:24%; }
-.gps3{ left:65%; bottom:20%; }
-
-/* ---------- BUS AREA ---------- */
+/* ---------- BUS ---------- */
 
 .vehicle-area{
 
 position:absolute;
-
 left:5%;
 bottom:26%;
-
 width:420px;
 height:260px;
 
 }
 
-/* BUS */
-
 .bus{
 
 position:absolute;
-
 width:420px;
 
 filter:
@@ -131,55 +83,111 @@ animation:busFloat 6s ease-in-out infinite;
 
 }
 
-/* SHADOW */
-
 .bus-shadow{
 
 position:absolute;
 
 left:70px;
-bottom:-8px;
+bottom:-10px;
 
 width:260px;
 height:35px;
 
 background:
-
-radial-gradient(
-ellipse at center,
-rgba(0,0,0,.55) 0%,
+radial-gradient(ellipse at center,
+rgba(0,0,0,.6) 0%,
 rgba(0,0,0,.3) 40%,
-rgba(0,0,0,0) 80%
-);
+transparent 80%);
 
 filter:blur(6px);
 
 }
 
-/* BLUE GLOW */
+/* ---------- GPS NETWORK ---------- */
 
-.bus-glow{
+.gps-network{
 
 position:absolute;
 
-left:90px;
-bottom:-12px;
+left:0;
+bottom:120px;
 
-width:230px;
+width:100%;
+height:300px;
+
+pointer-events:none;
+
+}
+
+/* SVG */
+
+.gps-svg{
+width:100%;
+height:100%;
+}
+
+/* RUTA */
+
+.gps-path{
+
+fill:none;
+
+stroke:#38bdf8;
+
+stroke-width:3;
+
+stroke-linecap:round;
+
+stroke-dasharray:8 8;
+
+animation:gpsFlow 6s linear infinite;
+
+filter:drop-shadow(0 0 6px rgba(56,189,248,.9));
+
+}
+
+@keyframes gpsFlow{
+
+from{
+stroke-dashoffset:0;
+}
+
+to{
+stroke-dashoffset:-120;
+}
+
+}
+
+/* NODOS */
+
+.gps-node{
+
+fill:#38bdf8;
+
+filter:drop-shadow(0 0 8px rgba(56,189,248,1));
+
+animation:gpsBlink 2.5s infinite;
+
+}
+
+@keyframes gpsBlink{
+
+0%{opacity:1; transform:scale(1)}
+50%{opacity:.4; transform:scale(1.4)}
+100%{opacity:1; transform:scale(1)}
+
+}
+
+/* VEHICULO EN RUTA */
+
+.vehicle-route{
+
+width:18px;
 height:18px;
 
-background:
+fill:#38bdf8;
 
-radial-gradient(
-ellipse at center,
-rgba(56,189,248,.5),
-rgba(14,165,233,.15),
-transparent
-);
-
-filter:blur(10px);
-
-opacity:.7;
+filter:drop-shadow(0 0 6px #38bdf8);
 
 }
 
@@ -223,7 +231,7 @@ opacity:.85;
 margin-bottom:30px;
 }
 
-/* ---------- INPUTS ---------- */
+/* INPUTS */
 
 .input-group{
 margin-bottom:18px;
@@ -250,7 +258,7 @@ background:rgba(255,255,255,.15);
 box-shadow:0 0 0 2px #38bdf8;
 }
 
-/* ---------- BUTTON ---------- */
+/* BOTON */
 
 .btn-login{
 
@@ -280,7 +288,7 @@ box-shadow:0 10px 25px rgba(2,132,199,.5);
 
 }
 
-/* ---------- FEATURES ---------- */
+/* ---------- TARJETAS ---------- */
 
 .features{
 
@@ -298,11 +306,7 @@ display:flex;
 
 gap:20px;
 
-justify-content:center;
-
 }
-
-/* ---------- FEATURE CARD ---------- */
 
 .feature-card{
 
@@ -335,53 +339,20 @@ box-shadow:0 20px 45px rgba(0,0,0,.6);
 }
 
 .feature-icon{
-
 font-size:22px;
-
 margin-bottom:8px;
-
 color:#38bdf8;
-
 }
 
 .feature-title{
-
 font-size:15px;
-
 font-weight:600;
-
 margin-bottom:4px;
-
 }
 
 .feature-text{
-
 font-size:13px;
-
 opacity:.85;
-
-line-height:1.4;
-
-}
-
-/* ---------- RESPONSIVE ---------- */
-
-@media(max-width:1000px){
-
-.features{
-display:none;
-}
-
-.vehicle-area{
-display:none;
-}
-
-.login-box{
-left:50%;
-transform:translate(-50%,-50%);
-width:90%;
-}
-
 }
 
 </style>
@@ -390,13 +361,7 @@ width:90%;
 
 <body>
 
-<div class="city-lights"></div>
-
-<!-- GPS POINTS -->
-
-<div class="gps-point gps1"></div>
-<div class="gps-point gps2"></div>
-<div class="gps-point gps3"></div>
+<div class="map-glow"></div>
 
 <!-- BUS -->
 
@@ -406,7 +371,45 @@ width:90%;
 
 <div class="bus-shadow"></div>
 
-<div class="bus-glow"></div>
+</div>
+
+<!-- GPS NETWORK -->
+
+<div class="gps-network">
+
+<svg viewBox="0 0 800 300" class="gps-svg">
+
+<path 
+d="M50 250 
+C120 220 180 240 240 200
+S360 150 420 170
+S520 210 580 180
+S680 140 750 160"
+
+class="gps-path"
+/>
+
+<!-- NODOS -->
+
+<circle cx="50" cy="250" r="6" class="gps-node"/>
+<circle cx="240" cy="200" r="6" class="gps-node"/>
+<circle cx="420" cy="170" r="6" class="gps-node"/>
+<circle cx="580" cy="180" r="6" class="gps-node"/>
+<circle cx="750" cy="160" r="6" class="gps-node"/>
+
+<!-- VEHICULO MOVIENDOSE -->
+
+<circle r="7" class="vehicle-route">
+
+<animateMotion dur="10s" repeatCount="indefinite">
+
+<mpath href="#route"/>
+
+</animateMotion>
+
+</circle>
+
+</svg>
 
 </div>
 
@@ -431,13 +434,7 @@ Sistema de Gestión de Flotas | Arequipa
 <i class="fa fa-user"></i>
 </span>
 
-<input
-type="text"
-name="username"
-class="form-control"
-placeholder="Usuario"
-required>
-
+<input type="text" name="username" class="form-control" placeholder="Usuario" required>
 </div>
 
 <div class="input-group">
@@ -445,13 +442,7 @@ required>
 <i class="fa fa-lock"></i>
 </span>
 
-<input
-type="password"
-name="password"
-class="form-control"
-placeholder="Contraseña"
-required>
-
+<input type="password" name="password" class="form-control" placeholder="Contraseña" required>
 </div>
 
 <button type="submit" class="btn btn-login">
@@ -470,7 +461,7 @@ Usuario o contraseña incorrectos
 
 </div>
 
-<!-- FEATURE CARDS -->
+<!-- TARJETAS -->
 
 <div class="features">
 
