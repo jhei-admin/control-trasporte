@@ -36,12 +36,17 @@ background-position:center;
 position:absolute;
 width:100%;
 height:100%;
+
 background-image:
 radial-gradient(rgba(255,255,255,.7) 1px, transparent 1px),
 radial-gradient(rgba(255,255,255,.5) 1px, transparent 1px);
+
 background-size:120px 120px;
+
 opacity:.15;
+
 animation:cityBlink 4s infinite alternate;
+
 z-index:1;
 }
 
@@ -53,48 +58,92 @@ z-index:1;
 /* ---------- VEHICULO ---------- */
 
 .vehicle-area{
+
 position:absolute;
+
 left:5%;
-bottom:10%;
+bottom:14%;
+
 width:480px;
 height:260px;
+
 z-index:2;
+
 }
 
 .bus{
+
 position:absolute;
+
 left:0;
 bottom:0;
+
 width:420px;
-filter:brightness(.92) drop-shadow(0 35px 70px rgba(0,0,0,.8));
+
+filter:
+brightness(.92)
+drop-shadow(0 35px 70px rgba(0,0,0,.8));
+
 animation:busFloat 6s ease-in-out infinite;
+
 }
 
 @keyframes busFloat{
+
 0%{transform:translateY(0)}
 50%{transform:translateY(-8px)}
 100%{transform:translateY(0)}
+
 }
+
+/* ---------- SOMBRA BUS ---------- */
 
 .bus-shadow{
+
 position:absolute;
+
 left:70px;
 bottom:-6px;
+
 width:280px;
 height:35px;
-background:radial-gradient(ellipse at center, rgba(0,0,0,.55) 0%, rgba(0,0,0,.35) 40%, rgba(0,0,0,0) 80%);
+
+background:
+radial-gradient(
+ellipse at center,
+rgba(0,0,0,.55) 0%,
+rgba(0,0,0,.35) 40%,
+rgba(0,0,0,0) 80%
+);
+
 filter:blur(6px);
+
 }
 
+/* ---------- GLOW BUS ---------- */
+
 .bus-glow{
+
 position:absolute;
+
 left:90px;
 bottom:-10px;
+
 width:250px;
 height:20px;
-background:radial-gradient(ellipse at center, rgba(56,189,248,.6), rgba(14,165,233,.2), transparent);
+
+background:
+radial-gradient(
+ellipse at center,
+rgba(56,189,248,.6),
+rgba(14,165,233,.2),
+transparent
+);
+
 filter:blur(10px);
+
 opacity:.6;
+
 }
 
 /* ---------- GPS PINS ---------- */
@@ -103,14 +152,17 @@ opacity:.6;
 
 position:absolute;
 
-width:24px;
-height:24px;
+width:22px;
+height:22px;
 
 background:#38bdf8;
 
 border-radius:50%;
 
-box-shadow:0 0 15px #38bdf8;
+box-shadow:
+0 0 10px #38bdf8,
+0 0 25px #38bdf8,
+0 0 40px #38bdf8;
 
 animation:gpsPulse 2s infinite;
 
@@ -124,17 +176,16 @@ animation:gpsPulse 2s infinite;
 
 }
 
-/* posiciones */
-
-.pin1{left:22%;bottom:18%}
-.pin2{left:35%;bottom:12%}
-.pin3{left:50%;bottom:20%}
+.pin1{left:22%;bottom:20%}
+.pin2{left:36%;bottom:14%}
+.pin3{left:50%;bottom:21%}
 
 /* ---------- LOGIN BOX ---------- */
 
 .login-box{
 
 position:absolute;
+
 right:8%;
 top:45%;
 
@@ -171,6 +222,8 @@ opacity:.8;
 margin-bottom:30px;
 }
 
+/* ---------- INPUTS ---------- */
+
 .input-group{
 margin-bottom:18px;
 }
@@ -196,20 +249,32 @@ background:rgba(255,255,255,.15);
 box-shadow:0 0 0 2px #38bdf8;
 }
 
+/* ---------- BOTON ---------- */
+
 .btn-login{
+
 width:100%;
 padding:12px;
+
 background:linear-gradient(135deg,#38bdf8,#0284c7);
+
 border:none;
 border-radius:8px;
+
 font-weight:600;
+
 color:white;
+
 transition:.25s;
+
 }
 
 .btn-login:hover{
+
 transform:translateY(-2px);
+
 box-shadow:0 10px 25px rgba(2,132,199,.5);
+
 }
 
 /* ---------- FEATURES ---------- */
@@ -218,7 +283,8 @@ box-shadow:0 10px 25px rgba(2,132,199,.5);
 
 position:absolute;
 
-bottom:30px;
+bottom:60px;
+
 left:50%;
 
 transform:translateX(-50%);
@@ -226,6 +292,7 @@ transform:translateX(-50%);
 width:85%;
 
 display:flex;
+
 gap:25px;
 
 justify-content:center;
@@ -234,31 +301,35 @@ z-index:3;
 
 }
 
+/* ---------- FEATURE CARD ---------- */
+
 .feature-card{
 
 flex:1;
 
-padding:22px;
+padding:24px;
 
-border-radius:14px;
+border-radius:16px;
 
-background:rgba(20,30,50,.70);
+background:rgba(20,30,50,.75);
 
-backdrop-filter:blur(10px);
+backdrop-filter:blur(14px);
 
-border:1px solid rgba(255,255,255,.12);
+border:1px solid rgba(255,255,255,.18);
 
 color:white;
 
-transition:.3s;
+transition:.35s;
+
+box-shadow:0 15px 40px rgba(0,0,0,.5);
 
 }
 
 .feature-card:hover{
 
-transform:translateY(-6px);
+transform:translateY(-8px) scale(1.02);
 
-box-shadow:0 20px 40px rgba(0,0,0,.6);
+box-shadow:0 25px 60px rgba(0,0,0,.7);
 
 }
 
@@ -316,7 +387,7 @@ width:90%;
 
 <div class="city-lights"></div>
 
-<!-- VEHICULO -->
+<!-- BUS -->
 
 <div class="vehicle-area">
 
@@ -328,7 +399,7 @@ width:90%;
 
 </div>
 
-<!-- GPS PINS -->
+<!-- GPS -->
 
 <div class="gps-pin pin1"></div>
 <div class="gps-pin pin2"></div>
@@ -351,13 +422,23 @@ Sistema de Gestión de Flotas | Arequipa
 {% csrf_token %}
 
 <div class="input-group">
-<span class="input-group-text"><i class="fa fa-user"></i></span>
+
+<span class="input-group-text">
+<i class="fa fa-user"></i>
+</span>
+
 <input type="text" name="username" class="form-control" placeholder="Usuario" required>
+
 </div>
 
 <div class="input-group">
-<span class="input-group-text"><i class="fa fa-lock"></i></span>
+
+<span class="input-group-text">
+<i class="fa fa-lock"></i>
+</span>
+
 <input type="password" name="password" class="form-control" placeholder="Contraseña" required>
+
 </div>
 
 <button type="submit" class="btn btn-login">
@@ -365,16 +446,18 @@ Entrar al sistema
 </button>
 
 {% if form.errors %}
+
 <div class="alert alert-danger mt-3">
 Usuario o contraseña incorrectos
 </div>
+
 {% endif %}
 
 </form>
 
 </div>
 
-<!-- FEATURES -->
+<!-- TARJETAS -->
 
 <div class="features">
 
