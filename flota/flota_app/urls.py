@@ -5,15 +5,6 @@ from .views import debug_gps
 urlpatterns = [
 
     # =========================
-    # 📱 APP CONDUCTOR
-    # =========================
-    path(
-        "conductor/",
-        views.app_conductor,
-        name="app_conductor"
-    ),
-
-    # =========================
     # 📡 APIs APP CONDUCTOR
     # =========================
     path(
