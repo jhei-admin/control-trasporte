@@ -7,9 +7,38 @@ from django.core.exceptions import ValidationError
 from django.db.models import Q
 
 # =========================
+# EMPRESA
+# =========================
+class Empresa(models.Model):
+
+    nombre = models.CharField(max_length=200)
+
+    ruc = models.CharField(
+        max_length=20,
+        blank=True,
+        null=True
+    )
+
+    activa = models.BooleanField(default=True)
+
+    creado_en = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return self.nombre
+    
+# =========================
 # VEHÍCULO
 # =========================
 class Vehiculo(models.Model):
+
+    empresa = models.ForeignKey(
+        Empresa,
+        on_delete=models.CASCADE,
+        null=True,          # 🔴 IMPORTANTE: no rompe registros existentes
+        blank=True,
+        related_name="vehiculos"
+    )
+
     codigo = models.CharField(
         max_length=10,
         help_text="Código visible del vehículo (01, 02, 15, etc.)"
@@ -36,15 +65,18 @@ class Vehiculo(models.Model):
         ]
 
     def clean(self):
+
         if self.activo:
+
             existe = Vehiculo.objects.filter(
+                empresa=self.empresa,   # 🔴 ahora valida por empresa
                 codigo=self.codigo,
                 activo=True
             ).exclude(id=self.id).exists()
 
             if existe:
                 raise ValidationError(
-                    f"Ya existe un vehículo activo con el código {self.codigo}"
+                    f"Ya existe un vehículo activo con el código {self.codigo} en esta empresa"
                 )
 
     @property
@@ -54,8 +86,11 @@ class Vehiculo(models.Model):
 
     def __str__(self):
         estado = "ACTIVO" if self.activo else "INACTIVO"
-        return f"Unidad {self.codigo} ({estado})"
 
+        if self.empresa:
+            return f"{self.empresa} - Unidad {self.codigo} ({estado})"
+
+        return f"Unidad {self.codigo} ({estado})"
 
 # =========================
 # RUTA
