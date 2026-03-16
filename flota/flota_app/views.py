@@ -1742,36 +1742,6 @@ def api_app_cola_contexto(request):
     })
 
 # =================================================
-# 🚍 APP CONDUCTOR (DEFINITIVA — SOLO UI)
-# =================================================
-@never_cache
-def app_conductor(request):
-    """
-    Vista principal de la App del Conductor (PWA).
-
-    🔑 REGLA DE ORO (NO ROMPER):
-    - ❌ NO consulta modelos
-    - ❌ NO decide estados
-    - ❌ NO maneja horas
-    - ❌ NO usa sesiones
-    - ❌ NO lee salidas
-
-    ✅ SOLO carga la UI
-    ✅ TODO el estado viene por APIs:
-       - api_app_estado
-       - api_gps
-       - api_gps_conductor
-    """
-
-    return render(
-        request,
-        "flota_app/app_conductor.html",
-        {
-            "modo_pwa": True,  # requerido para instalación PWA
-        }
-    )
-
-# =================================================
 # 📦 QR DE UNIDAD (JSON PURO – DEFINITIVO)
 # =================================================
 @login_required

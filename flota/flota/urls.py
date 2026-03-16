@@ -10,20 +10,6 @@ from flota_app.views import LoginSistemaView
 
 
 # =========================
-# SERVICE WORKER
-# =========================
-@require_GET
-def service_worker(request):
-    template = loader.get_template("service-worker.js")
-    response = HttpResponse(
-        template.render(),
-        content_type="application/javascript"
-    )
-    response["Service-Worker-Allowed"] = "/"
-    return response
-
-
-# =========================
 # REDIRECCIÓN RAÍZ
 # =========================
 def root_redirect(request):
@@ -46,8 +32,6 @@ def root_redirect(request):
 # URLS
 # =========================
 urlpatterns = [
-
-    path("service-worker.js", service_worker),
 
     path("", root_redirect),
 
