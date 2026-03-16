@@ -9,8 +9,17 @@ from .models import (
     SesionUnidad,
     GPSRegistro,
     UbicacionVehiculo,
-    MensajeGlobal,   # 👈 NUEVO
+    MensajeGlobal,
+    Empresa,   # 👈 NUEVO
 )
+
+# =================================================
+# EMPRESA
+# =================================================
+@admin.register(Empresa)
+class EmpresaAdmin(admin.ModelAdmin):
+    list_display = ("id", "nombre", "ruc", "activa", "creado_en")
+    search_fields = ("nombre", "ruc")
 
 # =================================================
 # VEHÍCULO
