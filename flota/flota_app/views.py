@@ -877,35 +877,53 @@ def api_gps(request):
     })
 
 # =================================================
-# 🗺️ API — MAPA EN TIEMPO REAL (DESPACHADOR)
+# 🗺️ API — MAPA EN TIEMPO REAL (DESPACHADOR) OPTIMIZADO
 # =================================================
 @login_required
 @require_GET
 def api_despachador_mapa(request):
     """
-    API para el panel despachador.
-    Devuelve la ubicación actual de todos los vehículos
-    separando:
-    - estado OPERATIVO (ACTIVO / INACTIVO)
-    - estado GPS (ONLINE / LENTO / OFFLINE)
+    API optimizada:
+    - Evita N+1 queries
+    - Solo 2 consultas a DB
+    - Escalable para muchas unidades
     """
 
     ahora = timezone.now()
     hoy = timezone.localdate()
+    empresa = request.user.perfil.empresa
+
     data = []
 
     # =================================================
-    # 🚍 RECORRER UBICACIONES ACTIVAS
+    # 🔥 1. OBTENER VEHÍCULOS CON SALIDA ACTIVA (1 QUERY)
     # =================================================
-    for ub in (
+    salidas_activas = set(
+        RegistroSalida.objects.filter(
+            fecha=hoy,
+            activo=True,
+            vehiculo__empresa=empresa
+        ).values_list("vehiculo_id", flat=True)
+    )
+
+    # =================================================
+    # 🔥 2. OBTENER UBICACIONES (1 QUERY)
+    # =================================================
+    ubicaciones = (
         UbicacionVehiculo.objects
         .select_related("vehiculo")
-        .filter(vehiculo__empresa=request.user.perfil.empresa)
-    ):
+        .filter(vehiculo__empresa=empresa)
+    )
+
+    # =================================================
+    # 🚍 RECORRER UBICACIONES (SIN MÁS QUERIES)
+    # =================================================
+    for ub in ubicaciones:
+
         delta = ahora - ub.updated_at
 
         # =============================================
-        # 📡 ESTADO GPS (COMUNICACIÓN)
+        # 📡 ESTADO GPS
         # =============================================
         if delta <= timedelta(seconds=30):
             estado_gps = "ONLINE"
@@ -915,34 +933,23 @@ def api_despachador_mapa(request):
             estado_gps = "OFFLINE"
 
         # =============================================
-        # 🚍 ¿TIENE SALIDA ACTIVA HOY?
+        # 🚍 ESTADO OPERATIVO (SIN QUERY EXTRA)
         # =============================================
-        tiene_salida_hoy = RegistroSalida.objects.filter(
-            vehiculo=ub.vehiculo,
-            fecha=hoy,
-            activo=True
-        ).exists()
+        estado = "ACTIVO" if ub.vehiculo_id in salidas_activas else "INACTIVO"
 
         # =============================================
-        # 🧭 ESTADO OPERATIVO (MAPA)
-        # =============================================
-        estado = "ACTIVO" if tiene_salida_hoy else "INACTIVO"
-
-        # =============================================
-        # 📤 RESPUESTA FINAL (FIX DEFINITIVO)
+        # 📤 RESPUESTA
         # =============================================
         data.append({
-            # 🔥 FIX CLAVE — IDENTIFICADOR CORRECTO
-            "vehiculo": str(ub.vehiculo.codigo),  # ✅ NO numero
+            "vehiculo": str(ub.vehiculo.codigo),
 
             "lat": ub.latitud,
             "lng": ub.longitud,
             "velocidad": ub.velocidad,
             "precision": ub.precision,
 
-            # Estados
-            "estado": estado,          # ACTIVO / INACTIVO
-            "estado_gps": estado_gps,  # ONLINE / LENTO / OFFLINE
+            "estado": estado,
+            "estado_gps": estado_gps,
 
             "actualizado_en": ub.updated_at.isoformat(),
         })

@@ -99,29 +99,46 @@ class Vehiculo(models.Model):
 # RUTA
 # =========================
 class Ruta(models.Model):
+    empresa = models.ForeignKey(
+        Empresa,
+        on_delete=models.CASCADE,
+        related_name="rutas"
+    )
+
     nombre = models.CharField(max_length=100)
 
+    class Meta:
+        unique_together = ("empresa", "nombre")
+
     def __str__(self):
-        return self.nombre
+        return f"{self.empresa} - {self.nombre}"
 
 
 # =========================
 # CONFIGURACIÓN DESPACHO
 # =========================
 class ConfiguracionDespacho(models.Model):
+
+    empresa = models.ForeignKey(
+        Empresa,
+        on_delete=models.CASCADE,
+        related_name="configuraciones"
+    )
+
     intervalo_fijo = models.PositiveIntegerField(
         null=True,
         blank=True,
         help_text="Intervalo fijo en minutos (vacío = automático)"
     )
+
     activa = models.BooleanField(default=True)
     creado_en = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
         return (
-            f"Fijo {self.intervalo_fijo} min"
+            f"{self.empresa} - Fijo {self.intervalo_fijo} min"
             if self.intervalo_fijo
-            else "Automático"
+            else f"{self.empresa} - Automático"
         )
 
 class RegistroSalida(models.Model):
@@ -207,6 +224,12 @@ class RegistroSalida(models.Model):
             raise ValidationError(
                 "No se puede poner en cola sin ruta."
             )
+        
+        if self.ruta and self.vehiculo:
+            if self.ruta.empresa != self.vehiculo.empresa:
+                raise ValidationError(
+                    "La ruta no pertenece a la misma empresa del vehículo"
+                )
 
     # =========================
     # SAVE CENTRAL
