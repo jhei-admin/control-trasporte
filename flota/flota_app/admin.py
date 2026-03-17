@@ -11,6 +11,7 @@ from .models import (
     UbicacionVehiculo,
     MensajeGlobal,
     Empresa,   # 👈 NUEVO
+    PerfilUsuario,
 )
 
 # =================================================
@@ -261,3 +262,6 @@ class MensajeGlobalAdmin(admin.ModelAdmin):
     search_fields = ("texto",)
 
     ordering = ("-fecha_inicio",)
+
+
+admin.site.register(PerfilUsuario)
