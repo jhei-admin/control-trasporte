@@ -348,7 +348,6 @@ def buscar_unidad_panel(request):
     # -------------------------------------------------
     ruta=Ruta.objects.filter(
         empresa=request.user.perfil.empresa,
-        activo=True
         ).first()
 
     if not ruta:
