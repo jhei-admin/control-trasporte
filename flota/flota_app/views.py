@@ -29,6 +29,7 @@ from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_protect
 from django.contrib.auth.forms import AuthenticationForm
 from django.views.decorators.csrf import ensure_csrf_cookie
+from .decorators import empresa_required
 
 import qrcode
 
@@ -232,6 +233,7 @@ def es_despachador(user):
 
 @login_required
 @user_passes_test(es_despachador)
+@empresa_required
 def panel_despachador(request):
     """
     PANEL PRINCIPAL DEL DESPACHADOR (REFORMADO)
