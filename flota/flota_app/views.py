@@ -266,24 +266,24 @@ def panel_despachador(request):
     #   3️⃣ Luego las que no tienen hora
     # -------------------------------------------------
     salidas = (
-        RegistroSalida.objects
-        .select_related("vehiculo", "ruta")
-        .filter(
-            vehiculo__empresa=empresa,   # 🔥 CLAVE
-            ruta__isnull=False,
-            activo=True,
-            fecha=hoy
-        )
-        .order_by(
-            models.Case(
-                models.When(hora_salida__isnull=False, then=0),
-                models.When(hora_salida__isnull=True, then=1),
-                output_field=models.IntegerField(),
-            ),
-            "hora_salida",
-            "hora_llegada",
-        )
+    RegistroSalida.objects
+    .for_empresa(empresa)   # 🔥 NUEVO
+    .select_related("vehiculo", "ruta")
+    .filter(
+        ruta__isnull=False,
+        activo=True,
+        fecha=hoy
     )
+    .order_by(
+        models.Case(
+            models.When(hora_salida__isnull=False, then=0),
+            models.When(hora_salida__isnull=True, then=1),
+            output_field=models.IntegerField(),
+        ),
+        "hora_salida",
+        "hora_llegada",
+    )
+)
 
     # -------------------------------------------------
     # 📤 RENDER FINAL (SOLO LO NECESARIO)
