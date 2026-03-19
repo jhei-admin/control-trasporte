@@ -234,6 +234,7 @@ from django.contrib.auth.decorators import login_required, user_passes_test
 def es_despachador(user):
     return user.groups.filter(name="despachador").exists() or user.is_superuser
 
+
 @login_required
 @user_passes_test(es_despachador)
 def panel_despachador(request):
@@ -247,11 +248,23 @@ def panel_despachador(request):
     - El orden es por hora de salida
     - Compatible con producción
     """
+
+    # 🔍 DEBUG (puedes quitarlo después)
     print("DEBUG EMPRESA:", request.empresa)
+
     # -------------------------------------------------
     # 📅 FECHA OPERATIVA REAL (ZONA LOCAL)
     # -------------------------------------------------
     hoy = timezone.localdate()
+
+    # -------------------------------------------------
+    # 🏢 EMPRESA (AHORA DESDE MIDDLEWARE ✅)
+    # -------------------------------------------------
+    empresa = request.empresa
+
+    # 🔒 SEGURIDAD (NO ROMPE NADA)
+    if not empresa:
+        return redirect("login")
 
     # -------------------------------------------------
     # 🔥 SALIDAS ACTIVAS DEL DÍA
@@ -260,19 +273,15 @@ def panel_despachador(request):
     #   2️⃣ Ordenadas por hora_salida
     #   3️⃣ Luego las que no tienen hora
     # -------------------------------------------------
-    empresa = get_empresa(request.user)
-    if not empresa:
-        return redirect("login")
-
     salidas = (
-    RegistroSalida.objects
-    .select_related("vehiculo", "ruta")
-    .filter(
-        vehiculo__empresa=empresa,   # 🔥 CLAVE
-        ruta__isnull=False,
-        activo=True,
-        fecha=hoy
-    )
+        RegistroSalida.objects
+        .select_related("vehiculo", "ruta")
+        .filter(
+            vehiculo__empresa=empresa,   # 🔥 CLAVE
+            ruta__isnull=False,
+            activo=True,
+            fecha=hoy
+        )
         .order_by(
             models.Case(
                 models.When(hora_salida__isnull=False, then=0),
