@@ -258,10 +258,6 @@ def panel_despachador(request):
     # -------------------------------------------------
     empresa = request.empresa
 
-    # 🔒 SEGURIDAD (NO ROMPE NADA)
-    if not empresa:
-        return redirect("login")
-
     # -------------------------------------------------
     # 🔥 SALIDAS ACTIVAS DEL DÍA
     # ORDEN REAL DE DESPACHO:
@@ -976,6 +972,7 @@ def api_despachador_mapa(request):
 # 📍 API — PUNTOS DE CONTROL (MAPA DESPACHADOR)
 # =================================================
 @login_required
+@empresa_required
 @require_GET
 def api_puntos_control(request):
     """
@@ -985,8 +982,6 @@ def api_puntos_control(request):
 
     # 🏢 EMPRESA DESDE MIDDLEWARE
     empresa = request.empresa
-    if not empresa:
-        return redirect("login")
 
     puntos = (
         PuntoControl.objects
@@ -1020,6 +1015,7 @@ def api_puntos_control(request):
 # 🔎 API — BÚSQUEDA RÁPIDA DE VEHÍCULO POR CÓDIGO
 # =================================================
 @login_required
+@empresa_required
 @require_GET
 def api_buscar_vehiculo_por_codigo(request):
     """
@@ -1036,8 +1032,6 @@ def api_buscar_vehiculo_por_codigo(request):
 
     # 🏢 EMPRESA DESDE MIDDLEWARE
     empresa = request.empresa
-    if not empresa:
-        return redirect("login")
 
     qs = Vehiculo.objects.filter(
         codigo=codigo,
@@ -1070,6 +1064,7 @@ def api_buscar_vehiculo_por_codigo(request):
 # 🧭 API — RECORRIDO HISTÓRICO (DESPACHADOR)
 # =================================================
 @login_required
+@empresa_required
 @require_GET
 def api_recorrido_vehiculo(request):
     """
@@ -1089,8 +1084,6 @@ def api_recorrido_vehiculo(request):
 
     # 🏢 EMPRESA DESDE MIDDLEWARE
     empresa = request.empresa
-    if not empresa:
-        return redirect("login")
 
     # 🚍 SALIDAS DEL VEHÍCULO ESE DÍA
     salidas = list(
@@ -1138,6 +1131,7 @@ def api_recorrido_vehiculo(request):
 # 🛑 API — PARADAS POR VEHÍCULO Y FECHA (DESPACHADOR)
 # =================================================
 @login_required
+@empresa_required
 @require_GET
 def api_paradas_vehiculo(request):
 
@@ -1160,8 +1154,6 @@ def api_paradas_vehiculo(request):
 
     # 🏢 EMPRESA DESDE MIDDLEWARE
     empresa = request.empresa
-    if not empresa:
-        return redirect("login")
 
     paradas = (
         Parada.objects
@@ -1811,6 +1803,7 @@ def api_app_cola_contexto(request):
 # 📦 QR DE UNIDAD (JSON PURO – DEFINITIVO)
 # =================================================
 @login_required
+@empresa_required
 def ver_qr_unidad(request, vehiculo_id):
     """
     Genera el QR de la unidad.
@@ -1819,8 +1812,6 @@ def ver_qr_unidad(request, vehiculo_id):
 
     # 🏢 EMPRESA DESDE MIDDLEWARE
     empresa = request.empresa
-    if not empresa:
-        return redirect("login")
 
     vehiculo = get_object_or_404(
         Vehiculo,
@@ -1848,12 +1839,11 @@ def ver_qr_unidad(request, vehiculo_id):
 # 🚦 COLA DE SALIDA (FIX DEFINITIVO PROFESIONAL)
 # =================================================
 @login_required
+@empresa_required
 @require_POST
 def poner_en_cola(request, salida_id):
 
     empresa = request.empresa
-    if not empresa:
-        return redirect("login")
 
     salida = get_object_or_404(
         RegistroSalida,
@@ -1925,12 +1915,11 @@ def poner_en_cola(request, salida_id):
 # 🚦 QUITAR DE COLA (CANCELA SALIDA DEL DÍA)
 # =================================================
 @login_required
+@empresa_required
 @require_POST
 def quitar_de_cola(request, salida_id):
 
     empresa = request.empresa
-    if not empresa:
-        return redirect("login")
 
     salida = get_object_or_404(
         RegistroSalida,
@@ -1964,13 +1953,12 @@ def quitar_de_cola(request, salida_id):
 # ⏱️ INTERVALO GLOBAL
 # =================================================
 @login_required
+@empresa_required
 @require_POST
 def cambiar_intervalo_global(request):
 
     # 🏢 EMPRESA DESDE MIDDLEWARE
     empresa = request.empresa
-    if not empresa:
-        return redirect("login")
 
     # Desactivar configuraciones anteriores
     ConfiguracionDespacho.objects.filter(
@@ -2010,12 +1998,11 @@ def cambiar_intervalo_global(request):
 # 🔒 ASIGNAR / REPROGRAMAR HORA FIJA A SALIDA
 # =================================================
 @login_required
+@empresa_required
 @require_POST
 def asignar_hora_fija(request, salida_id):
 
     empresa = request.empresa
-    if not empresa:
-        return redirect("login")
 
     salida = get_object_or_404(
         RegistroSalida,
@@ -2085,12 +2072,11 @@ def asignar_hora_fija(request, salida_id):
 # 🔓 DESBLOQUEAR HORA FIJA
 # =================================================
 @login_required
+@empresa_required
 @require_POST
 def desbloquear_hora(request, salida_id):
 
     empresa = request.empresa
-    if not empresa:
-        return redirect("login")
 
     salida = get_object_or_404(
         RegistroSalida,
@@ -2126,11 +2112,10 @@ def desbloquear_hora(request, salida_id):
 # 📄 DETALLE DE SALIDA
 # =================================================
 @login_required
+@empresa_required
 def detalle_salida(request, salida_id):
 
     empresa = request.empresa
-    if not empresa:
-        return redirect("login")
 
     salida = get_object_or_404(
         RegistroSalida,
@@ -2196,11 +2181,10 @@ def detalle_salida(request, salida_id):
 # 📊 HISTORIAL DE VEHÍCULO
 # =================================================
 @login_required
+@empresa_required
 def historial_vehiculo(request, vehiculo_id):
 
     empresa = request.empresa
-    if not empresa:
-        return redirect("login")
 
     vehiculo = get_object_or_404(
         Vehiculo,
@@ -2250,11 +2234,10 @@ def historial_vehiculo(request, vehiculo_id):
 # 🧭 CONTROL DE RUTA (DESPACHADOR)
 # =================================================
 @login_required
+@empresa_required
 def control_ruta(request, salida_id):
 
     empresa = request.empresa
-    if not empresa:
-        return redirect("login")
 
     salida = get_object_or_404(
         RegistroSalida,
@@ -2310,12 +2293,11 @@ def control_ruta(request, salida_id):
 # ✍️ MARCAR PASO (MANUAL DESPACHADOR)
 # =================================================
 @login_required
+@empresa_required
 @require_POST
 def marcar_paso(request, salida_id, punto_id):
 
     empresa = request.empresa
-    if not empresa:
-        return redirect("login")
 
     salida = get_object_or_404(
         RegistroSalida,
@@ -2347,12 +2329,11 @@ def marcar_paso(request, salida_id, punto_id):
 # ✍️ MARCAR SIGUIENTE PUNTO (DESPACHADOR)
 # =================================================
 @login_required
+@empresa_required
 @require_POST
 def marcar_siguiente_punto(request, salida_id):
 
     empresa = request.empresa
-    if not empresa:
-        return redirect("login")
 
     salida = get_object_or_404(
         RegistroSalida,
@@ -2418,11 +2399,10 @@ def marcar_siguiente_punto(request, salida_id):
 # 🔁 ALIAS: MARCAR SIGUIENTE PUNTO (AUTO / LEGACY)
 # =================================================
 @login_required
+@empresa_required
 def marcar_siguiente_punto_auto(request, salida_id):
 
     empresa = request.empresa
-    if not empresa:
-        return redirect("login")
 
     salida = get_object_or_404(
         RegistroSalida,
@@ -2449,12 +2429,11 @@ def marcar_siguiente_punto_auto(request, salida_id):
 # 📊 AUDITORÍA DE HORAS
 # =================================================
 @login_required
+@empresa_required
 def auditoria_horas(request):
 
     empresa = request.empresa
-    if not empresa:
-        return redirect("login")
-
+   
     salidas = (
         RegistroSalida.objects
         .filter(vehiculo__empresa=empresa)
@@ -2471,11 +2450,10 @@ def auditoria_horas(request):
 # 📜 HISTORIAL GENERAL DE SALIDAS
 # =================================================
 @login_required
+@empresa_required
 def historial_salidas(request):
 
     empresa = request.empresa
-    if not empresa:
-        return redirect("login")
 
     salidas = (
         RegistroSalida.objects
@@ -2536,11 +2514,10 @@ def historial_salidas(request):
 # 📈 REPORTE DE CONTROL
 # =================================================
 @login_required
+@empresa_required
 def reporte_control(request):
 
     empresa = request.empresa
-    if not empresa:
-        return redirect("login")
 
     salidas = (
         RegistroSalida.objects
@@ -2571,11 +2548,10 @@ def exportar_excel(request):
 
 
 @login_required
+@empresa_required
 def debug_gps(request):
 
     empresa = request.empresa
-    if not empresa:
-        return redirect("login")
 
     data = []
 
@@ -2592,11 +2568,10 @@ def debug_gps(request):
     return JsonResponse(data, safe=False)
 
 @login_required
+@empresa_required
 def panel_frecuencia(request):
 
     empresa = request.empresa
-    if not empresa:
-        return redirect("login")
 
     puntos = PuntoControl.objects.filter(
         activo=True,
@@ -2610,14 +2585,13 @@ def panel_frecuencia(request):
     )
 
 @login_required
+@empresa_required
 @require_GET
 def api_panel_frecuencia(request):
 
     hoy = timezone.localdate()
 
     empresa = request.empresa
-    if not empresa:
-        return redirect("login")
 
     puntos = list(
         PuntoControl.objects.filter(

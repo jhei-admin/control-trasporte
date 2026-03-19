@@ -186,6 +186,15 @@ class ConfiguracionDespacho(models.Model):
             else f"{self.empresa} - Automático"
         )
 
+class RegistroSalidaQuerySet(models.QuerySet):
+    def for_empresa(self, empresa):
+        if empresa is None:
+            return self.none()
+        return self.filter(vehiculo__empresa=empresa)
+
+class RegistroSalidaManager(models.Manager.from_queryset(RegistroSalidaQuerySet)):
+    pass
+
 class RegistroSalida(models.Model):
 
     vehiculo = models.ForeignKey(
@@ -199,7 +208,7 @@ class RegistroSalida(models.Model):
         null=True,
         blank=True
     )
-
+    objects = RegistroSalidaManager()
     # =========================
     # FECHAS Y HORAS
     # =========================
@@ -364,6 +373,15 @@ class RegistroSalida(models.Model):
         ruta = self.ruta.nombre if self.ruta else "SIN RUTA"
         return f"{self.vehiculo} - {ruta} ({self.fecha})"
 
+class PuntoControlQuerySet(models.QuerySet):
+    def for_empresa(self, empresa):
+        if empresa is None:
+            return self.none()
+        return self.filter(ruta__empresa=empresa)
+
+
+class PuntoControlManager(models.Manager.from_queryset(PuntoControlQuerySet)):
+    pass
 # =========================
 # PUNTO DE CONTROL
 # =========================
@@ -394,6 +412,7 @@ class PuntoControl(models.Model):
     def __str__(self):
         return f"{self.ruta} | {self.orden}. {self.codigo}"
 
+    objects = PuntoControlManager()
 
 # =========================
 # MARCACIÓN DE PUNTO
@@ -571,11 +590,22 @@ class GPSRegistro(models.Model):
             models.Index(fields=["sesion", "timestamp"]),
     ]
 
+class UbicacionVehiculoQuerySet(models.QuerySet):
+    def for_empresa(self, empresa):
+        if empresa is None:
+            return self.none()
+        return self.filter(vehiculo__empresa=empresa)
+
+
+class UbicacionVehiculoManager(models.Manager.from_queryset(UbicacionVehiculoQuerySet)):
+    pass
 
 # =========================
 # UBICACIÓN ACTUAL (MAPA)
 # =========================
 class UbicacionVehiculo(models.Model):
+
+    objects = UbicacionVehiculoManager()
 
     vehiculo = models.OneToOneField(
         Vehiculo,
@@ -599,11 +629,21 @@ class UbicacionVehiculo(models.Model):
             models.Index(fields=["updated_at"]),
         ]
 
+class ParadaQuerySet(models.QuerySet):
+    def for_empresa(self, empresa):
+        if empresa is None:
+            return self.none()
+        return self.filter(vehiculo__empresa=empresa)
+
+
+class ParadaManager(models.Manager.from_queryset(ParadaQuerySet)):
+    pass
+
 # =========================
 # PARADAS
 # =========================
 class Parada(models.Model):
-
+    objects = ParadaManager()
     vehiculo = models.ForeignKey(
         Vehiculo,
         on_delete=models.CASCADE,
