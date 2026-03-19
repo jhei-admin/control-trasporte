@@ -247,7 +247,7 @@ def panel_despachador(request):
     - El orden es por hora de salida
     - Compatible con producción
     """
-
+    print("DEBUG EMPRESA:", request.empresa)
     # -------------------------------------------------
     # 📅 FECHA OPERATIVA REAL (ZONA LOCAL)
     # -------------------------------------------------
