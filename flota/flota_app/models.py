@@ -10,6 +10,23 @@ from django.db.models.signals import post_save
 from django.dispatch import receiver
 
 # =========================
+# 🔥 MANAGER MULTIEMPRESA (PRO)
+# =========================
+class EmpresaQuerySet(models.QuerySet):
+    def for_empresa(self, empresa):
+        if empresa is None:
+            return self.none()
+        return self.filter(empresa=empresa)
+
+
+class EmpresaManager(models.Manager):
+    def get_queryset(self):
+        return EmpresaQuerySet(self.model, using=self._db)
+
+    def for_empresa(self, empresa):
+        return self.get_queryset().for_empresa(empresa)
+
+# =========================
 # EMPRESA
 # =========================
 class Empresa(models.Model):
@@ -42,6 +59,8 @@ class Vehiculo(models.Model):
         related_name="vehiculos"
     )
 
+    objects = EmpresaManager()
+
     codigo = models.CharField(
         max_length=10,
         help_text="Código visible del vehículo (01, 02, 15, etc.)"
@@ -64,8 +83,18 @@ class Vehiculo(models.Model):
 
     class Meta:
         indexes = [
-            models.Index(fields=["codigo", "activo"]),
+            models.Index(fields=["empresa", "codigo"]),
+            models.Index(fields=["empresa", "activo"]),
         ]
+
+        constraints = [
+            models.UniqueConstraint(
+                fields=["empresa", "codigo"],
+                condition=Q(activo=True),
+                name="unique_codigo_activo_por_empresa"
+            )
+        ]
+
 
     def clean(self):
 
@@ -104,11 +133,16 @@ class Ruta(models.Model):
         on_delete=models.CASCADE,
         related_name="rutas"
     )
+    
+    objects = EmpresaManager()
 
     nombre = models.CharField(max_length=100)
 
     class Meta:
         unique_together = ("empresa", "nombre")
+        indexes = [
+            models.Index(fields=["empresa"]),
+    ]
 
     def __str__(self):
         return f"{self.empresa} - {self.nombre}"
@@ -124,6 +158,8 @@ class ConfiguracionDespacho(models.Model):
         on_delete=models.CASCADE,
         related_name="configuraciones"
     )
+    
+    objects = EmpresaManager()
 
     intervalo_fijo = models.PositiveIntegerField(
         null=True,
@@ -133,6 +169,15 @@ class ConfiguracionDespacho(models.Model):
 
     activa = models.BooleanField(default=True)
     creado_en = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+       constraints = [
+           models.UniqueConstraint(
+               fields=["empresa"],
+               condition=Q(activa=True),
+               name="una_config_activa_por_empresa"
+            )
+        ]
 
     def __str__(self):
         return (
@@ -196,7 +241,12 @@ class RegistroSalida(models.Model):
             )
         ]
         ordering = ["fecha", "creado_en"]
-
+        indexes = [
+            models.Index(fields=["fecha", "activo"]),
+            models.Index(fields=["vehiculo", "fecha"]),
+            models.Index(fields=["ruta", "fecha"]),
+            models.Index(fields=["vehiculo", "activo"]),
+        ] 
     # =========================
     # VALIDACIONES
     # =========================
@@ -517,6 +567,9 @@ class GPSRegistro(models.Model):
 
     class Meta:
         ordering = ["-timestamp"]
+        indexes = [
+            models.Index(fields=["sesion", "timestamp"]),
+    ]
 
 
 # =========================
@@ -540,7 +593,11 @@ class UbicacionVehiculo(models.Model):
 
     def __str__(self):
         return f"{self.vehiculo.codigo} @ {self.latitud},{self.longitud}"
-
+    
+    class Meta:
+        indexes = [
+            models.Index(fields=["updated_at"]),
+        ]
 
 # =========================
 # PARADAS
@@ -576,6 +633,11 @@ class Parada(models.Model):
         estado = "PROLONGADA" if self.es_prolongada else "NORMAL"
         return f"{self.vehiculo} | {estado}"
     
+    class Meta:
+        indexes = [
+            models.Index(fields=["vehiculo", "inicio"]),
+            models.Index(fields=["activa"]),
+    ]
 # =========================
 # 📢 MENSAJES GLOBALES (APP CONDUCTOR)
 # =========================

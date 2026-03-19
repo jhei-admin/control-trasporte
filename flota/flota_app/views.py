@@ -54,6 +54,11 @@ from .services import (
     recalcular_cola,   # ✅ FALTABA ESTO
 )
 
+def get_empresa(user):
+    if not hasattr(user, "perfil") or not user.perfil.empresa:
+        return None
+    return user.perfil.empresa
+
 # ================= UTILS =================
 from .utils import distancia_metros
 @login_required
@@ -85,19 +90,23 @@ def reporte_salidas_diarias(request, vehiculo_id):
     # =================================================
     # 🚌 VEHÍCULO ACTUAL
     # =================================================
+    empresa = get_empresa(request.user)
+    if not empresa:
+        return redirect("login")
     vehiculo = get_object_or_404(
         Vehiculo, 
         id=vehiculo_id,
-        empresa=request.user.perfil.empresa)
+        empresa = empresa
+    )
 
     # =================================================
     # 🚌 LISTA DE VEHÍCULOS (FILTRO SUPERIOR)
     # =================================================
-    empresa = request.user.perfil.empresa
+    empresa = get_empresa(request.user)
+    if not empresa:
+        return redirect("login")
 
-    vehiculos = Vehiculo.objects.filter(
-    empresa=empresa
-    )
+    vehiculos = Vehiculo.objects.for_empresa(empresa)
 
     # =================================================
     # 🚍 SALIDAS DEL DÍA (ACTIVAS + FINALIZADAS)
@@ -251,7 +260,9 @@ def panel_despachador(request):
     #   2️⃣ Ordenadas por hora_salida
     #   3️⃣ Luego las que no tienen hora
     # -------------------------------------------------
-    empresa = request.user.perfil.empresa
+    empresa = get_empresa(request.user)
+    if not empresa:
+        return redirect("login")
 
     salidas = (
     RegistroSalida.objects
@@ -313,12 +324,13 @@ def buscar_unidad_panel(request):
     # -------------------------------------------------
     # 🚍 BUSCAR VEHÍCULO ACTIVO
     # -------------------------------------------------
-    empresa = request.user.perfil.empresa
+    empresa = get_empresa(request.user)
+    if not empresa:
+        return redirect("login")
 
-    vehiculo = Vehiculo.objects.filter(
+    vehiculo = Vehiculo.objects.for_empresa(empresa).filter(
         codigo=codigo,
         activo=True,
-        empresa=empresa
     ).first()
 
     if not vehiculo:
@@ -346,9 +358,7 @@ def buscar_unidad_panel(request):
     # 🧭 RUTA AUTOMÁTICA (SEGURA)
     # 👉 TOMA LA PRIMERA RUTA ACTIVA
     # -------------------------------------------------
-    ruta=Ruta.objects.filter(
-        empresa=request.user.perfil.empresa,
-        ).first()
+    ruta = Ruta.objects.for_empresa(empresa).first()
 
     if not ruta:
         messages.error(
@@ -416,7 +426,7 @@ def recorrido_vehiculo(request):
     """
 
     vehiculos = Vehiculo.objects.filter(
-        empresa=request.user.perfil.empresa
+        empresa = get_empresa(request.user)
     ).order_by("codigo")
 
     return render(
@@ -890,7 +900,10 @@ def api_despachador_mapa(request):
 
     ahora = timezone.now()
     hoy = timezone.localdate()
-    empresa = request.user.perfil.empresa
+
+    empresa = get_empresa(request.user)
+    if not empresa:
+        return redirect("login")
 
     data = []
 
@@ -969,7 +982,7 @@ def api_puntos_control(request):
     puntos = (
         PuntoControl.objects
         .filter(activo=True,
-        ruta__empresa=request.user.perfil.empresa)
+        ruta__empresa = get_empresa(request.user))
         .order_by("orden")
     )
 
@@ -1014,7 +1027,7 @@ def api_buscar_vehiculo_por_codigo(request):
     qs = Vehiculo.objects.filter(
         codigo=codigo,
         activo=True,
-        empresa=request.user.perfil.empresa
+        empresa = get_empresa(request.user)
     )
 
     if not qs.exists():
@@ -1067,7 +1080,7 @@ def api_recorrido_vehiculo(request):
     salidas = list(
         RegistroSalida.objects.filter(
             vehiculo_id=vehiculo_id,
-            vehiculo__empresa=request.user.perfil.empresa,
+            vehiculo__empresa = get_empresa(request.user),
             fecha=fecha_dt
         ).order_by("hora_real_salida")
     )
@@ -1135,7 +1148,7 @@ def api_paradas_vehiculo(request):
         Parada.objects
         .filter(
             vehiculo_id=vehiculo_id,
-            vehiculo__empresa=request.user.perfil.empresa,
+            vehiculo__empresa = get_empresa(request.user),
             inicio__date=fecha_dt
         )
         .order_by("inicio")
@@ -1321,8 +1334,7 @@ def api_escanear_qr(request):
     # =============================================
     vehiculo = Vehiculo.objects.filter(
         id=vehiculo_id,
-        activo=True,
-        empresa = request.user.perfil.empresa  # si aplica
+        activo=True
         ).first()
     if not vehiculo:
         return JsonResponse(
@@ -1784,11 +1796,13 @@ def ver_qr_unidad(request, vehiculo_id):
     Genera el QR de la unidad.
     El QR contiene SOLO JSON con el ID del vehículo.
     """
-
+    empresa = get_empresa(request.user)
+    if not empresa:
+        return redirect("login")
     vehiculo = get_object_or_404(
         Vehiculo,
         id=vehiculo_id,
-        empresa=request.user.perfil.empresa
+        empresa = empresa
     )
 
     # 🔑 CONTENIDO EXACTO DEL QR (JSON PURO)
@@ -1817,7 +1831,7 @@ def poner_en_cola(request, salida_id):
     salida = get_object_or_404(
         RegistroSalida, 
         id=salida_id,
-        vehiculo__empresa=request.user.perfil.empresa)
+        vehiculo__empresa = get_empresa(request.user))
     hoy = timezone.localdate()
 
     # ------------------------------------------------
@@ -1911,7 +1925,7 @@ def quitar_de_cola(request, salida_id):
     salida = get_object_or_404(
         RegistroSalida, 
         id=salida_id,
-        vehiculo__empresa=request.user.perfil.empresa)
+        vehiculo__empresa = get_empresa(request.user))
 
     # ------------------------------------------------
     # VALIDACIÓN
@@ -1958,7 +1972,7 @@ def cambiar_intervalo_global(request):
 
     # Desactivar configuraciones anteriores
     ConfiguracionDespacho.objects.filter(
-        empresa=request.user.perfil.empresa
+        empresa = get_empresa(request.user)
     ).update(activa=False)
 
     accion = request.POST.get("accion")      # "manual" | "automatico"
@@ -1968,7 +1982,7 @@ def cambiar_intervalo_global(request):
         ConfiguracionDespacho.objects.create(
             intervalo_fijo=int(valor),
             activa=True,
-            empresa=request.user.perfil.empresa
+            empresa = get_empresa(request.user)
         )
         messages.success(
             request,
@@ -1978,7 +1992,7 @@ def cambiar_intervalo_global(request):
         ConfiguracionDespacho.objects.create(
             intervalo_fijo=None,
             activa=True,
-            empresa=request.user.perfil.empresa
+            empresa = get_empresa(request.user)
         )
         messages.success(
             request,
@@ -1986,7 +2000,7 @@ def cambiar_intervalo_global(request):
         )
 
     # 🔑 ESTO YA ESTÁ BIEN
-    recalcular_cola(empresa=request.user.perfil.empresa)
+    recalcular_cola(empresa = get_empresa(request.user))
 
     return redirect("panel_despachador")
 
@@ -1999,7 +2013,7 @@ def asignar_hora_fija(request, salida_id):
     salida = get_object_or_404(
         RegistroSalida, 
         id=salida_id,
-        vehiculo__empresa=request.user.perfil.empresa)
+        vehiculo__empresa = get_empresa(request.user))
 
     hora_str = request.POST.get("hora_fija")
     if not hora_str:
@@ -2089,7 +2103,7 @@ def desbloquear_hora(request, salida_id):
 
     salida = get_object_or_404(
         RegistroSalida, id=salida_id,
-        vehiculo__empresa=request.user.perfil.empresa)
+        vehiculo__empresa = get_empresa(request.user))
 
     # verificar si realmente ya marcó SALI
     marco_sali = MarcacionPunto.objects.filter(
@@ -2125,7 +2139,7 @@ def detalle_salida(request, salida_id):
     salida = get_object_or_404(
         RegistroSalida, 
         id=salida_id,
-        vehiculo__empresa=request.user.perfil.empresa)
+        vehiculo__empresa = get_empresa(request.user))
 
     marcaciones_qs = (
         MarcacionPunto.objects
@@ -2196,8 +2210,15 @@ def detalle_salida(request, salida_id):
 # =================================================
 @login_required
 def historial_vehiculo(request, vehiculo_id):
-
-    vehiculo = get_object_or_404(Vehiculo, id=vehiculo_id, empresa=request.user.perfil.empresa)
+    
+    empresa = get_empresa(request.user)
+    if not empresa:
+        return redirect("login")
+    vehiculo = get_object_or_404(
+        Vehiculo, 
+        id=vehiculo_id, 
+        empresa = empresa
+    )
 
     salidas = (
         RegistroSalida.objects
@@ -2248,7 +2269,7 @@ def control_ruta(request, salida_id):
     salida = get_object_or_404(
         RegistroSalida, 
         id=salida_id,
-        vehiculo__empresa=request.user.perfil.empresa)
+        vehiculo__empresa = get_empresa(request.user))
 
     puntos = (
         PuntoControl.objects
@@ -2307,12 +2328,12 @@ def marcar_paso(request, salida_id, punto_id):
     salida = get_object_or_404(
         RegistroSalida, 
         id=salida_id,
-        vehiculo__empresa=request.user.perfil.empresa)
+        vehiculo__empresa = get_empresa(request.user))
 
     punto = get_object_or_404(
         PuntoControl, 
         id=punto_id,
-        ruta__empresa=request.user.perfil.empresa)
+        ruta__empresa = get_empresa(request.user))
 
     marcacion, _ = MarcacionPunto.objects.get_or_create(
         registro_salida=salida,
@@ -2337,7 +2358,7 @@ def marcar_siguiente_punto(request, salida_id):
     salida = get_object_or_404(
         RegistroSalida, 
         id=salida_id,
-        vehiculo__empresa=request.user.perfil.empresa
+        vehiculo__empresa = get_empresa(request.user)
     )
 
     # 🔑 FUENTE ÚNICA DE VERDAD
@@ -2409,11 +2430,11 @@ def marcar_siguiente_punto_auto(request, salida_id):
     salida = get_object_or_404(
         RegistroSalida, 
         id=salida_id,
-        vehiculo__empresa=request.user.perfil.empresa
+        vehiculo__empresa = get_empresa(request.user)
     )
 
-    punto = salida.siguiente_punto()
-    if not punto:
+    marcacion = salida.siguiente_marcacion()
+    if not marcacion:
         messages.info(
             request,
             "No hay más puntos por marcar."
@@ -2423,7 +2444,7 @@ def marcar_siguiente_punto_auto(request, salida_id):
     return marcar_paso(
         request,
         salida_id=salida.id,
-        punto_id=punto.id
+        punto_id=marcacion.punto.id
     )
 
 # =================================================
@@ -2437,7 +2458,7 @@ def auditoria_horas(request):
     """
     salidas = (
         RegistroSalida.objects.filter(
-        vehiculo__empresa=request.user.perfil.empresa)
+        vehiculo__empresa = get_empresa(request.user))
         .order_by("-fecha", "-hora_salida")
     )
 
@@ -2461,7 +2482,7 @@ def historial_salidas(request):
 
     salidas = (
         RegistroSalida.objects.filter(
-        vehiculo__empresa=request.user.perfil.empresa)
+        vehiculo__empresa = get_empresa(request.user))
         .order_by("-fecha", "-hora_salida")
     )
 
@@ -2528,7 +2549,7 @@ def reporte_control(request):
     """
     salidas = (
         RegistroSalida.objects.filter(
-        vehiculo__empresa=request.user.perfil.empresa)
+        vehiculo__empresa = get_empresa(request.user))
         .order_by("-fecha", "-hora_salida")
     )
 
@@ -2563,7 +2584,7 @@ def debug_gps(request):
     data = []
 
     for u in UbicacionVehiculo.objects.filter(
-    vehiculo__empresa=request.user.perfil.empresa
+    vehiculo__empresa = get_empresa(request.user)
 ).select_related("vehiculo").all():
         data.append({
             "vehiculo": u.vehiculo.codigo,
@@ -2582,7 +2603,7 @@ def panel_frecuencia(request):
 
     puntos = PuntoControl.objects.filter(
         activo=True,
-        ruta__empresa=request.user.perfil.empresa
+        ruta__empresa = get_empresa(request.user)
         ).order_by("orden")
 
     return render(
@@ -2606,7 +2627,9 @@ def api_panel_frecuencia(request):
     """
 
     hoy = timezone.localdate()
-    empresa = request.user.perfil.empresa
+    empresa = get_empresa(request.user)
+    if not empresa:
+        return redirect("login")
 
     # 1️⃣ Obtener puntos de control activos
     puntos = list(
