@@ -58,6 +58,7 @@ from .services import (
 # ================= UTILS =================
 from .utils import distancia_metros
 @login_required
+@empresa_required
 def reporte_salidas_diarias(request, vehiculo_id):
     """
     FASE 4A + 4C
@@ -87,8 +88,6 @@ def reporte_salidas_diarias(request, vehiculo_id):
     # 🏢 EMPRESA (DESDE MIDDLEWARE ✅)
     # =================================================
     empresa = request.empresa
-    if not empresa:
-        return redirect("login")
 
     # =================================================
     # 🚌 VEHÍCULO ACTUAL
@@ -306,6 +305,7 @@ def panel_despachador(request):
 # SOLUCIÓN DEFINITIVA (SIN es_default / SIN 500)
 # =================================================
 @login_required
+@empresa_required
 def buscar_unidad_panel(request):
     if request.method != "POST":
         return redirect("panel_despachador")
@@ -331,8 +331,6 @@ def buscar_unidad_panel(request):
     # 🏢 EMPRESA (DESDE MIDDLEWARE ✅)
     # -------------------------------------------------
     empresa = request.empresa
-    if not empresa:
-        return redirect("login")
 
     # -------------------------------------------------
     # 🚍 BUSCAR VEHÍCULO ACTIVO
@@ -427,6 +425,7 @@ def despachador_mapa(request):
 # 🧭 DESPACHADOR — RECORRIDO HISTÓRICO (VISTA)
 # =================================================
 @login_required
+@empresa_required
 def recorrido_vehiculo(request):
     """
     Vista del despachador para visualizar
@@ -436,8 +435,6 @@ def recorrido_vehiculo(request):
 
     # 🏢 EMPRESA DESDE MIDDLEWARE
     empresa = request.empresa
-    if not empresa:
-        return redirect("login")
 
     vehiculos = Vehiculo.objects.filter(
         empresa=empresa
@@ -903,6 +900,7 @@ def api_gps(request):
 # 🗺️ API — MAPA EN TIEMPO REAL (DESPACHADOR) OPTIMIZADO
 # =================================================
 @login_required
+@empresa_required
 @require_GET
 def api_despachador_mapa(request):
     """
@@ -917,8 +915,6 @@ def api_despachador_mapa(request):
 
     # 🏢 EMPRESA DESDE MIDDLEWARE
     empresa = request.empresa
-    if not empresa:
-        return redirect("login")
 
     data = []
 
