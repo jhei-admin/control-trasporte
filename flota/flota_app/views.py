@@ -17,13 +17,11 @@ from django.views.decorators.http import require_POST, require_GET
 from django.views.decorators.cache import never_cache
 from django.contrib import messages
 from django.core.exceptions import ValidationError
+from django.db.models import Case, When, IntegerField
 from django.db import models
-from .models import MensajeGlobal
-from django.db.models import Count
-from django.db.models import Max, F, Q
-from django.contrib.auth.decorators import login_required
+from django.db.models import Max, Q
+from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib.auth.views import LoginView
-from django.urls import reverse_lazy
 from django.contrib.auth import login
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_protect
@@ -35,6 +33,7 @@ import qrcode
 
 # ================= MODELS =================
 from .models import (
+    MensajeGlobal,
     RegistroSalida,
     Ruta,
     Vehiculo,
@@ -107,8 +106,7 @@ def reporte_salidas_diarias(request, vehiculo_id):
     # 🚍 SALIDAS DEL DÍA (ACTIVAS + FINALIZADAS)
     # =================================================
     salidas = list(
-        RegistroSalida.objects
-        .filter(
+        RegistroSalida.objects.for_empresa(empresa).filter(
             vehiculo=vehiculo,
             fecha=fecha
         )
@@ -131,7 +129,7 @@ def reporte_salidas_diarias(request, vehiculo_id):
         if not salida.ruta:
             total_puntos = 0
         else:
-            total_puntos = PuntoControl.objects.filter(
+            total_puntos = PuntoControl.objects.for_empresa(empresa).filter(
                 ruta=salida.ruta,
                 activo=True
             ).count()
@@ -160,7 +158,7 @@ def reporte_salidas_diarias(request, vehiculo_id):
         minutos = 0
 
         if inicio and fin:
-            paradas = Parada.objects.filter(
+            paradas = Parada.objects.for_empresa(empresa).filter(
                 vehiculo=vehiculo,
                 es_prolongada=True,
                 inicio__gte=inicio,
@@ -224,8 +222,6 @@ def reporte_salidas_diarias(request, vehiculo_id):
 # =================================================
 # 🧭 PANEL DESPACHADOR (REFORMADO Y COHERENTE)
 # =================================================
-from django.contrib.auth.decorators import login_required, user_passes_test
-
 def es_despachador(user):
     return user.groups.filter(name="despachador").exists() or user.is_superuser
 
@@ -275,12 +271,12 @@ def panel_despachador(request):
         fecha=hoy
     )
     .order_by(
-        models.Case(
-            models.When(hora_salida__isnull=False, then=0),
-            models.When(hora_salida__isnull=True, then=1),
-            output_field=models.IntegerField(),
+        Case(
+            When(hora_salida__isnull=False, then=0),
+            When(hora_salida__isnull=True, then=1),
+            output_field=IntegerField(),
         ),
-        "hora_salida",
+        models.F("hora_salida").asc(nulls_last=True),
         "hora_llegada",
     )
 )
@@ -346,7 +342,7 @@ def buscar_unidad_panel(request):
     # -------------------------------------------------
     # 🔒 EVITAR DUPLICADO DEL DÍA
     # -------------------------------------------------
-    if RegistroSalida.objects.filter(
+    if RegistroSalida.objects.for_empresa(empresa).filter(
         vehiculo=vehiculo,
         fecha=hoy,
         activo=True
@@ -404,6 +400,7 @@ def buscar_unidad_panel(request):
 # 🗺️ DESPACHADOR — MAPA TIEMPO REAL (VISTA SEPARADA)
 # =================================================
 @login_required
+@empresa_required
 def despachador_mapa(request):
     """
     Vista exclusiva del mapa en tiempo real.
@@ -432,9 +429,7 @@ def recorrido_vehiculo(request):
     # 🏢 EMPRESA DESDE MIDDLEWARE
     empresa = request.empresa
 
-    vehiculos = Vehiculo.objects.filter(
-        empresa=empresa
-    ).order_by("codigo")
+    vehiculos = Vehiculo.objects.for_empresa(empresa).order_by("codigo")
 
     return render(
         request,
@@ -474,7 +469,7 @@ def api_gps_conductor(request):
     # =============================================
     # 🔥 CIERRE AUTOMÁTICO DE SALIDAS ANTIGUAS
     # =============================================
-    RegistroSalida.objects.filter(
+    RegistroSalida.objects.for_empresa(sesion.vehiculo.empresa).filter(
         vehiculo=sesion.vehiculo,
         activo=True,
         fecha__lt=hoy
@@ -508,7 +503,7 @@ def api_gps_conductor(request):
     # =================================================
     # 🔴 FILTRO GPS BASURA (PROFESIONAL)
     # =================================================
-    if precision and precision > 100:
+    if precision is not None and precision > 100:
         return JsonResponse({"accion": "ninguna"})
 
     # =================================================
@@ -547,6 +542,7 @@ def api_gps_conductor(request):
     # =================================================
     salida = (
         RegistroSalida.objects
+        .for_empresa(sesion.vehiculo.empresa)
         .filter(
             vehiculo=sesion.vehiculo,
             fecha=hoy,
@@ -669,7 +665,7 @@ def procesar_parada(vehiculo, lat, lng, velocidad, timestamp):
     - 🔥 Marca parada prolongada (> X minutos) → FASE 4
     """
 
-    parada = Parada.objects.filter(
+    parada = Parada.objects.for_empresa(vehiculo.empresa).filter(
         vehiculo=vehiculo,
         activa=True
     ).order_by("-inicio").first()
@@ -918,10 +914,9 @@ def api_despachador_mapa(request):
     # 🔥 1. OBTENER VEHÍCULOS CON SALIDA ACTIVA (1 QUERY)
     # =================================================
     salidas_activas = set(
-        RegistroSalida.objects.filter(
+        RegistroSalida.objects.for_empresa(empresa).filter(
             fecha=hoy,
             activo=True,
-            vehiculo__empresa=empresa
         ).values_list("vehiculo_id", flat=True)
     )
 
@@ -929,9 +924,9 @@ def api_despachador_mapa(request):
     # 🔥 2. OBTENER UBICACIONES (1 QUERY)
     # =================================================
     ubicaciones = (
-        UbicacionVehiculo.objects
+        UbicacionVehiculo.objects.for_empresa(empresa)
+        .filter(updated_at__gte=ahora - timedelta(minutes=10))
         .select_related("vehiculo")
-        .filter(vehiculo__empresa=empresa)
     )
 
     # =================================================
@@ -984,10 +979,9 @@ def api_puntos_control(request):
     empresa = request.empresa
 
     puntos = (
-        PuntoControl.objects
+        PuntoControl.objects.for_empresa(empresa)
         .filter(
             activo=True,
-            ruta__empresa=empresa
         )
         .order_by("orden")
     )
@@ -1022,7 +1016,7 @@ def api_buscar_vehiculo_por_codigo(request):
     Devuelve la unidad ACTIVA asociada a un código operativo.
     """
 
-    codigo = request.GET.get("codigo")
+    codigo = request.GET.get("codigo", "").strip()
 
     if not codigo:
         return JsonResponse(
@@ -1033,10 +1027,9 @@ def api_buscar_vehiculo_por_codigo(request):
     # 🏢 EMPRESA DESDE MIDDLEWARE
     empresa = request.empresa
 
-    qs = Vehiculo.objects.filter(
+    qs = Vehiculo.objects.for_empresa(empresa).filter(
         codigo=codigo,
         activo=True,
-        empresa=empresa
     )
 
     if not qs.exists():
@@ -1087,9 +1080,8 @@ def api_recorrido_vehiculo(request):
 
     # 🚍 SALIDAS DEL VEHÍCULO ESE DÍA
     salidas = list(
-        RegistroSalida.objects.filter(
+        RegistroSalida.objects.for_empresa(empresa).filter(
             vehiculo_id=vehiculo_id,
-            vehiculo__empresa=empresa,
             fecha=fecha_dt
         ).order_by("hora_real_salida")
     )
@@ -1109,7 +1101,7 @@ def api_recorrido_vehiculo(request):
         if i + 1 < len(salidas) and salidas[i + 1].hora_real_salida:
             fin = salidas[i + 1].hora_real_salida
         else:
-            fin = inicio + timedelta(hours=3)
+            fin = timezone.now()
 
         registros = GPSRegistro.objects.filter(
             sesion__vehiculo_id=vehiculo_id,
@@ -1156,10 +1148,9 @@ def api_paradas_vehiculo(request):
     empresa = request.empresa
 
     paradas = (
-        Parada.objects
+        Parada.objects.for_empresa(empresa)
         .filter(
             vehiculo_id=vehiculo_id,
-            vehiculo__empresa=empresa,
             inicio__date=fecha_dt
         )
         .order_by("inicio")
@@ -1347,7 +1338,7 @@ def api_escanear_qr(request):
     vehiculo = Vehiculo.objects.filter(
         id=vehiculo_id,
         activo=True
-        ).first()
+        ).select_related("empresa").first()
     if not vehiculo:
         return JsonResponse(
             {"ok": False, "error": "Unidad no registrada"},
@@ -1436,7 +1427,7 @@ def api_app_estado(request):
     # 🚍 SALIDA ACTIVA CORRECTA (ORDEN CLAVE)
     # =============================================
     salida = (
-        RegistroSalida.objects
+        RegistroSalida.objects.for_empresa(sesion.vehiculo.empresa)
         .filter(
             vehiculo=sesion.vehiculo,
             fecha=hoy,
@@ -1575,7 +1566,7 @@ def api_app_referencia_tiempo(request):
     # 🚍 SALIDA ACTIVA DE HOY
     # ---------------------------------------------
     salida = (
-        RegistroSalida.objects
+        RegistroSalida.objects.for_empresa(sesion.vehiculo.empresa)
         .filter(
             vehiculo=sesion.vehiculo,
             fecha=hoy,
@@ -1700,6 +1691,7 @@ def api_app_cola_contexto(request):
     if not sesion:
         return JsonResponse({"ok": False}, status=403)
 
+    ahora = timezone.now()
     hoy = timezone.localdate()
 
     # =============================================
@@ -1707,6 +1699,7 @@ def api_app_cola_contexto(request):
     # =============================================
     salida_actual = (
         RegistroSalida.objects
+        .for_empresa(sesion.vehiculo.empresa)
         .select_related("vehiculo", "ruta")
         .filter(
             vehiculo=sesion.vehiculo,
@@ -1725,7 +1718,7 @@ def api_app_cola_contexto(request):
     # 🚦 COLA COMPLETA (POR HORA)
     # =============================================
     cola = list(
-        RegistroSalida.objects
+        RegistroSalida.objects.for_empresa(sesion.vehiculo.empresa)
         .select_related("vehiculo")
         .filter(
             fecha=hoy,
@@ -1748,6 +1741,7 @@ def api_app_cola_contexto(request):
     GPS_MAX_DELAY = timedelta(seconds=60)
     VELOCIDAD_PROMEDIO = 25
 
+    # 📍 UBICACIÓN ACTUAL DEL VEHÍCULO
     try:
         ub_actual = UbicacionVehiculo.objects.get(
             vehiculo=salida_actual.vehiculo
@@ -1755,18 +1749,27 @@ def api_app_cola_contexto(request):
     except UbicacionVehiculo.DoesNotExist:
         ub_actual = None
 
+    # 📍 MAPA DE UBICACIONES (OPTIMIZADO 🔥)
+    ubicaciones_map = {
+        u.vehiculo_id: u
+        for u in UbicacionVehiculo.objects.filter(
+            vehiculo__in=[s.vehiculo for s in cola]
+        )
+    }
+
     def calcular_minutos(salida):
+        # ❌ sin ubicación actual → no calcular
         if not ub_actual:
             return None
 
-        try:
-            ub = UbicacionVehiculo.objects.get(
-                vehiculo=salida.vehiculo
-            )
-        except UbicacionVehiculo.DoesNotExist:
+        ub = ubicaciones_map.get(salida.vehiculo.id)
+
+        # ❌ no hay GPS de esa unidad
+        if not ub:
             return None
 
-        if timezone.now() - ub.updated_at > GPS_MAX_DELAY:
+        # ❌ GPS viejo
+        if ahora - ub.updated_at > GPS_MAX_DELAY:
             return None
 
         distancia = distancia_metros(
@@ -1778,6 +1781,10 @@ def api_app_cola_contexto(request):
 
         vel = ub.velocidad or VELOCIDAD_PROMEDIO
         metros_min = (vel * 1000) / 60
+
+        if metros_min <= 0:
+            return None
+
         return max(int(round(distancia / metros_min)), 0)
 
     def serializar(s):
@@ -1903,7 +1910,7 @@ def poner_en_cola(request, salida_id):
     ])
 
     if not salida.bloqueado:
-        recalcular_cola()
+        recalcular_cola(empresa=empresa)
 
     messages.success(
         request,
@@ -1941,7 +1948,7 @@ def quitar_de_cola(request, salida_id):
         "activo"
     ])
 
-    recalcular_cola()
+    recalcular_cola(empresa=empresa)
 
     messages.success(
         request,
@@ -2047,7 +2054,7 @@ def asignar_hora_fija(request, salida_id):
         "bloqueado"
     ])
 
-    puntos = PuntoControl.objects.filter(
+    puntos = PuntoControl.objects.for_empresa(empresa).filter(
         ruta=salida.ruta
     ).order_by("orden")
 
@@ -2435,8 +2442,7 @@ def auditoria_horas(request):
     empresa = request.empresa
    
     salidas = (
-        RegistroSalida.objects
-        .filter(vehiculo__empresa=empresa)
+        RegistroSalida.objects.for_empresa(empresa)
         .order_by("-fecha", "-hora_salida")
     )
 
@@ -2456,8 +2462,7 @@ def historial_salidas(request):
     empresa = request.empresa
 
     salidas = (
-        RegistroSalida.objects
-        .filter(vehiculo__empresa=empresa)
+        RegistroSalida.objects.for_empresa(empresa)
         .order_by("-fecha", "-hora_salida")
     )
 
@@ -2520,8 +2525,7 @@ def reporte_control(request):
     empresa = request.empresa
 
     salidas = (
-        RegistroSalida.objects
-        .filter(vehiculo__empresa=empresa)
+        RegistroSalida.objects.for_empresa(empresa)
         .order_by("-fecha", "-hora_salida")
     )
 
@@ -2555,9 +2559,7 @@ def debug_gps(request):
 
     data = []
 
-    for u in UbicacionVehiculo.objects.filter(
-        vehiculo__empresa=empresa
-    ).select_related("vehiculo"):
+    for u in UbicacionVehiculo.objects.for_empresa(empresa).select_related("vehiculo"):
         data.append({
             "vehiculo": u.vehiculo.codigo,
             "lat": u.latitud,
@@ -2573,9 +2575,8 @@ def panel_frecuencia(request):
 
     empresa = request.empresa
 
-    puntos = PuntoControl.objects.filter(
+    puntos = PuntoControl.objects.for_empresa(empresa).filter(
         activo=True,
-        ruta__empresa=empresa
     ).order_by("orden")
 
     return render(
@@ -2594,9 +2595,8 @@ def api_panel_frecuencia(request):
     empresa = request.empresa
 
     puntos = list(
-        PuntoControl.objects.filter(
+        PuntoControl.objects.for_empresa(empresa).filter(
             activo=True,
-            ruta__empresa=empresa
         ).order_by("orden")
     )
 
@@ -2613,12 +2613,11 @@ def api_panel_frecuencia(request):
     intervalo = config.intervalo_fijo if config and config.intervalo_fijo else 6
 
     salidas_qs = (
-        RegistroSalida.objects
+        RegistroSalida.objects.for_empresa(empresa)
         .filter(
             activo=True,
             fecha=hoy,
             ruta__isnull=False,
-            vehiculo__empresa=empresa
         )
         .annotate(
             ultimo_punto_orden=Max(
