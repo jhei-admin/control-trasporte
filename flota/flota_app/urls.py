@@ -1,12 +1,17 @@
 from django.urls import path
 from . import views
 from .views import debug_gps
+from .api.gps import api_gps_conductor
 
 urlpatterns = [
 
     # =========================
     # 📡 APIs APP CONDUCTOR
     # =========================
+    path("api/gps/",
+         api_gps_conductor,
+         name="api_gps_conductor"
+    ),
     path(
         "api/app/escanear-qr/",
         views.api_escanear_qr,

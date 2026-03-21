@@ -28,6 +28,7 @@ from django.views.decorators.csrf import csrf_protect
 from django.contrib.auth.forms import AuthenticationForm
 from django.views.decorators.csrf import ensure_csrf_cookie
 from .decorators import empresa_required
+from django.db import transaction
 
 import qrcode
 
@@ -1852,70 +1853,66 @@ def poner_en_cola(request, salida_id):
 
     empresa = request.empresa
 
-    salida = get_object_or_404(
-        RegistroSalida,
-        id=salida_id,
-        vehiculo__empresa=empresa
-    )
+    with transaction.atomic():  # 🔥 BLOQUEO TOTAL
 
-    hoy = timezone.localdate()
-
-    if salida.fecha != hoy:
-        salida.activo = False
-        salida.en_cola = False
-        salida.save(update_fields=["activo", "en_cola"])
-
-        salida = RegistroSalida.objects.create(
-            vehiculo=salida.vehiculo,
-            ruta=salida.ruta,
-            fecha=hoy,
-            hora_llegada=timezone.now(),
-            activo=True,
-            en_cola=False,
-            bloqueado=False
+        salida = get_object_or_404(
+            RegistroSalida.objects.select_for_update(),  # 🔥 LOCK
+            id=salida_id,
+            vehiculo__empresa=empresa
         )
 
-    if not salida.hora_salida:
-        messages.error(
-            request,
-            "❌ Primero debe fijar la hora de salida antes de poner en cola."
+        hoy = timezone.localdate()
+
+        if salida.fecha != hoy:
+            salida.activo = False
+            salida.en_cola = False
+            salida.save(update_fields=["activo", "en_cola"])
+
+            salida = RegistroSalida.objects.create(
+                vehiculo=salida.vehiculo,
+                ruta=salida.ruta,
+                fecha=hoy,
+                hora_llegada=timezone.now(),
+                activo=True,
+                en_cola=False,
+                bloqueado=False
+            )
+
+        if not salida.hora_salida:
+            messages.error(
+                request,
+                "❌ Primero debe fijar la hora de salida antes de poner en cola."
+            )
+            return redirect("panel_despachador")
+
+        if salida.en_cola:
+            messages.info(request, "La unidad ya está en la cola.")
+            return redirect("panel_despachador")
+
+        # 🔥 BLOQUEAMOS TODA LA COLA
+        cola = (
+            RegistroSalida.objects
+            .select_for_update()
+            .filter(
+                ruta=salida.ruta,
+                fecha=hoy,
+                en_cola=True,
+                activo=True
+            )
+            .order_by("orden_cola")
         )
-        return redirect("panel_despachador")
 
-    if salida.en_cola:
-        messages.info(
-            request,
-            "La unidad ya está en la cola."
-        )
-        return redirect("panel_despachador")
+        ultimo = cola.last()
 
-    ultimo = (
-        RegistroSalida.objects
-        .filter(
-            ruta=salida.ruta,
-            fecha=hoy,
-            en_cola=True,
-            activo=True
-        )
-        .order_by("-orden_cola")
-        .first()
-    )
+        salida.en_cola = True
+        salida.orden_cola = (ultimo.orden_cola + 1) if ultimo else 1
 
-    salida.en_cola = True
-    salida.orden_cola = (ultimo.orden_cola + 1) if ultimo else 1
+        salida.save(update_fields=["en_cola", "orden_cola"])
 
-    salida.save(update_fields=[
-        "en_cola",
-        "orden_cola"
-    ])
+        if not salida.bloqueado:
+            recalcular_cola(empresa=empresa)
 
-    if not salida.bloqueado:
-        recalcular_cola(empresa=empresa)
-
-    messages.success(
-        request,
-        "✅ Unidad puesta en cola correctamente."
-    )
+    messages.success(request, "✅ Unidad puesta en cola correctamente.")
     return redirect("panel_despachador")
 
 # =================================================

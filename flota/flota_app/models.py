@@ -31,17 +31,31 @@ class EmpresaManager(models.Manager):
 # =========================
 class Empresa(models.Model):
 
-    nombre = models.CharField(max_length=200)
+    nombre = models.CharField(
+        max_length=200,
+        db_index=True  # 🔥 búsquedas por nombre (admin / filtros)
+    )
 
     ruc = models.CharField(
         max_length=20,
         blank=True,
-        null=True
+        null=True,
+        db_index=True  # 🔥 útil si luego validas o buscas por RUC
     )
 
-    activa = models.BooleanField(default=True)
+    activa = models.BooleanField(
+        default=True,
+        db_index=True  # 🔥 consultas frecuentes (empresa activa)
+    )
 
     creado_en = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        indexes = [
+
+            # 🔥 opcional (si usas RUC para lookup)
+            models.Index(fields=["ruc"]),
+        ]
 
     def __str__(self):
         return self.nombre
@@ -54,8 +68,7 @@ class Vehiculo(models.Model):
     empresa = models.ForeignKey(
         Empresa,
         on_delete=models.CASCADE,
-        null=True,          # 🔴 IMPORTANTE: no rompe registros existentes
-        blank=True,
+        db_index=True,
         related_name="vehiculos"
     )
 
@@ -85,6 +98,7 @@ class Vehiculo(models.Model):
         indexes = [
             models.Index(fields=["empresa", "codigo"]),
             models.Index(fields=["empresa", "activo"]),
+            models.Index(fields=["activo"]),
         ]
 
         constraints = [
@@ -128,10 +142,12 @@ class Vehiculo(models.Model):
 # RUTA
 # =========================
 class Ruta(models.Model):
+
     empresa = models.ForeignKey(
         Empresa,
         on_delete=models.CASCADE,
-        related_name="rutas"
+        related_name="rutas",
+        db_index=True  # 🔥 joins rápidos
     )
     
     objects = EmpresaManager()
@@ -139,15 +155,22 @@ class Ruta(models.Model):
     nombre = models.CharField(max_length=100)
 
     class Meta:
-        unique_together = ("empresa", "nombre")
+        # 🔥 reemplazo de unique_together (moderno)
+        constraints = [
+            models.UniqueConstraint(
+                fields=["empresa", "nombre"],
+                name="unique_ruta_empresa_nombre"
+            )
+        ]
+
         indexes = [
-            models.Index(fields=["empresa"]),
-    ]
+            # 🔥 este es el más importante
+            models.Index(fields=["empresa", "nombre"]),
+        ]
 
     def __str__(self):
         return f"{self.empresa} - {self.nombre}"
-
-
+    
 # =========================
 # CONFIGURACIÓN DESPACHO
 # =========================
@@ -156,7 +179,8 @@ class ConfiguracionDespacho(models.Model):
     empresa = models.ForeignKey(
         Empresa,
         on_delete=models.CASCADE,
-        related_name="configuraciones"
+        related_name="configuraciones",
+        db_index=True  # 🔥 importante para joins
     )
     
     objects = EmpresaManager()
@@ -167,16 +191,24 @@ class ConfiguracionDespacho(models.Model):
         help_text="Intervalo fijo en minutos (vacío = automático)"
     )
 
-    activa = models.BooleanField(default=True)
+    activa = models.BooleanField(
+        default=True,
+        db_index=True  # 🔥 filtro frecuente
+    )
+
     creado_en = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-       constraints = [
-           models.UniqueConstraint(
-               fields=["empresa"],
-               condition=Q(activa=True),
-               name="una_config_activa_por_empresa"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["empresa"],
+                condition=Q(activa=True),
+                name="una_config_activa_por_empresa"
             )
+        ]
+        indexes = [
+            # 🔥 ESTE ES EL MÁS IMPORTANTE
+            models.Index(fields=["empresa", "activa"]),
         ]
 
     def __str__(self):
@@ -251,10 +283,9 @@ class RegistroSalida(models.Model):
         ]
         ordering = ["fecha", "creado_en"]
         indexes = [
-            models.Index(fields=["fecha", "activo"]),
-            models.Index(fields=["vehiculo", "fecha"]),
-            models.Index(fields=["ruta", "fecha"]),
-            models.Index(fields=["vehiculo", "activo"]),
+            models.Index(fields=["vehiculo", "fecha", "activo", "en_cola"]),
+            models.Index(fields=["ruta", "fecha", "en_cola", "orden_cola"]),
+            models.Index(fields=["en_cola", "orden_cola"]),
         ] 
     # =========================
     # VALIDACIONES
@@ -357,7 +388,7 @@ class RegistroSalida(models.Model):
                 registro_salida=self,
                 hora_marcada__isnull=True
             )
-            .select_related("punto")
+            .select_related("punto", "registro_salida")
             .order_by("punto__orden")
             .first()
         )
@@ -406,8 +437,17 @@ class PuntoControl(models.Model):
     activo = models.BooleanField(default=True)
 
     class Meta:
+        constraints = [
+           models.UniqueConstraint(
+               fields=["ruta", "orden"],
+               name="unique_ruta_orden"
+            )
+        ]
+        indexes = [
+            models.Index(fields=["ruta", "activo"]),
+            models.Index(fields=["ruta", "orden"]),
+    ]
         ordering = ["orden"]
-        unique_together = ("ruta", "orden")
 
     def __str__(self):
         return f"{self.ruta} | {self.orden}. {self.codigo}"
@@ -454,6 +494,10 @@ class MarcacionPunto(models.Model):
     creado_en = models.DateTimeField(auto_now_add=True)
 
     class Meta:
+        indexes = [
+            models.Index(fields=["registro_salida", "hora_marcada"]),
+            models.Index(fields=["punto"]),
+        ]
         unique_together = ("registro_salida", "punto")
         ordering = ["punto__orden"]
 
@@ -535,7 +579,8 @@ class SesionUnidad(models.Model):
     vehiculo = models.ForeignKey(
         Vehiculo,
         on_delete=models.CASCADE,
-        related_name="sesiones"
+        related_name="sesiones",
+        db_index=True  # 🔥 mejora joins y filtros
     )
 
     salida = models.ForeignKey(
@@ -543,16 +588,35 @@ class SesionUnidad(models.Model):
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name="sesiones"
+        related_name="sesiones",
+        db_index=True  # 🔥 consultas por salida
     )
 
-    token = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
-    activa = models.BooleanField(default=True)
+    token = models.UUIDField(
+        default=uuid.uuid4,
+        unique=True,
+        editable=False,
+        db_index=True  # 🔥 lookup por token (API)
+    )
+
+    activa = models.BooleanField(default=True, db_index=True)
 
     creada_en = models.DateTimeField(auto_now_add=True)
     expira_en = models.DateTimeField(null=True, blank=True)
 
-    last_heartbeat = models.DateTimeField(null=True, blank=True)
+    last_heartbeat = models.DateTimeField(
+        null=True,
+        blank=True,
+        db_index=True  # 🔥 monitoreo de conexión
+    )
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["vehiculo", "activa"]),
+            models.Index(fields=["token", "activa"]),
+            models.Index(fields=["expira_en"]),
+            models.Index(fields=["last_heartbeat"]),
+        ]
 
     def esta_valida(self):
         if not self.activa:
@@ -564,7 +628,6 @@ class SesionUnidad(models.Model):
     def __str__(self):
         return f"Unidad {self.vehiculo.codigo} | {'ACTIVA' if self.activa else 'INACTIVA'}"
 
-
 # =========================
 # GPS HISTÓRICO
 # =========================
@@ -573,22 +636,35 @@ class GPSRegistro(models.Model):
     sesion = models.ForeignKey(
         SesionUnidad,
         on_delete=models.CASCADE,
-        related_name="gps_registros"
+        related_name="gps_registros",
+        db_index=True  # 🔥 explícito (alto tráfico)
     )
 
     lat = models.FloatField()
     lng = models.FloatField()
+
     velocidad = models.FloatField(null=True, blank=True)
     precision = models.FloatField(null=True, blank=True)
     bateria = models.IntegerField(null=True, blank=True)
 
-    timestamp = models.DateTimeField(auto_now_add=True)
+    timestamp = models.DateTimeField(
+        auto_now_add=True,
+        db_index=True  # 🔥 queries por tiempo
+    )
 
     class Meta:
         ordering = ["-timestamp"]
+
         indexes = [
-            models.Index(fields=["sesion", "timestamp"]),
-    ]
+            # 🔥 CRÍTICO: últimas ubicaciones por sesión (uso real)
+            models.Index(fields=["sesion", "-timestamp"]),
+
+            # 🔥 consultas globales por tiempo (reportes / limpieza)
+            models.Index(fields=["-timestamp"]),
+        ]
+
+    def __str__(self):
+        return f"{self.sesion_id} @ {self.timestamp}"
 
 class UbicacionVehiculoQuerySet(models.QuerySet):
     def for_empresa(self, empresa):
@@ -627,6 +703,7 @@ class UbicacionVehiculo(models.Model):
     class Meta:
         indexes = [
             models.Index(fields=["updated_at"]),
+            models.Index(fields=["vehiculo", "updated_at"])
         ]
 
 class ParadaQuerySet(models.QuerySet):
@@ -676,6 +753,7 @@ class Parada(models.Model):
     class Meta:
         indexes = [
             models.Index(fields=["vehiculo", "inicio"]),
+            models.Index(fields=["vehiculo", "activa"]),
             models.Index(fields=["activa"]),
     ]
 # =========================
@@ -698,6 +776,10 @@ class MensajeGlobal(models.Model):
     )
 
     class Meta:
+        indexes = [
+            models.Index(fields=["activo", "fecha_inicio", "fecha_fin"]),
+            models.Index(fields=["activo"])
+    ]
         ordering = ["-updated_at", "-id"]  # 🔥 SIEMPRE EL MÁS RECIENTE
 
     def __str__(self):
