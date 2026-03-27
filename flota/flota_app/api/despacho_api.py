@@ -9,7 +9,7 @@ from ..decorators import empresa_required
 
 # 🔥 SELECTORS GPS
 from ..selectors.gps_selector import (
-    obtener_ubicaciones_empresa,
+    get_ubicaciones_empresa,
 )
 
 # 🔥 SELECTORS VEHICULO
@@ -51,7 +51,7 @@ def api_despachador_mapa(request):
         .values_list("vehiculo_id", flat=True)
     )
 
-    ubicaciones = obtener_ubicaciones_empresa(empresa, ahora)
+    ubicaciones = get_ubicaciones_empresa(empresa, ahora)
 
     data = []
     t30 = timedelta(seconds=30)
@@ -313,7 +313,7 @@ def debug_gps(request):
 
     empresa = request.empresa
 
-    ubicaciones = obtener_ubicaciones_empresa(empresa, timezone.now())
+    ubicaciones = get_ubicaciones_empresa(empresa, timezone.now())
 
     data = [
         {
