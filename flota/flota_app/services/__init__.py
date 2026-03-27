@@ -1,5 +1,4 @@
 from .sesion_service import obtener_sesion_valida
-from .despacho_service import iniciar_salida_segura
 from .salida_service import recalcular_cola
 from .gps_service import procesar_gps_conductor
 
