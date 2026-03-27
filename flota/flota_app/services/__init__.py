@@ -1,6 +1,7 @@
 from .sesion_service import obtener_sesion_valida
 from .salida_service import recalcular_cola
 from .gps_service import procesar_gps_conductor
+from .sesion_service import calcular_estado_sesion
 
 from .alertas_service import generar_alertas
 from .metricas_service import calcular_metricas_salida

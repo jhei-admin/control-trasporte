@@ -10,6 +10,7 @@ from ..decorators import empresa_required
 from ..services.gps_service import procesar_parada
 
 
+
 from ..models import (
     RegistroSalida,
     GPSRegistro,
@@ -19,8 +20,9 @@ from ..models import (
     MarcacionPunto,
 )
 
-from ..services import validar_sesion, calcular_estado_sesion
+from ..services.sesion_service import obtener_sesion_valida
 from ..utils import distancia_metros
+from ..services import calcular_estado_sesion
 
 
 # =================================================
@@ -41,7 +43,7 @@ def api_gps_conductor(request):
 
     token = auth.replace("Bearer ", "").strip()
 
-    sesion = validar_sesion(token)
+    sesion = obtener_sesion_valida(token)
     if not sesion:
         return JsonResponse({
             "accion": "bloqueado",
@@ -261,7 +263,7 @@ def api_gps(request):
 
     token = auth.replace("Bearer ", "").strip()
 
-    sesion = validar_sesion(token)
+    sesion = obtener_sesion_valida(token)
     if not sesion:
         return JsonResponse(
             {"error": "Sesión inválida o reemplazada"},
@@ -434,7 +436,7 @@ def api_heartbeat(request):
     # =============================================
     # 🔐 VALIDACIÓN CENTRAL DE SESIÓN
     # =============================================
-    sesion = validar_sesion(token)
+    sesion = obtener_sesion_valida(token)
 
     if not sesion:
         response = JsonResponse(
@@ -531,7 +533,7 @@ def api_app_estado(request):
     # =============================================
     # 🔐 VALIDAR SESIÓN
     # =============================================
-    sesion = validar_sesion(token)
+    sesion = obtener_sesion_valida(token)
     if not sesion:
         return JsonResponse({
             "autorizado": False,
