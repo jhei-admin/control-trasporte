@@ -1,5 +1,5 @@
 from django.urls import path
-from .views.operacion_views import debug_gps
+from .api.despacho_api import debug_gps
 from .views.despacho_views import (
     panel_despachador,
     buscar_unidad_panel,
