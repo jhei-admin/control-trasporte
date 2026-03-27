@@ -6,7 +6,7 @@ from django.views.decorators.http import require_GET
 from django.template import loader
 from django.contrib.auth import views as auth_views
 
-from flota_app.views import LoginSistemaView
+from flota_app.views.despacho_views import LoginSistemaView
 
 
 # =========================

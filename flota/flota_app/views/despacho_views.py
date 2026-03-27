@@ -13,6 +13,13 @@ from django.http import JsonResponse
 from django.conf import settings
 from django.db import models, transaction
 
+from django.contrib.auth.views import LoginView
+from django.contrib.auth import login
+from django.contrib.auth.forms import AuthenticationForm
+from django.utils.decorators import method_decorator
+from django.views.decorators.cache import never_cache
+from django.views.decorators.csrf import csrf_protect, ensure_csrf_cookie
+
 from ..models import (
     RegistroSalida,
     Vehiculo,
@@ -909,3 +916,39 @@ def api_panel_frecuencia(request):
         "puntos": [p.codigo for p in puntos],
         "data": unidades_panel
     })
+
+@method_decorator(never_cache, name="dispatch")
+@method_decorator(csrf_protect, name="dispatch")
+@method_decorator(ensure_csrf_cookie, name="dispatch")
+class LoginSistemaView(LoginView):
+
+    template_name = "login.html"
+    authentication_form = AuthenticationForm
+    redirect_authenticated_user = True
+
+    def form_valid(self, form):
+        user = form.get_user()
+        login(self.request, user)
+        return super().form_valid(form)
+
+    def form_invalid(self, form):
+        messages.error(
+            self.request,
+            "Usuario o contraseña incorrectos."
+        )
+        return super().form_invalid(form)
+
+    def get_success_url(self):
+
+        user = self.request.user
+
+        # ADMIN
+        if user.is_superuser:
+            return "/admin/"
+
+        # DESPACHADOR
+        if user.groups.filter(name="despachador").exists():
+            return "/sistema/despachador/"
+
+        # fallback
+        return "/admin/"
