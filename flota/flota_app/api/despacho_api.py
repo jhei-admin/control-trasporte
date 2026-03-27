@@ -17,10 +17,9 @@ from ..selectors.vehiculo_selector import (
     obtener_vehiculo_por_codigo,
 )
 
-# 🔥 SELECTORS SALIDA
+# 🔥 SELECTORS SALIDA (CORREGIDO ✅)
 from ..selectors.salida_selector import (
-    get_salidas_por_fecha,
-    get_salidas_activas,
+    obtener_salidas_con_marcaciones,
 )
 
 # 🔥 SELECTORS PARADAS
@@ -31,6 +30,7 @@ from ..selectors.parada_selector import (
 from ..models import (
     PuntoControl,
     ConfiguracionDespacho,
+    RegistroSalida,   # 👈 agregado para query directa
 )
 
 
@@ -47,7 +47,8 @@ def api_despachador_mapa(request):
     empresa = request.empresa
 
     salidas_activas = set(
-        get_salidas_activas(empresa, hoy)
+        RegistroSalida.objects.for_empresa(empresa)
+        .filter(fecha=hoy, activo=True)
         .values_list("vehiculo_id", flat=True)
     )
 
@@ -166,8 +167,14 @@ def api_recorrido_vehiculo(request):
 
     empresa = request.empresa
 
+    # 🔥 QUERY DIRECTA (FIX)
     salidas = list(
-        get_salidas_por_fecha(empresa, vehiculo_id, fecha_dt)
+        RegistroSalida.objects.for_empresa(empresa)
+        .filter(
+            vehiculo_id=vehiculo_id,
+            fecha=fecha_dt
+        )
+        .order_by("hora_real_salida")
     )
 
     if not salidas:
@@ -262,14 +269,17 @@ def api_panel_frecuencia(request):
 
     intervalo = config.intervalo_fijo if config and config.intervalo_fijo else 6
 
-    salidas = get_salidas_activas(empresa, hoy)
+    # 🔥 FIX: usar selector correcto
+    salidas = obtener_salidas_con_marcaciones(empresa, hoy)
 
     unidades = []
 
     for salida in salidas:
 
         if salida.ultimo_punto_orden == max_orden:
-            salida.cerrar()
+            salida.activo = False
+            salida.en_cola = False
+            salida.save(update_fields=["activo", "en_cola"])
             continue
 
         unidades.append(salida.to_panel_dict(puntos))
