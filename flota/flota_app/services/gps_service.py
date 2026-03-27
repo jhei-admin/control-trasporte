@@ -1,59 +1,174 @@
 from datetime import timedelta
 from django.utils import timezone
-from django.db import transaction
 
 from ..models import (
+    Parada,
     GPSRegistro,
     UbicacionVehiculo,
     RegistroSalida,
     PuntoControl,
-    MarcacionPunto
+    MarcacionPunto,
 )
 
 from ..utils import distancia_metros
 
+TIEMPO_MIN_PARADA = 120
+TIEMPO_PARADA_PROLONGADA = 300
+VEL_DETENIDO = 1
+RADIO_METROS = 20
 
-def procesar_gps_conductor(sesion, lat, lng, precision):
+
+# =================================================
+# 🛑 DETECTOR DE PARADAS
+# =================================================
+def procesar_parada(vehiculo, lat, lng, velocidad, timestamp):
+
+    parada = Parada.objects.for_empresa(vehiculo.empresa).filter(
+        vehiculo=vehiculo,
+        activa=True
+    ).order_by("-inicio").first()
+
+    if velocidad <= VEL_DETENIDO:
+
+        if not parada:
+            Parada.objects.create(
+                vehiculo=vehiculo,
+                lat=lat,
+                lng=lng,
+                inicio=timestamp
+            )
+            return
+
+        distancia = distancia_metros(
+            parada.lat, parada.lng,
+            lat, lng
+        )
+
+        if distancia > RADIO_METROS:
+            parada.cerrar(timestamp)
+            Parada.objects.create(
+                vehiculo=vehiculo,
+                lat=lat,
+                lng=lng,
+                inicio=timestamp
+            )
+            return
+
+        duracion = (timestamp - parada.inicio).total_seconds()
+
+        if not parada.es_prolongada and duracion >= TIEMPO_PARADA_PROLONGADA:
+            parada.es_prolongada = True
+            parada.save(update_fields=["es_prolongada"])
+
+    else:
+        if parada:
+            duracion = (timestamp - parada.inicio).total_seconds()
+
+            if duracion < TIEMPO_MIN_PARADA:
+                parada.delete()
+            else:
+                parada.cerrar(timestamp)
+
+
+# =================================================
+# 📡 GPS GENERAL (MAPA + HISTÓRICO)
+# =================================================
+def procesar_gps_general(sesion, lat, lng, velocidad, precision, bateria):
+
     ahora = timezone.now()
+
+    # 📜 histórico
+    GPSRegistro.objects.create(
+        sesion=sesion,
+        lat=lat,
+        lng=lng,
+        velocidad=velocidad,
+        precision=precision,
+        bateria=bateria
+    )
+
+    # 🛑 paradas
+    procesar_parada(
+        vehiculo=sesion.vehiculo,
+        lat=lat,
+        lng=lng,
+        velocidad=velocidad,
+        timestamp=ahora
+    )
+
+    # 🔴 filtro GPS basura
+    if precision is not None and precision > 100:
+        sesion.last_heartbeat = ahora
+        sesion.save(update_fields=["last_heartbeat"])
+
+        return {
+            "ok": True,
+            "descartado": True
+        }
+
+    # 📍 ubicación actual
+    UbicacionVehiculo.objects.update_or_create(
+        vehiculo=sesion.vehiculo,
+        defaults={
+            "latitud": lat,
+            "longitud": lng,
+            "velocidad": velocidad,
+            "precision": precision,
+        }
+    )
+
+    # 🫀 heartbeat
+    sesion.last_heartbeat = ahora
+    sesion.save(update_fields=["last_heartbeat"])
+
+    return {
+        "ok": True,
+        "vehiculo": sesion.vehiculo.codigo,
+        "lat": lat,
+        "lng": lng
+    }
+
+
+# =================================================
+# 📡 GPS CONDUCTOR (MARCACIÓN INTELIGENTE)
+# =================================================
+def procesar_gps_conductor(sesion, lat, lng, precision):
+
     hoy = timezone.localdate()
-
-    vehiculo = sesion.vehiculo
-    empresa = vehiculo.empresa
+    ahora = timezone.now()
 
     # =================================================
-    # 🔴 FILTRO GPS BASURA
+    # 🔴 FILTRO GPS BASURA (🔥 FALTABA)
     # =================================================
-    if precision and precision > 100:
+    if precision is not None and precision > 100:
         return {"accion": "ninguna"}
 
     # =================================================
-    # 📍 UBICACIÓN ACTUAL (SIN update_or_create ❌)
+    # 🔥 cerrar salidas antiguas
     # =================================================
-    UbicacionVehiculo.objects.filter(
-        vehiculo=vehiculo
-    ).update(
-        latitud=lat,
-        longitud=lng
-    )
-
-    # Si no existe → crear (1 vez)
-    if not UbicacionVehiculo.objects.filter(vehiculo=vehiculo).exists():
-        UbicacionVehiculo.objects.create(
-            vehiculo=vehiculo,
-            latitud=lat,
-            longitud=lng
-        )
+    RegistroSalida.objects.for_empresa(sesion.vehiculo.empresa).filter(
+        vehiculo=sesion.vehiculo,
+        activo=True,
+        fecha__lt=hoy
+    ).update(activo=False, en_cola=False)
 
     # =================================================
-    # 🛰️ GPS HISTÓRICO (ANTI-SPAM)
+    # 📍 ubicación actual
     # =================================================
-    ultimo = (
-        GPSRegistro.objects
-        .filter(sesion=sesion)
-        .only("timestamp")
-        .order_by("-timestamp")
-        .first()
+    UbicacionVehiculo.objects.update_or_create(
+        vehiculo=sesion.vehiculo,
+        defaults={
+            "latitud": lat,
+            "longitud": lng,
+        }
     )
+
+    # =================================================
+    # 🛰️ anti spam GPS
+    # =================================================
+    ultimo = GPSRegistro.objects.filter(
+        sesion=sesion
+    ).order_by("-timestamp").first()
 
     if not ultimo or (ahora - ultimo.timestamp) >= timedelta(seconds=5):
         GPSRegistro.objects.create(
@@ -64,51 +179,40 @@ def procesar_gps_conductor(sesion, lat, lng, precision):
         )
 
     # =================================================
-    # 🚍 SALIDA ACTIVA
+    # 🚍 salida activa
     # =================================================
-    salida = (
-        RegistroSalida.objects
-        .filter(
-            vehiculo=vehiculo,
-            fecha=hoy,
-            activo=True
-        )
-        .select_related("ruta")
-        .prefetch_related("marcaciones__punto")
-        .order_by("-id")
-        .first()
-    )
+    salida = RegistroSalida.objects.for_empresa(
+        sesion.vehiculo.empresa
+    ).filter(
+        vehiculo=sesion.vehiculo,
+        fecha=hoy,
+        activo=True
+    ).order_by("-id").first()
 
     if not salida:
         return {"accion": "ninguna"}
 
     # =================================================
-    # 🔁 ASEGURAR MARCACIONES (OPTIMIZADO)
+    # 🔧 asegurar marcaciones
     # =================================================
     if salida.ruta and not salida.marcaciones.exists():
+        puntos = PuntoControl.objects.filter(
+            ruta=salida.ruta,
+            activo=True
+        ).order_by("orden")
 
-        puntos = list(
-            PuntoControl.objects.filter(
-                ruta=salida.ruta,
-                activo=True
-            ).order_by("orden")
-        )
-
-        MarcacionPunto.objects.bulk_create([
-            MarcacionPunto(
+        for punto in puntos:
+            MarcacionPunto.objects.get_or_create(
                 registro_salida=salida,
-                punto=p
+                punto=punto
             )
-            for p in puntos
-        ], ignore_conflicts=True)
 
-    # =================================================
-    # 📍 SIGUIENTE MARCACIÓN
-    # =================================================
     marcacion = salida.siguiente_marcacion()
 
+    # =================================================
+    # 🏁 FIN DE RUTA
+    # =================================================
     if not marcacion:
-
         salida.activo = False
         salida.en_cola = False
         salida.save(update_fields=["activo", "en_cola"])
@@ -121,11 +225,10 @@ def procesar_gps_conductor(sesion, lat, lng, precision):
     punto = marcacion.punto
 
     # =================================================
-    # 📏 DISTANCIA
+    # 📏 distancia
     # =================================================
     distancia = distancia_metros(
-        lat,
-        lng,
+        lat, lng,
         float(punto.latitud),
         float(punto.longitud)
     )
@@ -134,26 +237,17 @@ def procesar_gps_conductor(sesion, lat, lng, precision):
         return {"accion": "ninguna"}
 
     # =================================================
-    # 🔒 DEBOUNCE
+    # 🔒 ANTI DOBLE MARCACIÓN (🔥 FALTABA)
     # =================================================
     if marcacion.hora_marcada:
-        if (ahora - marcacion.hora_marcada).total_seconds() < 10:
+        delta = ahora - marcacion.hora_marcada
+        if delta.total_seconds() < 10:
             return {"accion": "ninguna"}
 
     # =================================================
-    # 🔥 TRANSACCIÓN (CRÍTICO)
+    # ✅ marcar
     # =================================================
-    with transaction.atomic():
-
-        if not salida.hora_real_salida:
-            salida.hora_real_salida = ahora
-            salida.en_cola = False
-            salida.save(update_fields=[
-                "hora_real_salida",
-                "en_cola"
-            ])
-
-        marcacion.marcar(hora=ahora)
+    marcacion.marcar(hora=ahora)
 
     return {
         "accion": "audio" if marcacion.audio_flag else "visual",
@@ -162,6 +256,5 @@ def procesar_gps_conductor(sesion, lat, lng, precision):
             "codigo": punto.codigo,
             "punto": punto.nombre,
             "estado": marcacion.estado.upper(),
-            "diferencia_min": marcacion.diferencia_minutos
         }
     }

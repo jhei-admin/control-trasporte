@@ -1,7 +1,45 @@
 from django.urls import path
-from . import views
-from .views import debug_gps
-from .api.gps import api_gps_conductor
+from .views.operacion_views import debug_gps
+from .views.despacho_views import (
+    panel_despachador,
+    buscar_unidad_panel,
+    despachador_mapa,
+    recorrido_vehiculo,
+    poner_en_cola,
+    quitar_de_cola,
+    asignar_hora_fija,
+    desbloquear_hora,
+    cambiar_intervalo_global,
+    auditoria_horas,
+    historial_salidas,
+    historial_vehiculo,
+    control_ruta,
+    marcar_paso,
+    marcar_siguiente_punto,
+    ver_qr_unidad,
+    panel_frecuencia,
+    detalle_salida,
+)
+
+from .views.operacion_views import (
+    api_gps,
+    api_gps_conductor,
+    api_app_estado,
+    api_app_referencia_tiempo,
+    api_app_cola_contexto,
+    api_heartbeat,
+    api_despachador_mapa,
+    api_puntos_control,
+    api_buscar_vehiculo_por_codigo,
+    api_recorrido_vehiculo,
+    api_paradas_vehiculo,
+    api_panel_frecuencia,
+    api_escanear_qr,
+)
+
+from .views.reportes_views import (
+    reporte_salidas_diarias,
+)
 
 urlpatterns = [
 
@@ -14,41 +52,41 @@ urlpatterns = [
     ),
     path(
         "api/app/escanear-qr/",
-        views.api_escanear_qr,
+         api_escanear_qr,
         name="api_escanear_qr"
     ),
     path(
         "api/app/escanear-qr",
-        views.api_escanear_qr
+         api_escanear_qr
     ),
 
     path(
         "api/app/estado/",
-        views.api_app_estado,
+        api_app_estado,
         name="api_app_estado"
     ),
 
     path(
         "api/app/referencia-tiempo/",
-        views.api_app_referencia_tiempo,
+        api_app_referencia_tiempo,
         name="api_app_referencia_tiempo"
     ),
 
     # 🆕 CONTEXTO DE COLA (GPS IDEOVAL)
     path(
         "api/app/cola-contexto/",
-        views.api_app_cola_contexto,
+         api_app_cola_contexto,
         name="api_app_cola_contexto"    
     ),
     path(
         "api/app/cola-contexto",
-        views.api_app_cola_contexto
+         api_app_cola_contexto
     ),
 
     # ✔️ GPS CONDUCTOR (ruta original)
     path(
         "api/app/gps/",
-        views.api_gps_conductor,
+         api_gps_conductor,
         name="api_gps_conductor"
     ),
 
@@ -57,11 +95,11 @@ urlpatterns = [
     # =================================================
     path(
         "api/gps/conductor/",
-        views.api_gps_conductor
+         api_gps_conductor
     ),
     path(
         "api/gps/conductor",
-        views.api_gps_conductor
+         api_gps_conductor
     ),
 
     # =========================
@@ -69,12 +107,12 @@ urlpatterns = [
     # =========================
     path(
         "api/app/heartbeat/",
-        views.api_heartbeat,
+         api_heartbeat,
         name="api_heartbeat"
     ),
     path(
         "api/app/heartbeat",
-        views.api_heartbeat
+         api_heartbeat
     ),
 
     # =========================
@@ -82,12 +120,12 @@ urlpatterns = [
     # =========================
     path(
         "api/gps/",
-        views.api_gps,
+         api_gps,
         name="api_gps"
     ),
     path(
         "api/gps",
-        views.api_gps
+         api_gps
     ),
 
     # =========================
@@ -95,12 +133,12 @@ urlpatterns = [
     # =========================
     path(
         "api/despachador/mapa/",
-        views.api_despachador_mapa,
+         api_despachador_mapa,
         name="api_despachador_mapa"
     ),
     path(
         "api/despachador/mapa",
-        views.api_despachador_mapa
+         api_despachador_mapa
     ),
 
     # =========================
@@ -108,12 +146,12 @@ urlpatterns = [
     # =========================
     path(
         "api/despachador/puntos-control/",
-        views.api_puntos_control,
+         api_puntos_control,
         name="api_puntos_control"
     ),
     path(
         "api/despachador/puntos-control",
-        views.api_puntos_control
+         api_puntos_control
     ),
 
     # =========================
@@ -121,12 +159,12 @@ urlpatterns = [
     # =========================
     path(
         "api/despachador/buscar-vehiculo/",
-        views.api_buscar_vehiculo_por_codigo,
+         api_buscar_vehiculo_por_codigo,
         name="api_buscar_vehiculo_por_codigo"
     ),
     path(
         "api/despachador/buscar-vehiculo",
-        views.api_buscar_vehiculo_por_codigo
+         api_buscar_vehiculo_por_codigo
     ),
 
     # =========================
@@ -134,12 +172,12 @@ urlpatterns = [
     # =========================
     path(
         "api/despachador/recorrido/",
-        views.api_recorrido_vehiculo,
+         api_recorrido_vehiculo,
         name="api_recorrido_vehiculo"
     ),
     path(
         "api/despachador/recorrido",
-        views.api_recorrido_vehiculo
+         api_recorrido_vehiculo
     ),
 
     # =========================
@@ -147,12 +185,12 @@ urlpatterns = [
     # =========================
     path(
         "api/despachador/paradas/",
-        views.api_paradas_vehiculo,
+         api_paradas_vehiculo,
         name="api_paradas_vehiculo"
     ),
     path(
         "api/despachador/paradas",
-        views.api_paradas_vehiculo
+         api_paradas_vehiculo
     ),
 
     # =========================
@@ -160,19 +198,19 @@ urlpatterns = [
     # =========================
     path(
         "despachador/",
-        views.panel_despachador,
+         panel_despachador,
         name="panel_despachador"
     ),
 
     path(
         "despachador/mapa/",
-        views.despachador_mapa,
+         despachador_mapa,
         name="despachador_mapa"
     ),
 
     path(
         "despachador/recorrido/",
-        views.recorrido_vehiculo,
+         recorrido_vehiculo,
         name="recorrido_vehiculo"
     ),
 
@@ -181,7 +219,7 @@ urlpatterns = [
     # =========================
     path(
         "despachador/buscar-unidad/",
-        views.buscar_unidad_panel,
+         buscar_unidad_panel,
         name="buscar_unidad_panel"
     ),
 
@@ -190,31 +228,31 @@ urlpatterns = [
     # =========================
     path(
         "despachador/poner-en-cola/<int:salida_id>/",
-        views.poner_en_cola,
+         poner_en_cola,
         name="poner_en_cola"
     ),
 
     path(
         "despachador/quitar-de-cola/<int:salida_id>/",
-        views.quitar_de_cola,
+         quitar_de_cola,
         name="quitar_de_cola"
     ),
 
     path(
         "despachador/asignar-hora-fija/<int:salida_id>/",
-        views.asignar_hora_fija,
+         asignar_hora_fija,
         name="asignar_hora_fija"
     ),
 
     path(
         "despachador/desbloquear-hora/<int:salida_id>/",
-        views.desbloquear_hora,
+         desbloquear_hora,
         name="desbloquear_hora"
     ),
 
     path(
         "despachador/cambiar-intervalo-global/",
-        views.cambiar_intervalo_global,
+         cambiar_intervalo_global,
         name="cambiar_intervalo_global"
     ),
 
@@ -223,19 +261,19 @@ urlpatterns = [
     # =========================
     path(
         "auditoria-horas/",
-        views.auditoria_horas,
+         auditoria_horas,
         name="auditoria_horas"
     ),
 
     path(
         "historial-salidas/",
-        views.historial_salidas,
+         historial_salidas,
         name="historial_salidas"
     ),
 
     path(
     "despachador/historial/<int:vehiculo_id>/",
-    views.historial_vehiculo,
+     historial_vehiculo,
     name="historial_vehiculo"
     ),
 
@@ -244,7 +282,7 @@ urlpatterns = [
     # =========================
     path(
         "salida/<int:salida_id>/detalle/",
-        views.detalle_salida,
+         detalle_salida,
         name="detalle_salida"
     ),
 
@@ -253,19 +291,19 @@ urlpatterns = [
     # =========================
     path(
         "control-ruta/<int:salida_id>/",
-        views.control_ruta,
+         control_ruta,
         name="control_ruta"
     ),
 
     path(
         "control-ruta/<int:salida_id>/marcar/<int:punto_id>/",
-        views.marcar_paso,
+         marcar_paso,
         name="marcar_paso"
     ),
 
     path(
         "control-ruta/<int:salida_id>/marcar-siguiente/",
-        views.marcar_siguiente_punto,
+         marcar_siguiente_punto,
         name="marcar_siguiente_punto"
     ),
 
@@ -274,7 +312,7 @@ urlpatterns = [
     # =========================
     path(
         "vehiculo/<int:vehiculo_id>/qr/",
-        views.ver_qr_unidad,
+         ver_qr_unidad,
         name="ver_qr_unidad"
     ),
 
@@ -283,18 +321,18 @@ urlpatterns = [
     # =========================
     path(
         "reportes/salidas/<int:vehiculo_id>/",
-        views.reporte_salidas_diarias,
+         reporte_salidas_diarias,
         name="reporte_salidas_diarias"
     ),
 
     path(
         "despachador/frecuencia/",
-        views.panel_frecuencia,
+         panel_frecuencia,
         name="panel_frecuencia"
     ),
     path(
         "api/frecuencia/",
-        views.api_panel_frecuencia,
+         api_panel_frecuencia,
         name="api_panel_frecuencia"
     ),
 

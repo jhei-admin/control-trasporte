@@ -1,10 +1,34 @@
-# flota_app/services/sesion_service.py
+# services/sesion_service.py
 
 from django.utils import timezone
-from ..models import SesionUnidad
+
+from ..models import SesionUnidad, Vehiculo
 
 
-def validar_sesion(token):
+# =================================================
+# 🔐 CREAR SESIÓN (QR)
+# =================================================
+def crear_sesion_qr(vehiculo):
+
+    # cerrar anteriores
+    SesionUnidad.objects.filter(
+        vehiculo=vehiculo,
+        activa=True
+    ).update(activa=False)
+
+    sesion = SesionUnidad.objects.create(
+        vehiculo=vehiculo,
+        activa=True
+    )
+
+    return sesion
+
+
+# =================================================
+# 🔍 VALIDAR SESIÓN
+# =================================================
+def obtener_sesion_valida(token):
+
     try:
         sesion = SesionUnidad.objects.select_related("vehiculo").get(
             token=token,
@@ -15,17 +39,18 @@ def validar_sesion(token):
         return None
 
 
-def calcular_estado_sesion(sesion):
-    ahora = timezone.now()
+# =================================================
+# 🫀 HEARTBEAT
+# =================================================
+def actualizar_heartbeat(sesion):
+    sesion.last_heartbeat = timezone.now()
+    sesion.save(update_fields=["last_heartbeat"])
+    return sesion
 
-    if not sesion.last_heartbeat:
-        return "OFFLINE"
 
-    delta = ahora - sesion.last_heartbeat
-
-    if delta.total_seconds() <= 30:
-        return "ONLINE"
-    elif delta.total_seconds() <= 120:
-        return "LENTO"
-    else:
-        return "OFFLINE"
+# =================================================
+# 🚍 OBTENER VEHÍCULO DESDE TOKEN
+# =================================================
+def obtener_vehiculo_desde_token(token):
+    sesion = obtener_sesion_valida(token)
+    return sesion.vehiculo if sesion else None
