@@ -14,7 +14,7 @@ from ..selectors.gps_selector import (
 
 # 🔥 SELECTORS VEHICULO
 from ..selectors.vehiculo_selector import (
-    get_vehiculo_por_codigo,
+    obtener_vehiculo_por_codigo,
 )
 
 # 🔥 SELECTORS SALIDA
@@ -25,7 +25,7 @@ from ..selectors.salida_selector import (
 
 # 🔥 SELECTORS PARADAS
 from ..selectors.parada_selector import (
-    get_paradas_por_fecha,
+    obtener_paradas_por_fecha,
 )
 
 from ..models import (
@@ -132,7 +132,7 @@ def api_buscar_vehiculo_por_codigo(request):
 
     empresa = request.empresa
 
-    vehiculo = get_vehiculo_por_codigo(empresa, codigo)
+    vehiculo = obtener_vehiculo_por_codigo(empresa, codigo)
 
     if not vehiculo:
         return JsonResponse({"error": "No encontrado"}, status=404)
@@ -221,7 +221,7 @@ def api_paradas_vehiculo(request):
 
     empresa = request.empresa
 
-    paradas = get_paradas_por_fecha(empresa, vehiculo_id, fecha_dt)
+    paradas = obtener_paradas_por_fecha(empresa, vehiculo_id, fecha_dt)
 
     data = [{
         "lat": p.lat,
