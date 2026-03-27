@@ -12,7 +12,7 @@ from ..models import (
     MarcacionPunto,
 )
 
-from . import recalcular_cola
+from .salida_service import recalcular_cola
 
 
 # =================================================
