@@ -3,7 +3,6 @@ from .api.despacho_api import debug_gps
 from .views.despacho_views import (
     panel_despachador,
     buscar_unidad_panel,
-    despachador_mapa,
     recorrido_vehiculo,
     poner_en_cola,
     quitar_de_cola,
@@ -204,7 +203,7 @@ urlpatterns = [
 
     path(
         "despachador/mapa/",
-         despachador_mapa,
+        api_despachador_mapa,
         name="despachador_mapa"
     ),
 
