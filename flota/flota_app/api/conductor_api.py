@@ -7,24 +7,24 @@ from django.views.decorators.http import require_POST
 from django.utils import timezone
 
 # ✅ Apunta explícitamente al módulo correcto
-from ..services.sesion_service import validar_sesion, calcular_estado_sesion
+from ..services.sesion_service import validar_sesion
 from ..utils import distancia_metros
 
 # 🔥 SELECTORS GPS
 from ..selectors.gps_selector import (
-    obtener_ultimo_gps,
+    get_ultimo_gps,
     crear_gps_simple,
     actualizar_ubicacion_simple,
 )
 
 # 🔥 SELECTORS SALIDA
 from ..selectors.salida_selector import (
-    get_salida_activa,
+    obtener_salida_activa,
 )
 
 # 🔥 SELECTORS VEHICULO
 from ..selectors.vehiculo_selector import (
-    get_vehiculo_activo,
+    obtener_vehiculo_por_codigo
 )
 
 from ..models import (
@@ -84,13 +84,13 @@ def api_gps_conductor(request):
     actualizar_ubicacion_simple(sesion.vehiculo, lat, lng)
 
     # 🛰️ GPS HISTÓRICO
-    ultimo = obtener_ultimo_gps(sesion)
+    ultimo = get_ultimo_gps(sesion)
 
     if not ultimo or (ahora - ultimo.timestamp) >= timedelta(seconds=5):
         crear_gps_simple(sesion, lat, lng, precision)
 
     # 🚍 SALIDA
-    salida = get_salida_activa(sesion.vehiculo, hoy)
+    salida = obtener_salida_activa(sesion.vehiculo, hoy)
 
     if not salida:
         return JsonResponse({"accion": "ninguna"})
@@ -213,7 +213,7 @@ def api_app_estado(request):
         return JsonResponse({"estado": "BLOQUEADO"})
 
     hoy = timezone.localdate()
-    salida = get_salida_activa(sesion.vehiculo, hoy)
+    salida = obtener_salida_activa(sesion.vehiculo, hoy)
 
     if not salida:
         return JsonResponse({"estado": "SIN_SALIDA"})
@@ -239,7 +239,7 @@ def api_escanear_qr(request):
     data = json.loads(request.body or "{}")
     vehiculo_id = data.get("vehiculo_id")
 
-    vehiculo = get_vehiculo_activo(vehiculo_id)
+    vehiculo = obtener_vehiculo_por_codigo(vehiculo_id)
 
     if not vehiculo:
         return JsonResponse({"ok": False})
