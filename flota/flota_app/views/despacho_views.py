@@ -40,10 +40,12 @@ def es_despachador(user):
     return user.groups.filter(name="despachador").exists() or user.is_superuser
 
 
-@login_required
-@user_passes_test(es_despachador)
+@login_required(login_url="/sistema/login/")
 @empresa_required
 def panel_despachador(request):
+    if not es_despachador(request.user):
+        messages.error(request, "No tiene permisos para acceder al panel despachador.")
+        return redirect("/admin/")  # o a otra página de tu elección
 
     hoy = timezone.localdate()
     empresa = request.empresa
