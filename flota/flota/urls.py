@@ -12,20 +12,21 @@ from flota_app.views.despacho_views import LoginSistemaView
 # =========================
 # REDIRECCIÓN RAÍZ
 # =========================
-def root_redirect(request):
+from django.urls import reverse
 
+def root_redirect(request):
     if not request.user.is_authenticated:
-        return redirect("/login/")
+        return redirect(reverse("login"))
 
     user = request.user
 
     if user.is_superuser:
-        return redirect("/admin/")
+        return redirect(reverse("admin:index"))
 
     if user.groups.filter(name="despachador").exists():
-        return redirect("/sistema/despachador/")
+        return redirect(reverse("panel_despachador"))
 
-    return redirect("/login/")
+    return redirect(reverse("login"))
 
 
 # =========================

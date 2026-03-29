@@ -87,7 +87,7 @@ urlpatterns = [
     # 🟡 PANEL DESPACHADOR
     # =========================
     path("login/", LoginSistemaView.as_view(), name="login"),
-    path("sistema/despachador/", panel_despachador, name="panel_despachador"),
+    path("despachador/", panel_despachador, name="panel_despachador"),
     path("despachador/buscar-unidad/", buscar_unidad_panel, name="buscar_unidad_panel"),
     path("despachador/poner-en-cola/<int:salida_id>/", poner_en_cola, name="poner_en_cola"),
     path("despachador/quitar-de-cola/<int:salida_id>/", quitar_de_cola, name="quitar_de_cola"),

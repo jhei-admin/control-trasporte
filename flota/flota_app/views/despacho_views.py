@@ -403,9 +403,6 @@ def desbloquear_hora(request, salida_id):
 
 
 # =================================================
-# 📄 DETALLE Y CONTROL
-# =================================================
-# =================================================
 # 📄 DETALLE DE SALIDA
 # =================================================
 @login_required
@@ -940,17 +937,15 @@ class LoginSistemaView(LoginView):
         )
         return super().form_invalid(form)
 
-    def get_success_url(self):
+from django.urls import reverse
 
-        user = self.request.user
+def get_success_url(self):
+    user = self.request.user
 
-        # ADMIN
-        if user.is_superuser:
-            return "/admin/"
+    if user.is_superuser:
+        return reverse("admin:index")
 
-        # DESPACHADOR
-        if user.groups.filter(name="despachador").exists():
-            return "/sistema/despachador/"
+    if user.groups.filter(name="despachador").exists():
+        return reverse("panel_despachador")
 
-        # fallback
-        return "/admin/"
+    return reverse("login")
