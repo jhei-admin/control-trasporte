@@ -4,37 +4,7 @@ from datetime import timedelta
 from .models import (
     RegistroSalida,
     ConfiguracionDespacho,
-    SesionUnidad,
 )
-
-# =================================================
-# 🔐 VALIDAR SESIÓN ACTIVA (ÚNICA FUENTE DE VERDAD)
-# =================================================
-def validar_sesion(token: str):
-    """
-    Valida una sesión activa por token.
-
-    Retorna:
-        SesionUnidad si es válida
-        None si es inválida
-    """
-
-    if not token:
-        return None
-
-    try:
-        sesion = (
-            SesionUnidad.objects
-            .select_related("vehiculo")
-            .get(token=token, activa=True)
-        )
-    except SesionUnidad.DoesNotExist:
-        return None
-
-    if not sesion.esta_valida():
-        return None
-
-    return sesion
 
 
 # =================================================

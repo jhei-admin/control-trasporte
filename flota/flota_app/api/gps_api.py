@@ -7,7 +7,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 from django.views.decorators.cache import never_cache
 
-from ..services import validar_sesion
+from ..services.sesion_service import validar_sesion
 
 # 🔥 SELECTORS GPS
 from ..selectors.gps_selector import (
