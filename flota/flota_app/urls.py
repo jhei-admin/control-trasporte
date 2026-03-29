@@ -9,8 +9,6 @@ from .api.conductor_api import (
     api_heartbeat,
     api_app_estado,
     api_escanear_qr,
-    api_app_referencia_tiempo,
-    api_app_cola_contexto,
 )
 from .api.despacho_api import (
     api_despachador_mapa,
@@ -38,7 +36,6 @@ from .views.despacho_views import (
     control_ruta,
     marcar_paso,
     marcar_siguiente_punto,
-    ver_qr_unidad,
     panel_frecuencia,
     detalle_salida,
 )
@@ -57,8 +54,6 @@ urlpatterns = [
     path("api/app/heartbeat/", api_heartbeat, name="api_heartbeat"),
     path("api/app/estado/", api_app_estado, name="api_app_estado"),
     path("api/app/escanear-qr/", api_escanear_qr, name="api_escanear_qr"),
-    path("api/app/referencia-tiempo/", api_app_referencia_tiempo, name="api_app_referencia_tiempo"),
-    path("api/app/cola-contexto/", api_app_cola_contexto, name="api_app_cola_contexto"),
     path("api/app/gps/", api_gps_conductor, name="api_gps_conductor"),
 
     # =========================
@@ -119,7 +114,6 @@ urlpatterns = [
     # =========================
     # 📦 QR VEHÍCULO
     # =========================
-    path("vehiculo/<int:vehiculo_id>/qr/", ver_qr_unidad, name="ver_qr_unidad"),
 
     # =========================
     # 🟡 REPORTES
