@@ -24,6 +24,7 @@ from .api.despacho_api import (
 # 🖥️ HTML Views (thin views)
 # =========================
 from .views.despacho_views import (
+    LoginSistemaView,
     panel_despachador,
     buscar_unidad_panel,
     poner_en_cola,
@@ -85,6 +86,7 @@ urlpatterns = [
     # =========================
     # 🟡 PANEL DESPACHADOR
     # =========================
+    path("login/", LoginSistemaView.as_view(), name="login"),
     path("despachador/", panel_despachador, name="panel_despachador"),
     path("despachador/buscar-unidad/", buscar_unidad_panel, name="buscar_unidad_panel"),
     path("despachador/poner-en-cola/<int:salida_id>/", poner_en_cola, name="poner_en_cola"),
