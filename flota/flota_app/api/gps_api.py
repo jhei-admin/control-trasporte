@@ -18,7 +18,7 @@ from ..selectors.gps_selector import (
 
 # 🔥 SELECTOR PARADAS
 from ..selectors.parada_selector import (
-    procesar_parada,
+    obtener_parada_activa
 )
 
 
@@ -113,7 +113,7 @@ def api_gps(request):
     # =================================================
     # 🛑 PARADAS (SELECTOR 🔥)
     # =================================================
-    procesar_parada(
+    obtener_parada_activa(
         vehiculo=sesion.vehiculo,
         lat=lat,
         lng=lng,
