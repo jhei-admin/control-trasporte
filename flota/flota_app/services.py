@@ -4,6 +4,8 @@ from datetime import timedelta
 from .models import (
     RegistroSalida,
     ConfiguracionDespacho,
+    SesionUnidad,
+    GPSRegistro
 )
 
 
@@ -59,10 +61,27 @@ def registrar_llegada_al_paradero(vehiculo, ruta):
     )
 
 
+def validar_sesion(token):
+    """
+    Capa de compatibilidad para vistas heredadas.
+    Devuelve la sesion activa asociada al token si sigue vigente.
+    """
+
+    try:
+        sesion = SesionUnidad.objects.select_related("vehiculo").get(
+            token=token,
+            activa=True,
+        )
+    except SesionUnidad.DoesNotExist:
+        return None
+
+    return sesion if sesion.esta_valida() else None
+
+
 # =================================================
 # 🔁 RECALCULAR COLA (RESPETA HORA FIJA)
 # =================================================
-def recalcular_cola():
+def recalcular_cola(empresa=None):
     """
     Recalcula horas SOLO para:
     - salidas de hoy
@@ -72,22 +91,25 @@ def recalcular_cola():
 
     hoy = timezone.localdate()
 
-    salidas = (
-        RegistroSalida.objects
-        .filter(
-            fecha=hoy,
-            activo=True,
-            en_cola=True
-        )
-        .order_by("orden_cola", "hora_llegada")
+    salidas = RegistroSalida.objects.filter(
+        fecha=hoy,
+        activo=True,
+        en_cola=True,
     )
+
+    if empresa is not None:
+        salidas = salidas.filter(vehiculo__empresa=empresa)
+
+    salidas = salidas.order_by("orden_cola", "hora_llegada")
 
     if not salidas.exists():
         return
 
-    config = ConfiguracionDespacho.objects.filter(
-        activa=True
-    ).first()
+    config_qs = ConfiguracionDespacho.objects.filter(activa=True)
+    if empresa is not None:
+        config_qs = config_qs.filter(empresa=empresa)
+
+    config = config_qs.first()
 
     if config and config.intervalo_fijo:
         intervalo = config.intervalo_fijo
@@ -135,3 +157,61 @@ def recalcular_cola():
         ])
 
         hora_actual = nueva_hora
+
+
+HEARTBEAT_TIMEOUT = timedelta(seconds=90)
+GPS_TIMEOUT = timedelta(minutes=3)
+
+def calcular_estado_sesion(sesion: SesionUnidad):
+    """
+    Determina el estado REAL del vehículo usando:
+
+    - Sesión
+    - Heartbeat
+    - Último GPS
+
+    Estados posibles:
+    - BLOQUEADO
+    - SIN_GPS
+    - SIN_SENAL
+    - EN_RUTA
+    - DETENIDO
+    """
+
+    if not sesion or not sesion.activa:
+        return "BLOQUEADO"
+
+    ahora = timezone.now()
+
+    # =============================================
+    # 🫀 HEARTBEAT
+    # =============================================
+    if not sesion.last_heartbeat:
+        return "SIN_SENAL"
+
+    if ahora - sesion.last_heartbeat > HEARTBEAT_TIMEOUT:
+        return "SIN_SENAL"
+
+    # =============================================
+    # 📍 ÚLTIMO GPS
+    # =============================================
+    ultimo_gps = (
+        GPSRegistro.objects
+        .filter(sesion=sesion)
+        .order_by("-timestamp")
+        .first()
+    )
+
+    if not ultimo_gps:
+        return "SIN_GPS"
+
+    if ahora - ultimo_gps.timestamp > GPS_TIMEOUT:
+        return "SIN_SENAL"
+
+    # =============================================
+    # 🚍 ESTADO POR VELOCIDAD
+    # =============================================
+    if ultimo_gps.velocidad and ultimo_gps.velocidad > 5:
+        return "EN_RUTA"
+
+    return "DETENIDO"
