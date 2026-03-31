@@ -65,7 +65,7 @@
             <td>{{ item.salida.ruta.nombre|default:"SIN RUTA" }}</td>
             <td>{{ item.programada|date:"Y-m-d H:i" }}</td>
             <td>{{ item.marcada|date:"H:i" }}</td>
-            <td>{{ item.falta }}</td>
+            <td>{% if item.falta is not None %}{{ item.falta }}{% else %}&mdash;{% endif %}</td>
             <td>
                 {% if item.estado == "a_tiempo" %}
                     <span class="badge bg-success">A TIEMPO</span>

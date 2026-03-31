@@ -101,6 +101,7 @@ display:grid;
 grid-template-columns:280px 1fr;
 height:520px;
 gap:10px;
+align-items:stretch;
 }
 
 .panel-unidades{
@@ -109,6 +110,7 @@ color:white;
 border-radius:10px;
 padding:10px;
 overflow-y:auto;
+min-width:0;
 }
 
 .panel-header{
@@ -145,6 +147,8 @@ border-radius:50%;
 border-radius:10px;
 overflow:hidden;
 position:relative;
+min-width:0;
+background:#0f172a;
 }
 
 #map{
@@ -320,9 +324,15 @@ document.addEventListener("DOMContentLoaded",()=>{
 const PARADERO=[-16.338088,-71.619947]
 const ZOOM_PARADERO=15
 
-const map=L.map("map").setView(PARADERO,ZOOM_PARADERO)
+const map=L.map("map",{
+preferCanvas:true,
+zoomAnimation:true,
+fadeAnimation:false,
+markerZoomAnimation:true
+}).setView(PARADERO,ZOOM_PARADERO)
 const listaBuses=document.getElementById("lista-buses")
 let mapaCentrado=false
+let actualizando=false
 
 /* MAPBOX PRO */
 
@@ -331,6 +341,10 @@ L.tileLayer(
 {
 tileSize:512,
 zoomOffset:-1,
+maxZoom:20,
+keepBuffer:6,
+updateWhenZooming:false,
+updateWhenIdle:true,
 attribution:"© Mapbox © OpenStreetMap"
 }).addTo(map)
 
@@ -618,17 +632,9 @@ window.toggleFullscreen=()=>{
 const cont=document.querySelector(".map-container")
 
 cont.classList.toggle("fullscreen")
-
-const map = new mapboxgl.Map({
-container: "map-recorrido",
-style: "mapbox://styles/mapbox/dark-v11",
-center: [-71.619947,-16.338088],
-zoom: 13
-});
-
-setTimeout(() => {
-    map.resize();
-}, 300);
+setTimeout(()=>{
+map.invalidateSize(true)
+},250)
 
 }
 
@@ -665,8 +671,14 @@ i++
 /* GPS */
 
 async function cargar(){
+if(actualizando) return
+actualizando=true
 
-const res=await fetch("/sistema/api/despachador/mapa/")
+try{
+
+const res=await fetch("/sistema/api/despachador/mapa/",{
+cache:"no-store"
+})
 const data=await res.json()
 actualizarPanel(data)
 
@@ -732,11 +744,39 @@ map.fitBounds(bounds,{padding:[40,40]})
 mapaCentrado=true
 }
 
+requestAnimationFrame(()=>{
+map.invalidateSize(true)
+})
+
+}catch(error){
+console.error("Error cargando mapa:",error)
+}finally{
+actualizando=false
+}
+
 }
 
 cargar()
 
 setInterval(cargar,4000)
+
+window.addEventListener("resize",()=>{
+requestAnimationFrame(()=>{
+map.invalidateSize(true)
+})
+})
+
+map.whenReady(()=>{
+setTimeout(()=>{
+map.invalidateSize(true)
+},150)
+})
+
+map.on("zoomend moveend",()=>{
+requestAnimationFrame(()=>{
+map.invalidateSize(false)
+})
+})
 
 })
 
