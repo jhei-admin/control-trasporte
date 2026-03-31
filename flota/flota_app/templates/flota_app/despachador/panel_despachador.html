@@ -94,9 +94,15 @@ Cerrar sesión
 
 <a href="{% url 'panel_frecuencia' %}" class="btn btn-outline-success btn-sm">📊 Frecuencia</a>
 
-<a href="{% url 'reporte_salidas_diarias' 1 %}?fecha={% now 'Y-m-d' %}" class="btn btn-warning btn-sm">
+{% if reporte_vehiculo_id %}
+<a href="{% url 'reporte_salidas_diarias' reporte_vehiculo_id %}?fecha={% now 'Y-m-d' %}" class="btn btn-warning btn-sm">
 🚚 Salidas del día
 </a>
+{% else %}
+<button class="btn btn-warning btn-sm" disabled>
+Salidas del dia
+</button>
+{% endif %}
 
 </div>
 

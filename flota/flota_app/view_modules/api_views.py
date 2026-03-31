@@ -329,6 +329,7 @@ def api_despachador_mapa(request):
             estado_gps = "OFFLINE"
 
         data.append({
+            "vehiculo_id": ubicacion.vehiculo_id,
             "vehiculo": str(ubicacion.vehiculo.codigo),
             "lat": ubicacion.latitud,
             "lng": ubicacion.longitud,
@@ -336,6 +337,7 @@ def api_despachador_mapa(request):
             "precision": ubicacion.precision,
             "estado": "ACTIVO" if ubicacion.vehiculo_id in salidas_activas else "INACTIVO",
             "estado_gps": estado_gps,
+            "fecha": ubicacion.updated_at.isoformat(),
             "actualizado_en": ubicacion.updated_at.isoformat(),
         })
 

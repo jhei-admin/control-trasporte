@@ -91,7 +91,7 @@
         <td>
             {% if not m or not m.hora_marcada %}
                 <form method="post"
-                      action="{% url 'marcar_siguiente_punto' salida.id %}">
+                      action="{% url 'marcar_paso' salida.id p.id %}">
                     {% csrf_token %}
                     <button class="btn btn-sm btn-outline-primary">
                         Marcar paso

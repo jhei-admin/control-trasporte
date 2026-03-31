@@ -59,20 +59,22 @@
         </tr>
     </thead>
     <tbody>
-        {% for s in salidas %}
+        {% for item in historial %}
         <tr>
-            <td>{{ s.vehiculo }}</td>
-            <td>{{ s.ruta }}</td>
-            <td>{{ s.hora_salida|date:"H:i" }}</td>
-            <td>{{ s.hora_real_salida|date:"H:i" }}</td>
-            <td>{{ s.diferencia_minutos }}</td>
+            <td>{{ item.salida.vehiculo.codigo }}</td>
+            <td>{{ item.salida.ruta.nombre|default:"SIN RUTA" }}</td>
+            <td>{{ item.programada|date:"Y-m-d H:i" }}</td>
+            <td>{{ item.marcada|date:"H:i" }}</td>
+            <td>{{ item.falta }}</td>
             <td>
-                {% if s.estado_salida == "A TIEMPO" %}
+                {% if item.estado == "a_tiempo" %}
                     <span class="badge bg-success">A TIEMPO</span>
-                {% elif s.estado_salida == "TARDE" %}
+                {% elif item.estado == "tarde" %}
                     <span class="badge bg-danger">TARDE</span>
-                {% else %}
+                {% elif item.estado == "adelantado" %}
                     <span class="badge bg-warning text-dark">ADELANTADO</span>
+                {% else %}
+                    <span class="badge bg-secondary">PENDIENTE</span>
                 {% endif %}
             </td>
         </tr>

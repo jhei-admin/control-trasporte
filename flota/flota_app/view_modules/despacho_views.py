@@ -64,7 +64,7 @@ def panel_despachador(request):
     hoy = timezone.localdate()
     empresa = request.empresa
 
-    salidas = (
+    salidas = list(
         RegistroSalida.objects.for_empresa(empresa)
         .select_related("vehiculo", "ruta")
         .filter(
@@ -83,10 +83,26 @@ def panel_despachador(request):
         )
     )
 
+    reporte_vehiculo_id = None
+    if salidas:
+        reporte_vehiculo_id = salidas[0].vehiculo_id
+    else:
+        vehiculo = (
+            Vehiculo.objects.for_empresa(empresa)
+            .filter(activo=True)
+            .order_by("codigo")
+            .first()
+        )
+        if vehiculo:
+            reporte_vehiculo_id = vehiculo.id
+
     return render(
         request,
         "flota_app/despachador/panel_despachador.html",
-        {"salidas": salidas},
+        {
+            "salidas": salidas,
+            "reporte_vehiculo_id": reporte_vehiculo_id,
+        },
     )
 
 
@@ -610,7 +626,35 @@ def auditoria_horas(request):
 @empresa_required
 def historial_salidas(request):
     empresa = request.empresa
-    salidas = RegistroSalida.objects.for_empresa(empresa).order_by("-fecha", "-hora_salida")
+    salidas = (
+        RegistroSalida.objects.for_empresa(empresa)
+        .select_related("vehiculo", "ruta")
+        .order_by("-fecha", "-hora_salida")
+    )
+    rutas = Ruta.objects.for_empresa(empresa).order_by("nombre")
+    desde = request.GET.get("desde", "").strip()
+    hasta = request.GET.get("hasta", "").strip()
+    ruta_id = request.GET.get("ruta", "").strip()
+
+    if desde:
+        try:
+            salidas = salidas.filter(
+                fecha__gte=datetime.strptime(desde, "%Y-%m-%d").date()
+            )
+        except ValueError:
+            messages.error(request, "La fecha 'desde' no es valida.")
+
+    if hasta:
+        try:
+            salidas = salidas.filter(
+                fecha__lte=datetime.strptime(hasta, "%Y-%m-%d").date()
+            )
+        except ValueError:
+            messages.error(request, "La fecha 'hasta' no es valida.")
+
+    if ruta_id:
+        salidas = salidas.filter(ruta_id=ruta_id)
+
     historial = []
 
     for salida in salidas:
@@ -650,7 +694,10 @@ def historial_salidas(request):
     return render(
         request,
         "flota_app/despachador/historial_salidas.html",
-        {"historial": historial},
+        {
+            "historial": historial,
+            "rutas": rutas,
+        },
     )
 
 
