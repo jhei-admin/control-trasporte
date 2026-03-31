@@ -114,6 +114,13 @@ Salidas del dia
 
 <input type="text" name="codigo" class="form-control" placeholder="Buscar unidad (01, 02...)" style="max-width:200px" required>
 
+<select name="ruta_id" class="form-select" style="max-width:220px" {% if rutas|length > 1 %}required{% endif %}>
+<option value="">Seleccionar ruta</option>
+{% for ruta in rutas %}
+<option value="{{ ruta.id }}">{{ ruta.nombre }}</option>
+{% endfor %}
+</select>
+
 <button class="btn btn-success">➕ Agregar</button>
 
 <input type="text" id="busquedaUnidad" class="form-control" placeholder="Filtrar unidades" style="max-width:220px">

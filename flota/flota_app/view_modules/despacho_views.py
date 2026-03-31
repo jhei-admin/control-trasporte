@@ -63,6 +63,7 @@ def es_despachador(user):
 def panel_despachador(request):
     hoy = timezone.localdate()
     empresa = request.empresa
+    rutas = list(Ruta.objects.for_empresa(empresa).order_by("nombre"))
 
     salidas = list(
         RegistroSalida.objects.for_empresa(empresa)
@@ -102,6 +103,7 @@ def panel_despachador(request):
         {
             "salidas": salidas,
             "reporte_vehiculo_id": reporte_vehiculo_id,
+            "rutas": rutas,
         },
     )
 
@@ -138,9 +140,21 @@ def buscar_unidad_panel(request):
         messages.info(request, f"La unidad {vehiculo.codigo} ya esta registrada hoy.")
         return redirect("panel_despachador")
 
-    ruta = Ruta.objects.for_empresa(empresa).first()
+    ruta_id = request.POST.get("ruta_id", "").strip()
+    rutas = Ruta.objects.for_empresa(empresa).order_by("nombre")
+
+    if ruta_id:
+        ruta = rutas.filter(id=ruta_id).first()
+    elif rutas.count() == 1:
+        ruta = rutas.first()
+    else:
+        ruta = None
+
     if not ruta:
-        messages.error(request, "No existe ninguna ruta registrada en el sistema.")
+        if rutas.exists():
+            messages.error(request, "Seleccione la ruta antes de agregar la unidad.")
+        else:
+            messages.error(request, "No existe ninguna ruta registrada en el sistema.")
         return redirect("panel_despachador")
 
     try:
