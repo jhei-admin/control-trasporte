@@ -4,6 +4,7 @@ import json
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.core import signing
+from django.db import IntegrityError
 from django.db.models import Max, Q
 from django.http import JsonResponse
 from django.utils import timezone
@@ -56,23 +57,35 @@ GPS_MAX_PRECISION = getattr(settings, "GPS_MAX_PRECISION", 100.0)
 
 def actualizar_heartbeat(sesion, ahora):
     sesion.last_heartbeat = ahora
-    sesion.save(update_fields=["last_heartbeat"])
+    SesionUnidad.objects.filter(pk=sesion.pk).update(last_heartbeat=ahora)
 
 
-def guardar_ubicacion_actual(sesion, lat, lng, velocidad=None, precision=None):
+def guardar_ubicacion_actual(sesion, ahora, lat, lng, velocidad=None, precision=None):
     defaults = {
         "latitud": lat,
         "longitud": lng,
+        "updated_at": ahora,
     }
     if velocidad is not None:
         defaults["velocidad"] = velocidad
     if precision is not None:
         defaults["precision"] = precision
 
-    UbicacionVehiculo.objects.update_or_create(
-        vehiculo=sesion.vehiculo,
-        defaults=defaults,
+    actualizados = (
+        UbicacionVehiculo.objects
+        .filter(vehiculo=sesion.vehiculo)
+        .update(**defaults)
     )
+    if actualizados:
+        return
+
+    try:
+        UbicacionVehiculo.objects.create(
+            vehiculo=sesion.vehiculo,
+            **defaults,
+        )
+    except IntegrityError:
+        UbicacionVehiculo.objects.filter(vehiculo=sesion.vehiculo).update(**defaults)
 
 
 def registrar_gps_historico_si_corresponde(
@@ -161,6 +174,7 @@ def api_gps_conductor(request):
 
     guardar_ubicacion_actual(
         sesion=sesion,
+        ahora=ahora,
         lat=lat,
         lng=lng,
         precision=precision,
@@ -334,6 +348,7 @@ def api_gps(request):
 
     guardar_ubicacion_actual(
         sesion=sesion,
+        ahora=ahora,
         lat=lat,
         lng=lng,
         velocidad=velocidad,
@@ -375,15 +390,24 @@ def api_despachador_mapa(request):
         .values_list("vehiculo_id", flat=True)
     )
 
-    ubicaciones = (
+    ubicaciones = list(
         UbicacionVehiculo.objects.for_empresa(empresa)
         .filter(updated_at__gte=ahora - timedelta(minutes=10))
-        .select_related("vehiculo")
+        .values(
+            "vehiculo_id",
+            "vehiculo__codigo",
+            "latitud",
+            "longitud",
+            "velocidad",
+            "precision",
+            "updated_at",
+        )
     )
 
     data = []
     for ubicacion in ubicaciones:
-        delta = ahora - ubicacion.updated_at
+        actualizado_en = ubicacion["updated_at"]
+        delta = ahora - actualizado_en
         if delta <= timedelta(seconds=30):
             estado_gps = "ONLINE"
         elif delta <= timedelta(seconds=120):
@@ -392,16 +416,16 @@ def api_despachador_mapa(request):
             estado_gps = "OFFLINE"
 
         data.append({
-            "vehiculo_id": ubicacion.vehiculo_id,
-            "vehiculo": str(ubicacion.vehiculo.codigo),
-            "lat": ubicacion.latitud,
-            "lng": ubicacion.longitud,
-            "velocidad": ubicacion.velocidad,
-            "precision": ubicacion.precision,
-            "estado": "ACTIVO" if ubicacion.vehiculo_id in salidas_activas else "INACTIVO",
+            "vehiculo_id": ubicacion["vehiculo_id"],
+            "vehiculo": str(ubicacion["vehiculo__codigo"]),
+            "lat": ubicacion["latitud"],
+            "lng": ubicacion["longitud"],
+            "velocidad": ubicacion["velocidad"],
+            "precision": ubicacion["precision"],
+            "estado": "ACTIVO" if ubicacion["vehiculo_id"] in salidas_activas else "INACTIVO",
             "estado_gps": estado_gps,
-            "fecha": ubicacion.updated_at.isoformat(),
-            "actualizado_en": ubicacion.updated_at.isoformat(),
+            "fecha": actualizado_en.isoformat(),
+            "actualizado_en": actualizado_en.isoformat(),
         })
 
     return JsonResponse(data, safe=False)
@@ -1006,19 +1030,36 @@ def api_panel_frecuencia(request):
             ),
             ultimo_tiempo=Max("marcaciones__hora_marcada"),
         )
-        .prefetch_related("marcaciones__punto")
     )
 
+    salidas = list(salidas_qs)
+    marcaciones_por_salida = {}
+    if salidas:
+        for marcacion in (
+            MarcacionPunto.objects
+            .filter(registro_salida__in=salidas, punto__in=puntos)
+            .values(
+                "registro_salida_id",
+                "punto_id",
+                "diferencia_minutos",
+                "hora_marcada",
+            )
+        ):
+            if not marcacion["hora_marcada"]:
+                continue
+            marcaciones_por_salida.setdefault(marcacion["registro_salida_id"], {})[
+                marcacion["punto_id"]
+            ] = marcacion["diferencia_minutos"]
+
     unidades_panel = []
-    for salida in salidas_qs:
+    for salida in salidas:
         if salida.ultimo_punto_orden == max_orden:
             continue
 
-        marcaciones = {marcacion.punto_id: marcacion for marcacion in salida.marcaciones.all()}
+        marcaciones = marcaciones_por_salida.get(salida.id, {})
         controles = []
         for punto in puntos:
-            marcacion = marcaciones.get(punto.id)
-            controles.append(marcacion.diferencia_minutos if marcacion and marcacion.hora_marcada else None)
+            controles.append(marcaciones.get(punto.id))
 
         unidades_panel.append({
             "unidad": salida.vehiculo.codigo,
