@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta
 import json
+from urllib.parse import parse_qs, urlparse
 
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
@@ -58,6 +59,53 @@ GPS_MAX_PRECISION = getattr(settings, "GPS_MAX_PRECISION", 100.0)
 def actualizar_heartbeat(sesion, ahora):
     sesion.last_heartbeat = ahora
     SesionUnidad.objects.filter(pk=sesion.pk).update(last_heartbeat=ahora)
+
+
+def _extraer_datos_qr(valor_qr):
+    if valor_qr is None:
+        return None, None, False
+
+    if isinstance(valor_qr, (int, float)):
+        return int(valor_qr), None, False
+
+    contenido = str(valor_qr).strip()
+    if not contenido:
+        return None, None, False
+
+    try:
+        payload = signing.loads(contenido, salt="qr-unidad")
+        return payload.get("vehiculo_id"), payload.get("empresa_id"), False
+    except signing.BadSignature:
+        pass
+
+    try:
+        payload = json.loads(contenido)
+    except json.JSONDecodeError:
+        payload = None
+
+    if isinstance(payload, dict):
+        vehiculo_id = payload.get("vehiculo_id") or payload.get("id")
+        empresa_id = payload.get("empresa_id")
+        token_anidado = payload.get("token")
+        if token_anidado and token_anidado != contenido:
+            return _extraer_datos_qr(token_anidado)
+        return vehiculo_id, empresa_id, False
+
+    if contenido.isdigit():
+        return int(contenido), None, False
+
+    if "://" in contenido:
+        parsed = urlparse(contenido)
+        params = parse_qs(parsed.query)
+        vehiculo_id = params.get("vehiculo_id", [None])[0] or params.get("id", [None])[0]
+        empresa_id = params.get("empresa_id", [None])[0]
+        token_url = params.get("token", [None])[0]
+        if token_url:
+            return _extraer_datos_qr(token_url)
+        if vehiculo_id:
+            return vehiculo_id, empresa_id, False
+
+    return None, None, True
 
 
 def guardar_ubicacion_actual(sesion, ahora, lat, lng, velocidad=None, precision=None):
@@ -665,21 +713,26 @@ def api_escanear_qr(request):
             headers={"Access-Control-Allow-Origin": "*"},
         )
 
-    token_qr = data.get("token")
+    token_qr = (
+        data.get("token")
+        or data.get("qr")
+        or data.get("codigo_qr")
+        or data.get("contenido")
+        or data.get("rawValue")
+    )
     vehiculo_id = data.get("vehiculo_id")
     empresa_id = None
 
     if token_qr:
-        try:
-            payload = signing.loads(token_qr, salt="qr-unidad")
-            vehiculo_id = payload.get("vehiculo_id")
-            empresa_id = payload.get("empresa_id")
-        except signing.BadSignature:
+        vehiculo_qr, empresa_qr, qr_invalido = _extraer_datos_qr(token_qr)
+        if qr_invalido:
             return JsonResponse(
                 {"ok": False, "error": "QR invalido o manipulado"},
                 status=400,
                 headers={"Access-Control-Allow-Origin": "*"},
             )
+        vehiculo_id = vehiculo_qr or vehiculo_id
+        empresa_id = empresa_qr or empresa_id
 
     if not vehiculo_id:
         return JsonResponse(
