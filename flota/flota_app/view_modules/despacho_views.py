@@ -5,9 +5,10 @@ import json
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required, user_passes_test
+from django.core import signing
 from django.core.exceptions import ValidationError
 from django.db import models, transaction
-from django.db.models import Case, IntegerField, Max, Q, When
+from django.db.models import Case, IntegerField, Max, Prefetch, Q, When
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
@@ -208,7 +209,13 @@ def ver_qr_unidad(request, vehiculo_id):
         id=vehiculo_id,
         empresa=empresa,
     )
-    qr_data = json.dumps({"vehiculo_id": vehiculo.id})
+    qr_data = signing.dumps(
+        {
+            "vehiculo_id": vehiculo.id,
+            "empresa_id": empresa.id,
+        },
+        salt="qr-unidad",
+    )
     qr = qrcode.make(qr_data)
     buffer = BytesIO()
     qr.save(buffer, format="PNG")
@@ -643,6 +650,15 @@ def historial_salidas(request):
     salidas = (
         RegistroSalida.objects.for_empresa(empresa)
         .select_related("vehiculo", "ruta")
+        .prefetch_related(
+            Prefetch(
+                "marcaciones",
+                queryset=MarcacionPunto.objects.filter(
+                    hora_marcada__isnull=False,
+                ).select_related("punto").order_by("hora_marcada"),
+                to_attr="marcaciones_registradas",
+            )
+        )
         .order_by("-fecha", "-hora_salida")
     )
     rutas = Ruta.objects.for_empresa(empresa).order_by("nombre")
@@ -674,12 +690,9 @@ def historial_salidas(request):
     for salida in salidas:
         hora_programada = salida.hora_salida
         primera_marcacion = (
-            MarcacionPunto.objects.filter(
-                registro_salida=salida,
-                hora_marcada__isnull=False,
-            )
-            .order_by("hora_marcada")
-            .first()
+            salida.marcaciones_registradas[0]
+            if getattr(salida, "marcaciones_registradas", None)
+            else None
         )
 
         hora_marcada = primera_marcacion.hora_marcada if primera_marcacion else None

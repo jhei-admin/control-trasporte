@@ -2,6 +2,7 @@ from datetime import datetime, timedelta
 import json
 
 from django.contrib.auth.decorators import login_required
+from django.core import signing
 from django.db.models import Max, Q
 from django.http import JsonResponse
 from django.utils import timezone
@@ -571,15 +572,34 @@ def api_escanear_qr(request):
             headers={"Access-Control-Allow-Origin": "*"},
         )
 
+    token_qr = data.get("token")
     vehiculo_id = data.get("vehiculo_id")
+    empresa_id = None
+
+    if token_qr:
+        try:
+            payload = signing.loads(token_qr, salt="qr-unidad")
+            vehiculo_id = payload.get("vehiculo_id")
+            empresa_id = payload.get("empresa_id")
+        except signing.BadSignature:
+            return JsonResponse(
+                {"ok": False, "error": "QR invalido o manipulado"},
+                status=400,
+                headers={"Access-Control-Allow-Origin": "*"},
+            )
+
     if not vehiculo_id:
         return JsonResponse(
-            {"ok": False, "error": "vehiculo_id requerido"},
+            {"ok": False, "error": "vehiculo_id o token requeridos"},
             status=400,
             headers={"Access-Control-Allow-Origin": "*"},
         )
 
-    vehiculo = Vehiculo.objects.filter(id=vehiculo_id, activo=True).select_related("empresa").first()
+    vehiculos = Vehiculo.objects.filter(id=vehiculo_id, activo=True).select_related("empresa")
+    if empresa_id is not None:
+        vehiculos = vehiculos.filter(empresa_id=empresa_id)
+
+    vehiculo = vehiculos.first()
     if not vehiculo:
         return JsonResponse(
             {"ok": False, "error": "Unidad no registrada"},
@@ -900,6 +920,7 @@ def api_panel_frecuencia(request):
     salidas_qs = (
         RegistroSalida.objects.for_empresa(empresa)
         .filter(activo=True, fecha=hoy, ruta__isnull=False)
+        .select_related("vehiculo", "ruta")
         .annotate(
             ultimo_punto_orden=Max(
                 "marcaciones__punto__orden",
@@ -913,9 +934,6 @@ def api_panel_frecuencia(request):
     unidades_panel = []
     for salida in salidas_qs:
         if salida.ultimo_punto_orden == max_orden:
-            salida.activo = False
-            salida.en_cola = False
-            salida.save(update_fields=["activo", "en_cola"])
             continue
 
         marcaciones = {marcacion.punto_id: marcacion for marcacion in salida.marcaciones.all()}

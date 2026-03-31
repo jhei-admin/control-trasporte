@@ -46,11 +46,22 @@ Cargando datos...
 
 <script>
 
+const POLL_INTERVAL_MS = 8000
+let frecuenciaTimer = null
+let frecuenciaCargando = false
+
 async function actualizarFrecuencia(){
+    if(frecuenciaCargando || document.hidden){
+        return
+    }
+
+    frecuenciaCargando = true
 
     try{
 
-        const res = await fetch("/sistema/api/frecuencia/")
+        const res = await fetch("/sistema/api/frecuencia/", {
+            cache: "no-store"
+        })
 
         if(!res.ok){
             throw new Error("API no responde")
@@ -132,13 +143,32 @@ async function actualizarFrecuencia(){
 
         console.error("Error actualizando frecuencia:", e)
 
+    }finally{
+
+        frecuenciaCargando = false
+
     }
 
 }
 
-actualizarFrecuencia()
+function iniciarPollingFrecuencia(){
+    if(frecuenciaTimer){
+        clearInterval(frecuenciaTimer)
+    }
 
-setInterval(actualizarFrecuencia,3000)
+    frecuenciaTimer = setInterval(actualizarFrecuencia, POLL_INTERVAL_MS)
+}
+
+document.addEventListener("visibilitychange", ()=>{
+    if(document.hidden){
+        return
+    }
+
+    actualizarFrecuencia()
+})
+
+actualizarFrecuencia()
+iniciarPollingFrecuencia()
 
 </script>
 

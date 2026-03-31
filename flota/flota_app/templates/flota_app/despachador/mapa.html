@@ -333,6 +333,8 @@ markerZoomAnimation:true
 const listaBuses=document.getElementById("lista-buses")
 let mapaCentrado=false
 let actualizando=false
+let mapaTimer=null
+const POLL_INTERVAL_MS=8000
 
 /* MAPBOX PRO */
 
@@ -671,7 +673,7 @@ i++
 /* GPS */
 
 async function cargar(){
-if(actualizando) return
+if(actualizando || document.hidden) return
 actualizando=true
 
 try{
@@ -754,7 +756,23 @@ actualizando=false
 
 cargar()
 
-setInterval(cargar,4000)
+function iniciarPollingMapa(){
+if(mapaTimer){
+clearInterval(mapaTimer)
+}
+
+mapaTimer=setInterval(cargar,POLL_INTERVAL_MS)
+}
+
+document.addEventListener("visibilitychange",()=>{
+if(document.hidden){
+return
+}
+
+cargar()
+})
+
+iniciarPollingMapa()
 
 window.addEventListener("resize",()=>{
 requestAnimationFrame(()=>{

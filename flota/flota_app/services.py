@@ -163,41 +163,6 @@ def recalcular_cola(empresa=None, ruta=None):
 
             hora_actual = nueva_hora
 
-        continue
-        """
-
-        # 🔒 RESPETAR HORA FIJA
-        if salida.bloqueado and salida.hora_fija:
-            hora_actual = salida.hora_fija
-            salida.hora_salida = salida.hora_fija
-            salida.intervalo_minutos = intervalo
-            salida.save(update_fields=[
-                "hora_salida",
-                "intervalo_minutos"
-            ])
-            continue
-
-        # 🔄 AUTOMÁTICO
-        if hora_actual:
-            nueva_hora = hora_actual + timedelta(minutes=intervalo)
-        else:
-            nueva_hora = ahora.replace(second=0, microsecond=0)
-
-        if nueva_hora < ahora:
-            nueva_hora = ahora.replace(second=0, microsecond=0)
-
-        salida.hora_salida = nueva_hora
-        salida.intervalo_minutos = intervalo
-        salida.save(update_fields=[
-            "hora_salida",
-            "intervalo_minutos"
-        ])
-
-        hora_actual = nueva_hora
-
-
-        """
-
 HEARTBEAT_TIMEOUT = timedelta(seconds=90)
 GPS_TIMEOUT = timedelta(minutes=3)
 
