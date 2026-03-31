@@ -343,8 +343,8 @@ tileSize:512,
 zoomOffset:-1,
 maxZoom:20,
 keepBuffer:6,
-updateWhenZooming:false,
-updateWhenIdle:true,
+updateWhenZooming:true,
+updateWhenIdle:false,
 attribution:"© Mapbox © OpenStreetMap"
 }).addTo(map)
 
@@ -744,10 +744,6 @@ map.fitBounds(bounds,{padding:[40,40]})
 mapaCentrado=true
 }
 
-requestAnimationFrame(()=>{
-map.invalidateSize(true)
-})
-
 }catch(error){
 console.error("Error cargando mapa:",error)
 }finally{
@@ -770,12 +766,6 @@ map.whenReady(()=>{
 setTimeout(()=>{
 map.invalidateSize(true)
 },150)
-})
-
-map.on("zoomend moveend",()=>{
-requestAnimationFrame(()=>{
-map.invalidateSize(false)
-})
 })
 
 })
