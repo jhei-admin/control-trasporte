@@ -381,28 +381,56 @@ L.marker(PARADERO,{icon:paraderoIcon})
 
 /* RUTA */
 let routeBounds=[]
+const COLORES_TRAMO=["#38bdf8","#22c55e","#f59e0b","#e879f9"]
 
-function dibujarRuta(coords){
+function dibujarTramo(coords,color){
 if(coords.length<2) return
 
 L.polyline(coords,{
-color:"#000",
-weight:16,
-opacity:.7
+color:"rgba(15,23,42,.9)",
+weight:10,
+opacity:.85,
+lineCap:"round",
+lineJoin:"round"
 }).addTo(capaRutas)
 
 L.polyline(coords,{
-color:"#e5e5e5",
-weight:12,
-opacity:.95
+color:color,
+weight:5,
+opacity:.95,
+dashArray:"12,10",
+lineCap:"round",
+lineJoin:"round"
 }).addTo(capaRutas)
+}
 
-L.polyline(coords,{
-color:"#00e5ff",
-weight:4,
-dashArray:"10,10",
-opacity:.9
-}).addTo(capaRutas)
+function dividirRutaEnTramos(puntosRuta){
+if(puntosRuta.length<2) return []
+
+const tramos=[]
+let tramoActual=[]
+const vistos=new Set()
+
+puntosRuta.forEach((punto,index)=>{
+const coord=[punto.lat,punto.lng]
+const clave=String(punto.codigo || punto.id || index)
+
+tramoActual.push(coord)
+
+if(index > 0 && vistos.has(clave) && tramoActual.length > 1){
+tramos.push(tramoActual)
+tramoActual=[coord]
+vistos.clear()
+}
+
+vistos.add(clave)
+})
+
+if(tramoActual.length > 1){
+tramos.push(tramoActual)
+}
+
+return tramos
 }
 
 /* PUNTOS CONTROL Y RUTAS */
@@ -420,7 +448,7 @@ if(!rutas.has(p.ruta_id)){
 rutas.set(p.ruta_id,[])
 }
 
-rutas.get(p.ruta_id).push(coord)
+rutas.get(p.ruta_id).push(p)
 
 L.circle(coord,{
 radius:p.radio||100,
@@ -434,13 +462,25 @@ radius:6,
 color:"#ff9800",
 fillColor:"#ff9800"
 })
-.bindTooltip(`${p.ruta ? p.ruta+" · " : ""}${p.codigo}`,{permanent:true,className:"punto-control-label"})
+.bindTooltip(p.codigo,{permanent:true,className:"punto-control-label"})
+.bindPopup(`
+<div style="min-width:160px">
+<b>Ruta:</b> ${p.ruta || "--"}<br>
+<b>Punto:</b> ${p.codigo}<br>
+<b>Orden:</b> ${p.orden ?? "--"}
+</div>
+`)
 .addTo(capaPuntosControl)
 
 })
 
-rutas.forEach(coords=>{
-dibujarRuta(coords)
+rutas.forEach((puntosRuta,rutaId)=>{
+const tramos=dividirRutaEnTramos(puntosRuta)
+
+tramos.forEach((coords,index)=>{
+const color=COLORES_TRAMO[index % COLORES_TRAMO.length]
+dibujarTramo(coords,color)
+})
 })
 
 if(routeBounds.length>0 && !mapaCentrado){
