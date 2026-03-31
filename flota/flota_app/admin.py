@@ -51,9 +51,16 @@ class VehiculoAdmin(admin.ModelAdmin):
 # =================================================
 @admin.register(Ruta)
 class RutaAdmin(admin.ModelAdmin):
-    list_display = ("id", "nombre")
-    search_fields = ("nombre",)
+    list_display = ("id", "empresa", "nombre", "tiene_geometria")
+    search_fields = ("nombre", "empresa__nombre")
     ordering = ("nombre",)
+    readonly_fields = ("tiene_geometria",)
+
+    def tiene_geometria(self, obj):
+        return bool(obj.geometria)
+
+    tiene_geometria.boolean = True
+    tiene_geometria.short_description = "Geometria"
 
 
 # =================================================

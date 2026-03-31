@@ -153,6 +153,11 @@ class Ruta(models.Model):
     objects = EmpresaManager()
 
     nombre = models.CharField(max_length=100)
+    geometria = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Lista ordenada de coordenadas [lat, lng] para dibujar la ruta real",
+    )
 
     class Meta:
         # 🔥 reemplazo de unique_together (moderno)

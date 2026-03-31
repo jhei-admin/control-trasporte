@@ -209,10 +209,38 @@ def buscar_unidad_panel(request):
 @login_required
 @empresa_required
 def despachador_mapa(request):
+    empresa = request.empresa
+    rutas = Ruta.objects.for_empresa(empresa).order_by("nombre")
+    rutas_geometria = []
+
+    for ruta in rutas:
+        geometria = ruta.geometria if isinstance(ruta.geometria, list) else []
+        coords_validas = []
+        for punto in geometria:
+            if (
+                isinstance(punto, (list, tuple))
+                and len(punto) == 2
+            ):
+                try:
+                    coords_validas.append([float(punto[0]), float(punto[1])])
+                except (TypeError, ValueError):
+                    continue
+
+        rutas_geometria.append(
+            {
+                "id": ruta.id,
+                "nombre": ruta.nombre,
+                "geometria": coords_validas,
+            }
+        )
+
     return render(
         request,
         "flota_app/despachador/mapa.html",
-        {"MAPBOX_TOKEN": settings.MAPBOX_TOKEN},
+        {
+            "MAPBOX_TOKEN": settings.MAPBOX_TOKEN,
+            "rutas_geometria_json": json.dumps(rutas_geometria),
+        },
     )
 
 

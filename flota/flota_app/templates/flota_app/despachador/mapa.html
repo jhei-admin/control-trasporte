@@ -381,6 +381,8 @@ L.marker(PARADERO,{icon:paraderoIcon})
 
 /* RUTA REAL */
 
+const RUTAS_GEOMETRIA = {{ rutas_geometria_json|safe }}
+
 const RUTA_FIJA=[
 [-16.33822826038497, -71.62108004093172],
 [-16.3384959453393, -71.62006080150606],
@@ -446,7 +448,10 @@ const RUTA_FIJA=[
 [-16.359998101629834, -71.56243085861207]
 ]
 
-L.polyline(RUTA_FIJA,{
+function dibujarRutaReal(coords){
+if(!coords || coords.length < 2) return
+
+L.polyline(coords,{
 color:"#000",
 weight:16,
 opacity:.7,
@@ -454,7 +459,7 @@ lineCap:"round",
 lineJoin:"round"
 }).addTo(capaRutas)
 
-L.polyline(RUTA_FIJA,{
+L.polyline(coords,{
 color:"#e5e5e5",
 weight:12,
 opacity:.95,
@@ -462,7 +467,7 @@ lineCap:"round",
 lineJoin:"round"
 }).addTo(capaRutas)
 
-L.polyline(RUTA_FIJA,{
+L.polyline(coords,{
 color:"#00e5ff",
 weight:4,
 dashArray:"10,10",
@@ -470,6 +475,17 @@ opacity:.9,
 lineCap:"round",
 lineJoin:"round"
 }).addTo(capaRutas)
+}
+
+const rutasConGeometria = RUTAS_GEOMETRIA.filter(r=>Array.isArray(r.geometria) && r.geometria.length > 1)
+
+if(rutasConGeometria.length){
+rutasConGeometria.forEach(ruta=>{
+dibujarRutaReal(ruta.geometria)
+})
+}else{
+dibujarRutaReal(RUTA_FIJA)
+}
 
 /* PUNTOS CONTROL */
 
