@@ -8,6 +8,20 @@ import os
 import dj_database_url
 
 
+def env_bool(name, default=False):
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def env_list(name, default=None):
+    value = os.getenv(name)
+    if not value:
+        return list(default or [])
+    return [item.strip() for item in value.split(",") if item.strip()]
+
+
 # =================================================
 # BASE
 # =================================================
@@ -22,7 +36,9 @@ SECRET_KEY = os.getenv(
     "django-insecure-dev-key"
 )
 
-DEBUG = False
+DEBUG = env_bool("DEBUG", False)
+IS_RENDER = env_bool("RENDER", bool(os.getenv("RENDER")))
+REQUIRE_POSTGRES = env_bool("REQUIRE_POSTGRES", False)
 
 
 # =================================================
@@ -34,6 +50,9 @@ ALLOWED_HOSTS = [
     ".onrender.com",
     "control-trasporte.onrender.com",
 ]
+ALLOWED_HOSTS.extend(
+    host for host in env_list("ALLOWED_HOSTS") if host not in ALLOWED_HOSTS
+)
 
 
 # =================================================
@@ -44,16 +63,22 @@ CSRF_TRUSTED_ORIGINS = [
     "https://control-trasporte.onrender.com",
     "https://*.onrender.com",
 ]
+CSRF_TRUSTED_ORIGINS.extend(
+    origin
+    for origin in env_list("CSRF_TRUSTED_ORIGINS")
+    if origin not in CSRF_TRUSTED_ORIGINS
+)
 
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 USE_X_FORWARDED_HOST = True
 
 # Cookies seguras
-CSRF_COOKIE_SECURE = True
-SESSION_COOKIE_SECURE = True
+CSRF_COOKIE_SECURE = env_bool("CSRF_COOKIE_SECURE", not DEBUG)
+SESSION_COOKIE_SECURE = env_bool("SESSION_COOKIE_SECURE", not DEBUG)
 
 CSRF_COOKIE_SAMESITE = "Lax"
 SESSION_COOKIE_SAMESITE = "Lax"
+SESSION_COOKIE_HTTPONLY = True
 
 # 🔥 evita errores CSRF en Render
 CSRF_COOKIE_HTTPONLY = False
@@ -124,6 +149,11 @@ MIDDLEWARE = [
 CORS_ALLOWED_ORIGINS = [
     "https://control-trasporte.onrender.com",
 ]
+CORS_ALLOWED_ORIGINS.extend(
+    origin
+    for origin in env_list("CORS_ALLOWED_ORIGINS")
+    if origin not in CORS_ALLOWED_ORIGINS
+)
 
 CORS_ALLOW_CREDENTIALS = True
 
@@ -177,7 +207,10 @@ if DATABASE_URL:
             ssl_require=True,
         )
     }
+    DATABASES["default"]["CONN_HEALTH_CHECKS"] = True
 else:
+    if REQUIRE_POSTGRES or IS_RENDER:
+        print("ADVERTENCIA: Render activo sin DATABASE_URL. Se usara SQLite solo como modo de emergencia.")
     DATABASES = {
         "default": {
             "ENGINE": "django.db.backends.sqlite3",
@@ -231,9 +264,21 @@ LOGGING = {
     "handlers": {
         "console": {"class": "logging.StreamHandler"},
     },
+    "loggers": {
+        "django.request": {
+            "handlers": ["console"],
+            "level": os.getenv("DJANGO_REQUEST_LOG_LEVEL", "ERROR"),
+            "propagate": False,
+        },
+        "flota_app": {
+            "handlers": ["console"],
+            "level": os.getenv("APP_LOG_LEVEL", "INFO"),
+            "propagate": False,
+        },
+    },
     "root": {
         "handlers": ["console"],
-        "level": "ERROR",
+        "level": os.getenv("ROOT_LOG_LEVEL", "ERROR"),
     },
 }
 
@@ -256,8 +301,10 @@ X_FRAME_OPTIONS = "SAMEORIGIN"
 # =================================================
 # HTTPS
 # =================================================
-SECURE_SSL_REDIRECT = False
-SECURE_HSTS_SECONDS = 0
+SECURE_SSL_REDIRECT = env_bool("SECURE_SSL_REDIRECT", False)
+SECURE_HSTS_SECONDS = int(os.getenv("SECURE_HSTS_SECONDS", "0"))
+SECURE_HSTS_INCLUDE_SUBDOMAINS = env_bool("SECURE_HSTS_INCLUDE_SUBDOMAINS", False)
+SECURE_HSTS_PRELOAD = env_bool("SECURE_HSTS_PRELOAD", False)
 
 
 # =================================================
