@@ -27,7 +27,6 @@ from ..models import (
     UbicacionVehiculo,
     Vehiculo,
 )
-from ..route_geometry import GEOMETRIA_ZAMACOLA
 from ..services import recalcular_cola
 
 __all__ = [
@@ -216,8 +215,6 @@ def despachador_mapa(request):
 
     for ruta in rutas:
         geometria = ruta.geometria if isinstance(ruta.geometria, list) else []
-        if len(geometria) < 2 and ruta.nombre.strip().upper() == "ZAMACOLA":
-            geometria = GEOMETRIA_ZAMACOLA
         coords_validas = []
         for punto in geometria:
             if (
