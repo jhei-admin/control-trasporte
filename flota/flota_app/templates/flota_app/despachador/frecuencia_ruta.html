@@ -11,6 +11,17 @@
     </a>
 </div>
 
+<div style="margin-bottom: 15px; max-width: 320px;">
+    <select id="rutaFrecuencia" class="form-select">
+        <option value="">Seleccionar ruta</option>
+        {% for ruta in rutas %}
+        <option value="{{ ruta.id }}" {% if ruta_actual_id == ruta.id|stringformat:"s" %}selected{% endif %}>
+            {{ ruta.nombre }}
+        </option>
+        {% endfor %}
+    </select>
+</div>
+
 <div style="overflow-x:auto">
 
 <table class="table table-bordered text-center">
@@ -49,6 +60,11 @@ Cargando datos...
 const POLL_INTERVAL_MS = 8000
 let frecuenciaTimer = null
 let frecuenciaCargando = false
+const rutaSelect = document.getElementById("rutaFrecuencia")
+
+function obtenerRutaActual(){
+    return rutaSelect ? rutaSelect.value : ""
+}
 
 async function actualizarFrecuencia(){
     if(frecuenciaCargando || document.hidden){
@@ -58,8 +74,20 @@ async function actualizarFrecuencia(){
     frecuenciaCargando = true
 
     try{
+        const ruta = obtenerRutaActual()
+        const body = document.getElementById("bodyFrecuencia")
 
-        const res = await fetch("/sistema/api/frecuencia/", {
+        if(!ruta){
+            body.innerHTML = `
+            <tr>
+                <td colspan="20" class="text-muted">
+                Seleccione una ruta para ver la frecuencia
+                </td>
+            </tr>`
+            return
+        }
+
+        const res = await fetch(`/sistema/api/frecuencia/?ruta=${encodeURIComponent(ruta)}`, {
             cache: "no-store"
         })
 
@@ -68,8 +96,6 @@ async function actualizarFrecuencia(){
         }
 
         const json = await res.json()
-
-        const body = document.getElementById("bodyFrecuencia")
 
         body.innerHTML = ""
 
@@ -166,6 +192,21 @@ document.addEventListener("visibilitychange", ()=>{
 
     actualizarFrecuencia()
 })
+
+if(rutaSelect){
+    rutaSelect.addEventListener("change", ()=>{
+        const url = new URL(window.location.href)
+
+        if(rutaSelect.value){
+            url.searchParams.set("ruta", rutaSelect.value)
+        }else{
+            url.searchParams.delete("ruta")
+        }
+
+        window.history.replaceState({}, "", url)
+        actualizarFrecuencia()
+    })
+}
 
 actualizarFrecuencia()
 iniciarPollingFrecuencia()

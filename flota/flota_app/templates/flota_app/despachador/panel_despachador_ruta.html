@@ -1,0 +1,215 @@
+{% extends "flota_app/base.html" %}
+
+{% block title %}Panel del Despachador{% endblock %}
+
+{% block content %}
+
+<div style="
+background:#1f2937;
+color:white;
+padding:10px 20px;
+border-radius:8px;
+display:flex;
+justify-content:space-between;
+align-items:center;
+margin-bottom:20px;
+">
+
+<div style="font-weight:600">
+Control Transporte
+</div>
+
+<div style="display:flex;gap:15px;align-items:center">
+<span>{{ request.user.username }}</span>
+<span style="color:#4ade80;font-weight:500">Sistema activo</span>
+<a href="{% url 'logout' %}" style="
+background:#ef4444;
+padding:6px 12px;
+color:white;
+border-radius:6px;
+text-decoration:none;
+font-size:14px;
+">
+Cerrar sesion
+</a>
+</div>
+
+</div>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+<h2 class="m-0">Panel del Despachador</h2>
+<div class="hora-sistema">
+<span id="horaSistema"></span>
+</div>
+</div>
+
+<div class="dashboard">
+<div class="stat-card stat-green">
+<div class="stat-num">{{ salidas|length }}</div>
+<div class="stat-label">Unidades activas</div>
+</div>
+
+<div class="stat-card stat-blue">
+<div class="stat-num"><span id="countProgramadas">0</span></div>
+<div class="stat-label">Programadas</div>
+</div>
+
+<div class="stat-card stat-red">
+<div class="stat-num"><span id="countAtrasado">0</span></div>
+<div class="stat-label">Atrasadas</div>
+</div>
+
+<div class="stat-card stat-gray">
+<div class="stat-num"><span id="countSinHora">0</span></div>
+<div class="stat-label">Sin hora</div>
+</div>
+</div>
+
+<div class="toolbar">
+<a href="{% url 'historial_salidas' %}{% if ruta_actual_id %}?ruta={{ ruta_actual_id }}{% endif %}" class="btn btn-dark btn-sm">Historial</a>
+<a href="{% url 'despachador_mapa' %}" class="btn btn-outline-primary btn-sm">Mapa en tiempo real</a>
+<a href="{% url 'panel_frecuencia' %}{% if ruta_actual_id %}?ruta={{ ruta_actual_id }}{% endif %}" class="btn btn-outline-success btn-sm">Frecuencia</a>
+{% if reporte_vehiculo_id %}
+<a href="{% url 'reporte_salidas_diarias' reporte_vehiculo_id %}?fecha={% now 'Y-m-d' %}" class="btn btn-warning btn-sm">
+Salidas del dia
+</a>
+{% else %}
+<button class="btn btn-warning btn-sm" disabled>Salidas del dia</button>
+{% endif %}
+</div>
+
+<div class="card-panel mb-4">
+<form method="get" class="d-flex gap-2 flex-wrap mb-3">
+<select name="ruta" class="form-select" style="max-width:260px" onchange="this.form.submit()">
+<option value="">Todas las rutas</option>
+{% for ruta in rutas %}
+<option value="{{ ruta.id }}" {% if ruta_actual_id == ruta.id|stringformat:"s" %}selected{% endif %}>{{ ruta.nombre }}</option>
+{% endfor %}
+</select>
+</form>
+
+<form method="post" action="{% url 'buscar_unidad_panel' %}" class="d-flex gap-2 flex-wrap">
+{% csrf_token %}
+<input type="hidden" name="current_ruta_id" value="{{ ruta_actual_id }}">
+<input type="text" name="codigo" class="form-control" placeholder="Buscar unidad (01, 02...)" style="max-width:200px" required>
+
+<select name="ruta_id" class="form-select" style="max-width:220px" {% if rutas|length > 1 %}required{% endif %}>
+<option value="">Seleccionar ruta</option>
+{% for ruta in rutas %}
+<option value="{{ ruta.id }}" {% if ruta_actual_id == ruta.id|stringformat:"s" %}selected{% endif %}>{{ ruta.nombre }}</option>
+{% endfor %}
+</select>
+
+<button class="btn btn-success">Agregar</button>
+<input type="text" id="busquedaUnidad" class="form-control" placeholder="Filtrar unidades" style="max-width:220px">
+</form>
+</div>
+
+<div class="table-responsive">
+<table class="table table-modern align-middle">
+<thead class="table-dark text-center">
+<tr>
+<th>Unidad</th>
+<th>Ruta</th>
+<th>Llegada</th>
+<th>Salida</th>
+<th>Estado</th>
+<th style="min-width:280px">Acciones</th>
+</tr>
+</thead>
+
+<tbody>
+{% for s in salidas %}
+<tr class="fila-unidad{% if forloop.first %} proxima{% endif %}" data-unidad="{{ s.vehiculo.codigo|lower }}">
+<td class="text-center fw-bold">{{ s.vehiculo.codigo }}</td>
+<td>{{ s.ruta.nombre }}</td>
+<td class="text-center">{{ s.hora_llegada|date:"H:i" }}</td>
+<td class="text-center">{% if s.hora_salida %}{{ s.hora_salida|date:"H:i" }}{% else %}-{% endif %}</td>
+<td class="text-center">
+{% if not s.hora_salida %}
+<span class="badge badge-sinhora">SIN HORA</span>
+{% else %}
+{% now "Y-m-d H:i" as ahora %}
+{% if s.hora_salida|date:"Y-m-d H:i" > ahora %}
+<span class="badge badge-programado">PROGRAMADO</span>
+{% else %}
+<span class="badge badge-atrasado">ATRASADO</span>
+{% endif %}
+{% endif %}
+</td>
+
+<td class="text-center d-flex flex-wrap gap-1 justify-content-center">
+<a href="{% url 'control_ruta' s.id %}" class="btn btn-sm btn-outline-primary btn-icon" title="Control de ruta">Ruta</a>
+<a href="{% url 'detalle_salida' s.id %}" class="btn btn-sm btn-outline-info btn-icon" title="Detalle de salida">Detalle</a>
+<a href="{% url 'ver_qr_unidad' s.vehiculo.id %}" class="btn btn-sm btn-outline-dark btn-icon" title="Ver codigo QR">QR</a>
+
+<form method="post" action="{% url 'asignar_hora_fija' s.id %}" class="d-flex gap-1">
+{% csrf_token %}
+<input type="hidden" name="current_ruta_id" value="{% if ruta_actual_id %}{{ ruta_actual_id }}{% else %}{{ s.ruta.id }}{% endif %}">
+<input type="time" name="hora_fija" class="form-control form-control-sm" style="width:85px" required>
+<button class="btn btn-sm btn-warning btn-icon" title="{% if s.hora_salida %}Editar hora programada{% else %}Confirmar hora de salida{% endif %}">
+{% if s.hora_salida %}Editar{% else %}Confirmar{% endif %}
+</button>
+</form>
+
+{% if s.hora_salida %}
+<form method="post" action="{% url 'desbloquear_hora' s.id %}">
+{% csrf_token %}
+<input type="hidden" name="current_ruta_id" value="{% if ruta_actual_id %}{{ ruta_actual_id }}{% else %}{{ s.ruta.id }}{% endif %}">
+<button class="btn btn-sm btn-outline-secondary btn-icon" title="Desbloquear hora programada">Cancelar</button>
+</form>
+{% endif %}
+</td>
+</tr>
+{% empty %}
+<tr>
+<td colspan="6" class="text-center text-muted">No hay salidas registradas</td>
+</tr>
+{% endfor %}
+</tbody>
+</table>
+</div>
+
+<script>
+function actualizarHora(){
+const ahora = new Date()
+const opciones = {
+weekday: 'short',
+year: 'numeric',
+month: 'short',
+day: 'numeric',
+hour: '2-digit',
+minute: '2-digit',
+second: '2-digit'
+}
+document.getElementById("horaSistema").innerText = ahora.toLocaleDateString('es-PE', opciones)
+}
+
+setInterval(actualizarHora,1000)
+actualizarHora()
+
+let atrasados=0
+let sinHora=0
+let programados=0
+
+document.querySelectorAll(".fila-unidad").forEach(fila=>{
+const texto=fila.innerText
+if(texto.includes("ATRASADO")) atrasados++
+if(texto.includes("SIN HORA")) sinHora++
+if(texto.includes("PROGRAMADO")) programados++
+})
+
+document.getElementById("countAtrasado").innerText=atrasados
+document.getElementById("countSinHora").innerText=sinHora
+document.getElementById("countProgramadas").innerText=programados
+
+document.getElementById("busquedaUnidad").addEventListener("keyup",function(){
+const filtro=this.value.toLowerCase()
+document.querySelectorAll(".fila-unidad").forEach(fila=>{
+const unidad=fila.dataset.unidad||""
+fila.style.display=unidad.includes(filtro)?"":"none"
+})
+})
+</script>
+
+{% endblock %}

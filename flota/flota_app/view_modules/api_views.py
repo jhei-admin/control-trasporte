@@ -412,7 +412,12 @@ def api_despachador_mapa(request):
 @require_GET
 def api_puntos_control(request):
     empresa = request.empresa
-    puntos = PuntoControl.objects.for_empresa(empresa).filter(activo=True).order_by("orden")
+    puntos = (
+        PuntoControl.objects.for_empresa(empresa)
+        .filter(activo=True)
+        .select_related("ruta")
+        .order_by("ruta_id", "orden")
+    )
     data = []
 
     for punto in puntos:
@@ -423,6 +428,8 @@ def api_puntos_control(request):
             "codigo": punto.codigo,
             "nombre": punto.nombre,
             "orden": punto.orden,
+            "ruta_id": punto.ruta_id,
+            "ruta": punto.ruta.nombre if punto.ruta else "",
             "lat": float(punto.latitud),
             "lng": float(punto.longitud),
             "radio": punto.radio_metros,
@@ -969,9 +976,18 @@ def api_app_cola_contexto(request):
 def api_panel_frecuencia(request):
     hoy = timezone.localdate()
     empresa = request.empresa
-    puntos = list(
-        PuntoControl.objects.for_empresa(empresa).filter(activo=True).order_by("orden")
-    )
+    ruta_id = request.GET.get("ruta", "").strip()
+    ruta = None
+    if ruta_id:
+        ruta = PuntoControl.objects.for_empresa(empresa).filter(ruta_id=ruta_id).values_list("ruta_id", flat=True).first()
+
+    puntos_qs = PuntoControl.objects.for_empresa(empresa).filter(activo=True)
+    if ruta:
+        puntos_qs = puntos_qs.filter(ruta_id=ruta)
+    else:
+        puntos_qs = puntos_qs.none()
+
+    puntos = list(puntos_qs.order_by("orden"))
     if not puntos:
         return JsonResponse({"puntos": [], "data": []})
 
@@ -981,7 +997,7 @@ def api_panel_frecuencia(request):
 
     salidas_qs = (
         RegistroSalida.objects.for_empresa(empresa)
-        .filter(activo=True, fecha=hoy, ruta__isnull=False)
+        .filter(activo=True, fecha=hoy, ruta_id=puntos[0].ruta_id)
         .select_related("vehiculo", "ruta")
         .annotate(
             ultimo_punto_orden=Max(

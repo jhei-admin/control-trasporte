@@ -11,6 +11,7 @@ from django.db import models, transaction
 from django.db.models import Case, IntegerField, Max, Prefetch, Q, When
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_GET, require_POST
 
@@ -58,6 +59,19 @@ def es_despachador(user):
     return user.groups.filter(name="despachador").exists() or user.is_superuser
 
 
+def redirect_panel_despachador(request, ruta_id=None):
+    ruta_id = (
+        ruta_id
+        or request.POST.get("current_ruta_id")
+        or request.GET.get("ruta")
+        or ""
+    )
+    url = reverse("panel_despachador")
+    if ruta_id:
+        url = f"{url}?ruta={ruta_id}"
+    return redirect(url)
+
+
 @login_required
 @user_passes_test(es_despachador)
 @empresa_required
@@ -65,8 +79,15 @@ def panel_despachador(request):
     hoy = timezone.localdate()
     empresa = request.empresa
     rutas = list(Ruta.objects.for_empresa(empresa).order_by("nombre"))
+    ruta_id = request.GET.get("ruta", "").strip()
+    ruta_actual = None
 
-    salidas = list(
+    if ruta_id:
+        ruta_actual = next((ruta for ruta in rutas if str(ruta.id) == ruta_id), None)
+    elif len(rutas) == 1:
+        ruta_actual = rutas[0]
+
+    salidas_qs = (
         RegistroSalida.objects.for_empresa(empresa)
         .select_related("vehiculo", "ruta")
         .filter(
@@ -74,7 +95,13 @@ def panel_despachador(request):
             activo=True,
             fecha=hoy,
         )
-        .order_by(
+    )
+
+    if ruta_actual:
+        salidas_qs = salidas_qs.filter(ruta=ruta_actual)
+
+    salidas = list(
+        salidas_qs.order_by(
             Case(
                 When(hora_salida__isnull=False, then=0),
                 When(hora_salida__isnull=True, then=1),
@@ -100,11 +127,12 @@ def panel_despachador(request):
 
     return render(
         request,
-        "flota_app/despachador/panel_despachador.html",
+        "flota_app/despachador/panel_despachador_ruta.html",
         {
             "salidas": salidas,
             "reporte_vehiculo_id": reporte_vehiculo_id,
             "rutas": rutas,
+            "ruta_actual_id": str(ruta_actual.id) if ruta_actual else "",
         },
     )
 
@@ -113,12 +141,12 @@ def panel_despachador(request):
 @empresa_required
 def buscar_unidad_panel(request):
     if request.method != "POST":
-        return redirect("panel_despachador")
+        return redirect_panel_despachador(request)
 
     codigo_raw = request.POST.get("codigo", "").strip()
     if not codigo_raw:
         messages.error(request, "Ingrese un codigo de unidad.")
-        return redirect("panel_despachador")
+        return redirect_panel_despachador(request)
 
     codigo = codigo_raw.zfill(2) if codigo_raw.isdigit() and len(codigo_raw) == 1 else codigo_raw
     hoy = timezone.localdate()
@@ -131,7 +159,7 @@ def buscar_unidad_panel(request):
 
     if not vehiculo:
         messages.error(request, f"No existe unidad activa con codigo {codigo_raw}.")
-        return redirect("panel_despachador")
+        return redirect_panel_despachador(request)
 
     if RegistroSalida.objects.for_empresa(empresa).filter(
         vehiculo=vehiculo,
@@ -139,7 +167,7 @@ def buscar_unidad_panel(request):
         activo=True,
     ).exists():
         messages.info(request, f"La unidad {vehiculo.codigo} ya esta registrada hoy.")
-        return redirect("panel_despachador")
+        return redirect_panel_despachador(request)
 
     ruta_id = request.POST.get("ruta_id", "").strip()
     rutas = Ruta.objects.for_empresa(empresa).order_by("nombre")
@@ -156,7 +184,7 @@ def buscar_unidad_panel(request):
             messages.error(request, "Seleccione la ruta antes de agregar la unidad.")
         else:
             messages.error(request, "No existe ninguna ruta registrada en el sistema.")
-        return redirect("panel_despachador")
+        return redirect_panel_despachador(request, ruta_id=ruta_id)
 
     try:
         salida = RegistroSalida(
@@ -172,10 +200,10 @@ def buscar_unidad_panel(request):
         salida.save()
     except ValidationError as error:
         messages.error(request, f"No se pudo crear la salida: {error.messages[0]}")
-        return redirect("panel_despachador")
+        return redirect_panel_despachador(request, ruta_id=ruta.id)
 
     messages.success(request, f"Unidad {vehiculo.codigo} agregada correctamente al panel.")
-    return redirect("panel_despachador")
+    return redirect_panel_despachador(request, ruta_id=ruta.id)
 
 
 @login_required
@@ -255,11 +283,11 @@ def poner_en_cola(request, salida_id):
 
         if not salida.hora_salida:
             messages.error(request, "Primero debe fijar la hora de salida antes de poner en cola.")
-            return redirect("panel_despachador")
+            return redirect_panel_despachador(request, ruta_id=salida.ruta_id)
 
         if salida.en_cola:
             messages.info(request, "La unidad ya esta en la cola.")
-            return redirect("panel_despachador")
+            return redirect_panel_despachador(request, ruta_id=salida.ruta_id)
 
         cola = (
             RegistroSalida.objects.select_for_update()
@@ -281,7 +309,7 @@ def poner_en_cola(request, salida_id):
             recalcular_cola(empresa=empresa)
 
     messages.success(request, "Unidad puesta en cola correctamente.")
-    return redirect("panel_despachador")
+    return redirect_panel_despachador(request, ruta_id=salida.ruta_id)
 
 
 @login_required
@@ -297,7 +325,7 @@ def quitar_de_cola(request, salida_id):
 
     if not salida.en_cola:
         messages.info(request, "La unidad no esta en la cola.")
-        return redirect("panel_despachador")
+        return redirect_panel_despachador(request, ruta_id=salida.ruta_id)
 
     salida.en_cola = False
     salida.orden_cola = None
@@ -306,7 +334,7 @@ def quitar_de_cola(request, salida_id):
 
     recalcular_cola(empresa=empresa)
     messages.success(request, "Unidad quitada de la cola y salida cancelada.")
-    return redirect("panel_despachador")
+    return redirect_panel_despachador(request, ruta_id=salida.ruta_id)
 
 
 @login_required
@@ -335,7 +363,7 @@ def cambiar_intervalo_global(request):
         messages.success(request, "Intervalo automatico activado.")
 
     recalcular_cola(empresa=empresa)
-    return redirect("panel_despachador")
+    return redirect_panel_despachador(request)
 
 
 @login_required
@@ -352,7 +380,7 @@ def asignar_hora_fija(request, salida_id):
     hora_str = request.POST.get("hora_fija")
     if not hora_str:
         messages.error(request, "Hora invalida.")
-        return redirect("panel_despachador")
+        return redirect_panel_despachador(request, ruta_id=salida.ruta_id)
 
     hoy = timezone.localdate()
 
@@ -360,7 +388,7 @@ def asignar_hora_fija(request, salida_id):
         hora_time = datetime.strptime(hora_str, "%H:%M").time()
     except ValueError:
         messages.error(request, "Formato de hora invalido.")
-        return redirect("panel_despachador")
+        return redirect_panel_despachador(request, ruta_id=salida.ruta_id)
 
     hora_fija_dt = timezone.make_aware(
         datetime.combine(hoy, hora_time),
@@ -369,7 +397,7 @@ def asignar_hora_fija(request, salida_id):
 
     if salida.hora_real_salida:
         messages.error(request, "No se puede reprogramar la hora: la unidad ya inicio la ruta.")
-        return redirect("panel_despachador")
+        return redirect_panel_despachador(request, ruta_id=salida.ruta_id)
 
     salida.fecha = hoy
     salida.hora_fija = hora_fija_dt
@@ -386,7 +414,7 @@ def asignar_hora_fija(request, salida_id):
         marcacion.save(update_fields=["hora_programada"])
 
     messages.success(request, f"Hora de salida programada correctamente: {hora_str}")
-    return redirect("panel_despachador")
+    return redirect_panel_despachador(request, ruta_id=salida.ruta_id)
 
 
 @login_required
@@ -408,13 +436,13 @@ def desbloquear_hora(request, salida_id):
 
     if marco_sali:
         messages.error(request, "No se puede cancelar la salida porque la unidad ya inicio la ruta.")
-        return redirect("panel_despachador")
+        return redirect_panel_despachador(request, ruta_id=salida.ruta_id)
 
     salida.hora_salida = None
     salida.bloqueado = False
     salida.save(update_fields=["hora_salida", "bloqueado"])
     messages.success(request, "Salida cancelada. Unidad nuevamente SIN HORA.")
-    return redirect("panel_despachador")
+    return redirect_panel_despachador(request, ruta_id=salida.ruta_id)
 
 
 @login_required
@@ -743,18 +771,37 @@ def reporte_control(request):
 @login_required
 def exportar_excel(request):
     messages.info(request, "Exportacion a Excel aun no implementada.")
-    return redirect("panel_despachador")
+    return redirect_panel_despachador(request)
 
 
 @login_required
 @empresa_required
 def panel_frecuencia(request):
     empresa = request.empresa
-    puntos = PuntoControl.objects.for_empresa(empresa).filter(activo=True).order_by("orden")
+    rutas = Ruta.objects.for_empresa(empresa).order_by("nombre")
+    ruta_id = request.GET.get("ruta", "").strip()
+    ruta = None
+
+    if ruta_id:
+        ruta = rutas.filter(id=ruta_id).first()
+    elif rutas.count() == 1:
+        ruta = rutas.first()
+
+    puntos = PuntoControl.objects.for_empresa(empresa).filter(activo=True)
+    if ruta:
+        puntos = puntos.filter(ruta=ruta)
+    else:
+        puntos = puntos.none()
+
+    puntos = puntos.order_by("orden")
     return render(
         request,
         "flota_app/despachador/frecuencia_ruta.html",
-        {"puntos": puntos},
+        {
+            "puntos": puntos,
+            "rutas": rutas,
+            "ruta_actual_id": str(ruta.id) if ruta else "",
+        },
     )
 
 
