@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta
 import json
 
+from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.core import signing
 from django.db.models import Max, Q
@@ -47,6 +48,65 @@ TIEMPO_MIN_PARADA = 120
 TIEMPO_PARADA_PROLONGADA = 300
 VEL_DETENIDO = 1
 RADIO_METROS = 20
+GPS_SAVE_INTERVAL = timedelta(
+    seconds=max(getattr(settings, "GPS_SAVE_INTERVAL_SECONDS", 5), 1)
+)
+GPS_MAX_PRECISION = getattr(settings, "GPS_MAX_PRECISION", 100.0)
+
+
+def actualizar_heartbeat(sesion, ahora):
+    sesion.last_heartbeat = ahora
+    sesion.save(update_fields=["last_heartbeat"])
+
+
+def guardar_ubicacion_actual(sesion, lat, lng, velocidad=None, precision=None):
+    defaults = {
+        "latitud": lat,
+        "longitud": lng,
+    }
+    if velocidad is not None:
+        defaults["velocidad"] = velocidad
+    if precision is not None:
+        defaults["precision"] = precision
+
+    UbicacionVehiculo.objects.update_or_create(
+        vehiculo=sesion.vehiculo,
+        defaults=defaults,
+    )
+
+
+def registrar_gps_historico_si_corresponde(
+    sesion,
+    ahora,
+    lat,
+    lng,
+    velocidad=None,
+    precision=None,
+    bateria=None,
+):
+    ultimo_gps = (
+        GPSRegistro.objects.filter(sesion=sesion)
+        .only("timestamp")
+        .order_by("-timestamp")
+        .first()
+    )
+    if ultimo_gps and (ahora - ultimo_gps.timestamp) < GPS_SAVE_INTERVAL:
+        return False
+
+    payload = {
+        "sesion": sesion,
+        "lat": lat,
+        "lng": lng,
+    }
+    if velocidad is not None:
+        payload["velocidad"] = velocidad
+    if precision is not None:
+        payload["precision"] = precision
+    if bateria is not None:
+        payload["bateria"] = bateria
+
+    GPSRegistro.objects.create(**payload)
+    return True
 
 
 @csrf_exempt
@@ -93,23 +153,27 @@ def api_gps_conductor(request):
     except (TypeError, ValueError):
         return JsonResponse({"accion": "ninguna"})
 
-    if precision is not None and precision > 100:
+    ahora = timezone.now()
+
+    if precision is not None and precision > GPS_MAX_PRECISION:
+        actualizar_heartbeat(sesion, ahora)
         return JsonResponse({"accion": "ninguna"})
 
-    UbicacionVehiculo.objects.update_or_create(
-        vehiculo=sesion.vehiculo,
-        defaults={"latitud": lat, "longitud": lng},
+    guardar_ubicacion_actual(
+        sesion=sesion,
+        lat=lat,
+        lng=lng,
+        precision=precision,
     )
 
-    ultimo_gps = GPSRegistro.objects.filter(sesion=sesion).order_by("-timestamp").first()
-    ahora = timezone.now()
-    if not ultimo_gps or (ahora - ultimo_gps.timestamp) >= timedelta(seconds=5):
-        GPSRegistro.objects.create(
-            sesion=sesion,
-            lat=lat,
-            lng=lng,
-            precision=precision,
-        )
+    registrar_gps_historico_si_corresponde(
+        sesion=sesion,
+        ahora=ahora,
+        lat=lat,
+        lng=lng,
+        precision=precision,
+    )
+    actualizar_heartbeat(sesion, ahora)
 
     salida = (
         RegistroSalida.objects.for_empresa(sesion.vehiculo.empresa)
@@ -246,26 +310,18 @@ def api_gps(request):
     except (TypeError, ValueError):
         bateria = None
 
-    GPSRegistro.objects.create(
-        sesion=sesion,
-        lat=lat,
-        lng=lng,
-        velocidad=velocidad,
-        precision=precision,
-        bateria=bateria,
-    )
+    ahora = timezone.now()
 
     procesar_parada(
         vehiculo=sesion.vehiculo,
         lat=lat,
         lng=lng,
         velocidad=velocidad,
-        timestamp=timezone.now(),
+        timestamp=ahora,
     )
 
-    if precision is not None and precision > 100:
-        sesion.last_heartbeat = timezone.now()
-        sesion.save(update_fields=["last_heartbeat"])
+    if precision is not None and precision > GPS_MAX_PRECISION:
+        actualizar_heartbeat(sesion, ahora)
         return JsonResponse({
             "ok": True,
             "vehiculo": sesion.vehiculo.codigo,
@@ -276,18 +332,24 @@ def api_gps(request):
             "motivo": "GPS con baja precision",
         })
 
-    UbicacionVehiculo.objects.update_or_create(
-        vehiculo=sesion.vehiculo,
-        defaults={
-            "latitud": lat,
-            "longitud": lng,
-            "velocidad": velocidad,
-            "precision": precision,
-        },
+    guardar_ubicacion_actual(
+        sesion=sesion,
+        lat=lat,
+        lng=lng,
+        velocidad=velocidad,
+        precision=precision,
     )
 
-    sesion.last_heartbeat = timezone.now()
-    sesion.save(update_fields=["last_heartbeat"])
+    registrar_gps_historico_si_corresponde(
+        sesion=sesion,
+        ahora=ahora,
+        lat=lat,
+        lng=lng,
+        velocidad=velocidad,
+        precision=precision,
+        bateria=bateria,
+    )
+    actualizar_heartbeat(sesion, ahora)
 
     return JsonResponse({
         "ok": True,
@@ -295,7 +357,7 @@ def api_gps(request):
         "lat": lat,
         "lng": lng,
         "precision": precision,
-        "timestamp": timezone.now().isoformat(),
+        "timestamp": ahora.isoformat(),
     })
 
 
