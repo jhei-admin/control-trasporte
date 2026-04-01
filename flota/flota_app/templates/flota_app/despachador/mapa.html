@@ -453,11 +453,42 @@ INACTIVO:"{% static 'icons/bus_yellow.png' %}",
 OFFLINE:"{% static 'icons/bus_red.png' %}"
 }
 
+function obtenerEstadoVisual(v){
+if(v.estado_gps==="OFFLINE"){
+return "OFFLINE"
+}
+
+return v.estado==="ACTIVO" ? "ACTIVO" : "INACTIVO"
+}
+
+function construirPopupBus(v,estadoVisual){
+const ultimaSenal=v.fecha || "--"
+const velocidad=v.velocidad || 0
+const estadoGps=v.estado_gps || "--"
+
+return `
+<div style="min-width:180px">
+
+<b>Vehiculo:</b> ${v.vehiculo}<br>
+<b>Estado:</b> ${estadoVisual}<br>
+<b>GPS:</b> ${estadoGps}<br>
+<b>Velocidad:</b> ${velocidad} km/h<br>
+<b>Ultima senal:</b> ${ultimaSenal}<br><br>
+
+<a href="/sistema/despachador/historial/${v.vehiculo_id}/"
+class="btn btn-sm btn-primary">
+Ver historial
+</a>
+
+</div>
+`
+}
+
 function crearIconoBus(v){
 
 let direccion=v.direccion||0
 
-let estado=v.estado
+let estado=obtenerEstadoVisual(v)
 let vehiculo=v.vehiculo
 
 let clase=
@@ -492,9 +523,11 @@ listaBuses.innerHTML=""
 
 data.forEach(v=>{
 
+let estadoVisual=obtenerEstadoVisual(v)
+
 let color=
-v.estado==="ACTIVO"?"status-activo":
-v.estado==="INACTIVO"?"status-inactivo":
+estadoVisual==="ACTIVO"?"status-activo":
+estadoVisual==="INACTIVO"?"status-inactivo":
 "status-offline"
 
 let item=document.createElement("div")
@@ -504,7 +537,7 @@ item.className="bus-item"
 item.innerHTML=`
 <span class="bus-status ${color}"></span>
 Bus ${v.vehiculo}
-<span style="margin-left:auto;font-size:11px;opacity:.7">${v.estado}</span>
+<span style="margin-left:auto;font-size:11px;opacity:.7">${estadoVisual}</span>
 `
 
 item.onclick=()=>{
@@ -627,6 +660,22 @@ const res=await fetch("/sistema/api/despachador/mapa/",{
 cache:"no-store"
 })
 const data=await res.json()
+
+const vehiculosPresentes=new Set(
+data
+.filter(v=>v.lat && v.lng)
+.map(v=>String(v.vehiculo))
+)
+
+Object.keys(markers).forEach(codigo=>{
+if(vehiculosPresentes.has(codigo)){
+return
+}
+
+capaFlota.removeLayer(markers[codigo])
+delete markers[codigo]
+})
+
 actualizarPanel(data)
 
 let a=0,i=0,o=0
@@ -638,11 +687,14 @@ if(!v.lat||!v.lng)return
 
 bounds.push([v.lat,v.lng])
 
-if(v.estado==="ACTIVO")a++
-else if(v.estado==="INACTIVO")i++
+const estadoVisual=obtenerEstadoVisual(v)
+
+if(estadoVisual==="ACTIVO")a++
+else if(estadoVisual==="INACTIVO")i++
 else o++
 
 const icono=crearIconoBus(v)
+const popupHtml=construirPopupBus(v,estadoVisual)
 
 if(!markers[v.vehiculo]){
 
