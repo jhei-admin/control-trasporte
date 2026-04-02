@@ -4,7 +4,10 @@ __pycache__/
 
 # Django
 db.sqlite3
+db.sqlite3.*
 *.log
+data/
+data_export.json
 
 # Entornos virtuales
 venv/

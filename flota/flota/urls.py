@@ -6,6 +6,7 @@ from django.views.decorators.http import require_GET
 from django.template import loader
 from django.contrib.auth import views as auth_views
 from flota_app.views import LoginSistemaView
+from flota_app.view_modules.system_views import healthz
 
 
 # =========================
@@ -34,6 +35,7 @@ def root_redirect(request):
 urlpatterns = [
 
     path("", root_redirect),
+    path("healthz/", healthz, name="healthz"),
 
     # LOGIN DEL SISTEMA
     path(

@@ -6,6 +6,7 @@ Optimizado para Render + Seguridad + CSRF estable
 from pathlib import Path
 import os
 import dj_database_url
+from django.core.exceptions import ImproperlyConfigured
 
 
 def env_bool(name, default=False):
@@ -207,7 +208,13 @@ if DATABASE_URL:
             ssl_require=True,
         )
     }
+    DATABASES["default"].setdefault("OPTIONS", {})
+    DATABASES["default"]["OPTIONS"].setdefault(
+        "connect_timeout",
+        int(os.getenv("DATABASE_CONNECT_TIMEOUT", "10")),
+    )
     DATABASES["default"]["CONN_HEALTH_CHECKS"] = True
+    DATABASES["default"]["DISABLE_SERVER_SIDE_CURSORS"] = True
 else:
     if REQUIRE_POSTGRES or IS_RENDER:
         print("ADVERTENCIA: Render activo sin DATABASE_URL. Se usara SQLite solo como modo de emergencia.")
@@ -215,8 +222,19 @@ else:
         "default": {
             "ENGINE": "django.db.backends.sqlite3",
             "NAME": BASE_DIR / "db.sqlite3",
+            "OPTIONS": {
+                "timeout": int(os.getenv("SQLITE_TIMEOUT_SECONDS", "30")),
+            },
         }
     }
+
+if (
+    env_bool("FAIL_ON_SQLITE_IN_PRODUCTION", False)
+    and DATABASES["default"]["ENGINE"] == "django.db.backends.sqlite3"
+):
+    raise ImproperlyConfigured(
+        "SQLite no esta permitido en produccion. Configure DATABASE_URL con PostgreSQL."
+    )
 
 
 # =================================================
@@ -320,6 +338,8 @@ CLEANUP_BATCH_SIZE = int(os.getenv("CLEANUP_BATCH_SIZE", "5000"))
 GPS_SAVE_INTERVAL_SECONDS = int(os.getenv("GPS_SAVE_INTERVAL_SECONDS", "5"))
 GPS_MAX_PRECISION = float(os.getenv("GPS_MAX_PRECISION", "100"))
 ALLOW_LEGACY_QR = env_bool("ALLOW_LEGACY_QR", False)
+INACTIVE_SESSION_RETENTION_DAYS = int(os.getenv("INACTIVE_SESSION_RETENTION_DAYS", "7"))
+MENSAJES_RETENTION_DAYS = int(os.getenv("MENSAJES_RETENTION_DAYS", "30"))
 
 
 # =================================================

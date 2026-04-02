@@ -2,6 +2,7 @@ import json
 from datetime import timedelta
 
 from django.core import signing
+from django.core.management import call_command
 from django.db import IntegrityError
 from django.test import Client, TestCase, override_settings
 from django.urls import reverse
@@ -176,3 +177,39 @@ class ApiSecurityAndIsolationTests(BaseFlotaTestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["mensaje"]["texto"], "Mensaje empresa uno")
+
+
+class OperacionProduccionTests(BaseFlotaTestCase):
+    def test_healthz_responde_ok_en_pruebas(self):
+        response = self.client.get(reverse("healthz"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()["ok"])
+
+    @override_settings(INACTIVE_SESSION_RETENTION_DAYS=7, MENSAJES_RETENTION_DAYS=30)
+    def test_limpiar_historicos_elimina_sesiones_y_mensajes_antiguos(self):
+        sesion = SesionUnidad.objects.create(
+            vehiculo=self.vehiculo_1,
+            activa=False,
+        )
+        SesionUnidad.objects.filter(pk=sesion.pk).update(
+            creada_en=timezone.now() - timedelta(days=10)
+        )
+
+        hoy = timezone.localdate()
+        MensajeGlobal.objects.create(
+            empresa=self.empresa,
+            texto="Caducado",
+            activo=False,
+            fecha_inicio=hoy - timedelta(days=40),
+            fecha_fin=hoy - timedelta(days=35),
+        )
+
+        call_command("limpiar_historicos")
+
+        self.assertFalse(
+            SesionUnidad.objects.filter(pk=sesion.pk).exists()
+        )
+        self.assertFalse(
+            MensajeGlobal.objects.filter(texto="Caducado").exists()
+        )

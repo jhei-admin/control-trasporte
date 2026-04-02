@@ -4,7 +4,7 @@ from django.conf import settings
 from django.core.management.base import BaseCommand
 from django.utils import timezone
 
-from flota_app.models import GPSRegistro, Parada, RegistroSalida
+from flota_app.models import GPSRegistro, MensajeGlobal, Parada, RegistroSalida, SesionUnidad
 
 
 class Command(BaseCommand):
@@ -39,6 +39,18 @@ class Command(BaseCommand):
             action="store_true",
             help="Muestra que se eliminaria sin cambiar datos",
         )
+        parser.add_argument(
+            "--inactive-session-days",
+            type=int,
+            default=settings.INACTIVE_SESSION_RETENTION_DAYS,
+            help="Dias de retencion para sesiones inactivas",
+        )
+        parser.add_argument(
+            "--mensajes-days",
+            type=int,
+            default=settings.MENSAJES_RETENTION_DAYS,
+            help="Dias de retencion para mensajes vencidos",
+        )
 
     def handle(self, *args, **options):
         ahora = timezone.now()
@@ -46,6 +58,8 @@ class Command(BaseCommand):
         gps_days = max(options["gps_days"], 1)
         paradas_days = max(options["paradas_days"], 1)
         batch_size = max(options["batch_size"], 100)
+        inactive_session_days = max(options["inactive_session_days"], 1)
+        mensajes_days = max(options["mensajes_days"], 1)
         dry_run = options["dry_run"]
 
         self.stdout.write("Iniciando limpieza de historicos...")
@@ -69,6 +83,29 @@ class Command(BaseCommand):
         )
         if not dry_run:
             paradas_antiguas.delete()
+
+        limite_sesiones = ahora - timedelta(days=inactive_session_days)
+        sesiones_inactivas = SesionUnidad.objects.filter(
+            activa=False,
+            creada_en__lt=limite_sesiones,
+        )
+        total_sesiones = sesiones_inactivas.count()
+        self.stdout.write(
+            f"Eliminando {total_sesiones} sesiones inactivas antiguas"
+        )
+        if not dry_run:
+            sesiones_inactivas.delete()
+
+        limite_mensajes = hoy - timedelta(days=mensajes_days)
+        mensajes_antiguos = MensajeGlobal.objects.filter(
+            fecha_fin__lt=limite_mensajes,
+        )
+        total_mensajes = mensajes_antiguos.count()
+        self.stdout.write(
+            f"Eliminando {total_mensajes} mensajes vencidos antiguos"
+        )
+        if not dry_run:
+            mensajes_antiguos.delete()
 
         limite_gps = ahora - timedelta(days=gps_days)
         total_gps = GPSRegistro.objects.filter(timestamp__lt=limite_gps).count()
@@ -96,6 +133,8 @@ class Command(BaseCommand):
         resumen = (
             f"Salidas: {total_salidas}, "
             f"Paradas: {total_paradas}, "
+            f"Sesiones: {total_sesiones}, "
+            f"Mensajes: {total_mensajes}, "
             f"GPS: {total_gps if dry_run else gps_eliminados}"
         )
         if dry_run:
