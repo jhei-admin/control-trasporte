@@ -76,7 +76,8 @@ def _extraer_datos_qr(valor_qr):
         payload = signing.loads(contenido, salt="qr-unidad")
         return payload.get("vehiculo_id"), payload.get("empresa_id"), False
     except signing.BadSignature:
-        pass
+        if not getattr(settings, "ALLOW_LEGACY_QR", False):
+            return None, None, True
 
     try:
         payload = json.loads(contenido)
@@ -666,6 +667,7 @@ def api_heartbeat(request):
             fecha_inicio__lte=hoy,
             fecha_fin__gte=hoy,
         )
+        .filter(Q(empresa=sesion.vehiculo.empresa) | Q(empresa__isnull=True))
         .order_by("-updated_at", "-id")
         .only("id", "texto", "updated_at", "creado_en")
         .first()

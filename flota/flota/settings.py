@@ -319,6 +319,7 @@ PARADAS_RETENTION_DAYS = int(os.getenv("PARADAS_RETENTION_DAYS", "2"))
 CLEANUP_BATCH_SIZE = int(os.getenv("CLEANUP_BATCH_SIZE", "5000"))
 GPS_SAVE_INTERVAL_SECONDS = int(os.getenv("GPS_SAVE_INTERVAL_SECONDS", "5"))
 GPS_MAX_PRECISION = float(os.getenv("GPS_MAX_PRECISION", "100"))
+ALLOW_LEGACY_QR = env_bool("ALLOW_LEGACY_QR", False)
 
 
 # =================================================

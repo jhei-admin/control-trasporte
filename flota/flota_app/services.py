@@ -113,17 +113,6 @@ def recalcular_cola(empresa=None, ruta=None):
 
     config = config_qs.first()
 
-    if config and config.intervalo_fijo:
-        intervalo = config.intervalo_fijo
-    else:
-        cantidad = salidas.count()
-        if cantidad <= 2:
-            intervalo = 5
-        elif cantidad <= 5:
-            intervalo = 7
-        else:
-            intervalo = 10
-
     tz = timezone.get_current_timezone()
     ahora = timezone.localtime(timezone.now(), tz)
 
@@ -134,6 +123,16 @@ def recalcular_cola(empresa=None, ruta=None):
     for ruta_id in rutas_ids:
         hora_actual = None
         salidas_ruta = salidas.filter(ruta_id=ruta_id).order_by("orden_cola", "hora_llegada")
+        cantidad_ruta = salidas_ruta.count()
+
+        if config and config.intervalo_fijo:
+            intervalo = config.intervalo_fijo
+        elif cantidad_ruta <= 2:
+            intervalo = 5
+        elif cantidad_ruta <= 5:
+            intervalo = 7
+        else:
+            intervalo = 10
 
         for salida in salidas_ruta:
             if salida.bloqueado and salida.hora_fija:

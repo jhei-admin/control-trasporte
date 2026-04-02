@@ -303,9 +303,6 @@ class RegistroSalida(models.Model):
         if self.bloqueado and not self.hora_fija:
             raise ValidationError("Bloqueado requiere hora fija.")
 
-        if self.hora_fija and not self.en_cola:
-            raise ValidationError("Hora fija solo si está en cola.")
-
         if (
             self.hora_fija
             and self.hora_salida
@@ -333,8 +330,6 @@ class RegistroSalida(models.Model):
 
         if not self.en_cola:
             self.orden_cola = None
-            self.bloqueado = False
-            self.hora_fija = None
 
         if self.bloqueado and self.hora_fija:
             self.hora_salida = self.hora_fija
@@ -616,6 +611,13 @@ class SesionUnidad(models.Model):
     )
 
     class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["vehiculo"],
+                condition=Q(activa=True),
+                name="una_sesion_activa_por_vehiculo",
+            )
+        ]
         indexes = [
             models.Index(fields=["vehiculo", "activa"]),
             models.Index(fields=["token", "activa"]),
@@ -765,6 +767,14 @@ class Parada(models.Model):
 # 📢 MENSAJES GLOBALES (APP CONDUCTOR)
 # =========================
 class MensajeGlobal(models.Model):
+    empresa = models.ForeignKey(
+        Empresa,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="mensajes_globales",
+    )
+
     texto = models.TextField(
         help_text="Mensaje mostrado en la app"
     )
@@ -782,13 +792,15 @@ class MensajeGlobal(models.Model):
 
     class Meta:
         indexes = [
+            models.Index(fields=["empresa", "activo", "fecha_inicio", "fecha_fin"]),
             models.Index(fields=["activo", "fecha_inicio", "fecha_fin"]),
-            models.Index(fields=["activo"])
-    ]
-        ordering = ["-updated_at", "-id"]  # 🔥 SIEMPRE EL MÁS RECIENTE
+            models.Index(fields=["activo"]),
+        ]
+        ordering = ["-updated_at", "-id"]
 
     def __str__(self):
-        return f"{self.texto[:50]} ({self.fecha_inicio} → {self.fecha_fin})"
+        scope = self.empresa.nombre if self.empresa else "GLOBAL"
+        return f"{scope}: {self.texto[:50]} ({self.fecha_inicio} -> {self.fecha_fin})"
 
 # =========================
 # PERFIL USUARIO EMPRESA
@@ -820,5 +832,4 @@ def crear_perfil_usuario(sender, instance, created, **kwargs):
 def guardar_perfil_usuario(sender, instance, **kwargs):
     if hasattr(instance, "perfil"):
         instance.perfil.save()
-
 
