@@ -432,11 +432,18 @@ def api_despachador_mapa(request):
     hoy = timezone.localdate()
     empresa = request.empresa
 
-    salidas_activas = set(
+    salidas_activas_qs = (
         RegistroSalida.objects.for_empresa(empresa)
         .filter(fecha=hoy, activo=True)
-        .values_list("vehiculo_id", flat=True)
+        .values("vehiculo_id", "ruta_id", "ruta__nombre")
     )
+    salidas_activas = {
+        salida["vehiculo_id"]: {
+            "ruta_id": salida["ruta_id"],
+            "ruta_nombre": salida["ruta__nombre"] or "",
+        }
+        for salida in salidas_activas_qs
+    }
 
     ubicaciones = list(
         UbicacionVehiculo.objects.for_empresa(empresa)
@@ -444,6 +451,7 @@ def api_despachador_mapa(request):
         .values(
             "vehiculo_id",
             "vehiculo__codigo",
+            "vehiculo__placa",
             "latitud",
             "longitud",
             "velocidad",
@@ -466,6 +474,9 @@ def api_despachador_mapa(request):
         data.append({
             "vehiculo_id": ubicacion["vehiculo_id"],
             "vehiculo": str(ubicacion["vehiculo__codigo"]),
+            "placa": (ubicacion["vehiculo__placa"] or "").strip(),
+            "ruta_id": salidas_activas.get(ubicacion["vehiculo_id"], {}).get("ruta_id"),
+            "ruta_nombre": salidas_activas.get(ubicacion["vehiculo_id"], {}).get("ruta_nombre", ""),
             "lat": ubicacion["latitud"],
             "lng": ubicacion["longitud"],
             "velocidad": ubicacion["velocidad"],

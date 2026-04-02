@@ -287,6 +287,10 @@ placeholder="Buscar placa / código"
 oninput="aplicarFiltros()"
 >
 
+<select id="filtro-ruta" onchange="cambiarRuta()">
+<option value="">Todas las rutas</option>
+</select>
+
 <button onclick="centrarMapa()">📍 Centrar mapa</button>
 
 <a href="{% url 'panel_despachador' %}">⬅ Panel</a>
@@ -331,10 +335,13 @@ fadeAnimation:false,
 markerZoomAnimation:true
 }).setView(PARADERO,ZOOM_PARADERO)
 const listaBuses=document.getElementById("lista-buses")
+const filtroRuta=document.getElementById("filtro-ruta")
 let mapaCentrado=false
 let actualizando=false
 let mapaTimer=null
 const POLL_INTERVAL_MS=8000
+let rutaSeleccionada=""
+let puntosControlData=[]
 
 /* MAPBOX PRO */
 
@@ -383,6 +390,16 @@ L.marker(PARADERO,{icon:paraderoIcon})
 
 const rutasGeometria = {{ rutas_geometria_json|default:"[]"|safe }}
 
+function poblarSelectorRutas(){
+filtroRuta.innerHTML = '<option value="">Todas las rutas</option>'
+rutasGeometria.forEach(ruta=>{
+const option=document.createElement("option")
+option.value=String(ruta.id)
+option.textContent=ruta.nombre
+filtroRuta.appendChild(option)
+})
+}
+
 function dibujarRutaReal(coords){
 if(!coords || coords.length < 2) return
 
@@ -412,18 +429,32 @@ lineJoin:"round"
 }).addTo(capaRutas)
 }
 
+function renderizarRutas(){
+capaRutas.clearLayers()
+
 rutasGeometria
 .filter(ruta=>Array.isArray(ruta.geometria) && ruta.geometria.length > 1)
+.filter(ruta=>!rutaSeleccionada || String(ruta.id)===rutaSeleccionada)
 .forEach(ruta=>{
 dibujarRutaReal(ruta.geometria)
 })
+}
 
 /* PUNTOS CONTROL */
 
 fetch("/sistema/api/despachador/puntos-control/")
 .then(r=>r.json())
 .then(puntos=>{
-puntos.forEach(p=>{
+puntosControlData=puntos
+renderizarPuntosControl()
+})
+
+function renderizarPuntosControl(){
+capaPuntosControl.clearLayers()
+
+puntosControlData
+.filter(p=>!rutaSeleccionada || String(p.ruta_id)===rutaSeleccionada)
+.forEach(p=>{
 const coord=[p.lat,p.lng]
 
 L.circle(coord,{
@@ -442,8 +473,7 @@ fillColor:"#ff9800"
 .addTo(capaPuntosControl)
 
 })
-
-})
+}
 
 /* ICONOS BUS */
 
@@ -521,7 +551,7 @@ function actualizarPanel(data){
 
 listaBuses.innerHTML=""
 
-data.forEach(v=>{
+data.filter(v=>coincideRutaSeleccionada(v)).forEach(v=>{
 
 let estadoVisual=obtenerEstadoVisual(v)
 
@@ -537,6 +567,7 @@ item.className="bus-item"
 item.innerHTML=`
 <span class="bus-status ${color}"></span>
 Bus ${v.vehiculo}
+${v.placa ? `<span style="font-size:11px;opacity:.7">${v.placa}</span>` : ""}
 <span style="margin-left:auto;font-size:11px;opacity:.7">${estadoVisual}</span>
 `
 
@@ -565,9 +596,22 @@ listaBuses.appendChild(item)
 const markers={}
 const filtros={ACTIVO:true,INACTIVO:true,OFFLINE:true}
 
+function coincideRutaSeleccionada(v){
+if(!rutaSeleccionada) return true
+return String(v.ruta_id || "")===rutaSeleccionada
+}
+
 window.toggleFiltro=e=>{
 filtros[e]=!filtros[e]
 aplicarFiltros()
+}
+
+window.cambiarRuta=()=>{
+rutaSeleccionada=filtroRuta.value
+renderizarRutas()
+renderizarPuntosControl()
+mapaCentrado=false
+cargar()
 }
 
 window.aplicarFiltros=()=>{
@@ -578,11 +622,11 @@ let encontrado=null
 
 Object.values(markers).forEach(m=>{
 
-const visible=filtros[m.estado] && m.codigo.includes(texto)
+const visible=filtros[m.estado] && m.busqueda.includes(texto) && (!rutaSeleccionada || m.rutaId===rutaSeleccionada)
 
 visible ? capaFlota.addLayer(m) : capaFlota.removeLayer(m)
 
-if(texto && m.codigo.includes(texto)){
+if(texto && m.busqueda.includes(texto)){
 encontrado=m
 }
 
@@ -676,12 +720,14 @@ capaFlota.removeLayer(markers[codigo])
 delete markers[codigo]
 })
 
-actualizarPanel(data)
+const dataFiltrada=data.filter(v=>coincideRutaSeleccionada(v))
+
+actualizarPanel(dataFiltrada)
 
 let a=0,i=0,o=0
 let bounds=[]
 
-data.forEach(v=>{
+dataFiltrada.forEach(v=>{
 
 if(!v.lat||!v.lng)return
 
@@ -704,6 +750,9 @@ const m=L.marker([v.lat,v.lng],{icon:icono})
 
 m.estado=estadoVisual
 m.codigo=String(v.vehiculo).toLowerCase()
+m.placa=(v.placa || "").toLowerCase()
+m.busqueda=`${m.codigo} ${m.placa}`.trim()
+m.rutaId=String(v.ruta_id || "")
 
 markers[v.vehiculo]=m
 
@@ -714,6 +763,9 @@ markers[v.vehiculo].setIcon(icono)
 markers[v.vehiculo].setPopupContent(popupHtml)
 markers[v.vehiculo].estado=estadoVisual
 markers[v.vehiculo].codigo=String(v.vehiculo).toLowerCase()
+markers[v.vehiculo].placa=(v.placa || "").toLowerCase()
+markers[v.vehiculo].busqueda=`${markers[v.vehiculo].codigo} ${markers[v.vehiculo].placa}`.trim()
+markers[v.vehiculo].rutaId=String(v.ruta_id || "")
 
 }
 
@@ -739,6 +791,8 @@ actualizando=false
 
 }
 
+poblarSelectorRutas()
+renderizarRutas()
 cargar()
 
 function iniciarPollingMapa(){
