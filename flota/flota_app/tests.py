@@ -12,10 +12,13 @@ from django.utils import timezone
 
 from .models import (
     Empresa,
+    GPSRegistro,
     MensajeGlobal,
+    PuntoControl,
     RegistroSalida,
     Ruta,
     SesionUnidad,
+    UbicacionVehiculo,
     Vehiculo,
 )
 from .services import recalcular_cola
@@ -255,3 +258,51 @@ class BootstrapYPurgaDemoTests(TestCase):
         self.assertIn("Purga completada", out.getvalue())
         self.assertFalse(Empresa.objects.filter(pk=empresa.pk).exists())
         self.assertFalse(User.objects.filter(username="despachador-demo").exists())
+
+
+class PoblarEscalaTests(TestCase):
+    def test_poblar_escala_crea_datos_multiempresa(self):
+        out = StringIO()
+
+        call_command(
+            "poblar_escala",
+            empresas=2,
+            rutas=2,
+            puntos=4,
+            unidades=5,
+            historico_gps=2,
+            prefijo="Stress",
+            stdout=out,
+        )
+
+        self.assertEqual(Empresa.objects.filter(nombre__startswith="Stress Empresa").count(), 2)
+        self.assertEqual(Ruta.objects.filter(empresa__nombre__startswith="Stress Empresa").count(), 4)
+        self.assertEqual(PuntoControl.objects.filter(ruta__empresa__nombre__startswith="Stress Empresa").count(), 16)
+        self.assertEqual(Vehiculo.objects.filter(empresa__nombre__startswith="Stress Empresa").count(), 10)
+        self.assertEqual(RegistroSalida.objects.filter(vehiculo__empresa__nombre__startswith="Stress Empresa", activo=True).count(), 10)
+        self.assertEqual(SesionUnidad.objects.filter(vehiculo__empresa__nombre__startswith="Stress Empresa", activa=True).count(), 10)
+        self.assertEqual(UbicacionVehiculo.objects.filter(vehiculo__empresa__nombre__startswith="Stress Empresa").count(), 10)
+        self.assertEqual(GPSRegistro.objects.filter(sesion__vehiculo__empresa__nombre__startswith="Stress Empresa").count(), 20)
+        self.assertTrue(
+            User.objects.filter(username="stress_admin_01", perfil__empresa__nombre="Stress Empresa 01").exists()
+        )
+        self.assertTrue(
+            User.objects.filter(username="stress_desp_02", perfil__empresa__nombre="Stress Empresa 02").exists()
+        )
+
+    def test_poblar_escala_permita_sembrar_sin_gps(self):
+        call_command(
+            "poblar_escala",
+            empresas=1,
+            rutas=1,
+            puntos=3,
+            unidades=3,
+            historico_gps=5,
+            prefijo="Seco",
+            sin_gps=True,
+        )
+
+        self.assertEqual(Empresa.objects.filter(nombre="Seco Empresa 01").count(), 1)
+        self.assertEqual(Vehiculo.objects.filter(empresa__nombre="Seco Empresa 01").count(), 3)
+        self.assertEqual(UbicacionVehiculo.objects.filter(vehiculo__empresa__nombre="Seco Empresa 01").count(), 0)
+        self.assertEqual(GPSRegistro.objects.filter(sesion__vehiculo__empresa__nombre="Seco Empresa 01").count(), 0)
