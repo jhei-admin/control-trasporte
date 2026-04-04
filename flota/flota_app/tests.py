@@ -1,8 +1,10 @@
 import json
+from io import StringIO
 from datetime import timedelta
 
 from django.core import signing
 from django.core.management import call_command
+from django.contrib.auth.models import User
 from django.db import IntegrityError
 from django.test import Client, TestCase, override_settings
 from django.urls import reverse
@@ -213,3 +215,43 @@ class OperacionProduccionTests(BaseFlotaTestCase):
         self.assertFalse(
             MensajeGlobal.objects.filter(texto="Caducado").exists()
         )
+
+
+class BootstrapYPurgaDemoTests(TestCase):
+    def test_bootstrap_usa_nombre_neutro_por_defecto(self):
+        out = StringIO()
+        call_command(
+            "bootstrap_inicial",
+            admin_pass="ClaveAdmin123!",
+            despachador_pass="ClaveDesp123!",
+            stdout=out,
+        )
+
+        self.assertTrue(
+            Empresa.objects.filter(nombre="Empresa Inicial Transporte").exists()
+        )
+        self.assertFalse(
+            Empresa.objects.filter(nombre="Empresa Demo Transporte").exists()
+        )
+
+    def test_purgar_demo_audita_sin_borrar_por_defecto(self):
+        empresa = Empresa.objects.create(nombre="Empresa Demo Transporte")
+        User.objects.create_user(username="admin-demo", password="x")
+
+        out = StringIO()
+        call_command("purgar_demo", stdout=out)
+
+        self.assertIn("Modo auditoria", out.getvalue())
+        self.assertTrue(Empresa.objects.filter(pk=empresa.pk).exists())
+        self.assertTrue(User.objects.filter(username="admin-demo").exists())
+
+    def test_purgar_demo_borra_empresas_y_usuarios_confirmados(self):
+        empresa = Empresa.objects.create(nombre="Empresa Demo Transporte")
+        User.objects.create_user(username="despachador-demo", password="x")
+
+        out = StringIO()
+        call_command("purgar_demo", "--aplicar", stdout=out)
+
+        self.assertIn("Purga completada", out.getvalue())
+        self.assertFalse(Empresa.objects.filter(pk=empresa.pk).exists())
+        self.assertFalse(User.objects.filter(username="despachador-demo").exists())

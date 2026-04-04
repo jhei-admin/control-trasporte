@@ -40,6 +40,10 @@ SECRET_KEY = os.getenv(
 DEBUG = env_bool("DEBUG", False)
 IS_RENDER = env_bool("RENDER", bool(os.getenv("RENDER")))
 REQUIRE_POSTGRES = env_bool("REQUIRE_POSTGRES", False)
+FAIL_ON_SQLITE_IN_PRODUCTION = env_bool(
+    "FAIL_ON_SQLITE_IN_PRODUCTION",
+    IS_RENDER or REQUIRE_POSTGRES,
+)
 
 
 # =================================================
@@ -218,10 +222,16 @@ if DATABASE_URL:
 else:
     if REQUIRE_POSTGRES or IS_RENDER:
         print("ADVERTENCIA: Render activo sin DATABASE_URL. Se usara SQLite solo como modo de emergencia.")
+    sqlite_name = os.getenv("SQLITE_NAME")
+    if not sqlite_name:
+        for candidate in ("db.clean.sqlite3", "db.active.sqlite3", "db.ready.sqlite3", "db.local.sqlite3", "db.sqlite3"):
+            if (BASE_DIR / candidate).exists():
+                sqlite_name = candidate
+                break
     DATABASES = {
         "default": {
             "ENGINE": "django.db.backends.sqlite3",
-            "NAME": BASE_DIR / "db.sqlite3",
+            "NAME": BASE_DIR / sqlite_name,
             "OPTIONS": {
                 "timeout": int(os.getenv("SQLITE_TIMEOUT_SECONDS", "30")),
             },
@@ -229,7 +239,7 @@ else:
     }
 
 if (
-    env_bool("FAIL_ON_SQLITE_IN_PRODUCTION", False)
+    FAIL_ON_SQLITE_IN_PRODUCTION
     and DATABASES["default"]["ENGINE"] == "django.db.backends.sqlite3"
 ):
     raise ImproperlyConfigured(

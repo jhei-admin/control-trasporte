@@ -12,7 +12,7 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument(
             "--empresa",
-            default="Empresa Demo Transporte",
+            default="Empresa Inicial Transporte",
             help="Nombre de la empresa inicial",
         )
         parser.add_argument(

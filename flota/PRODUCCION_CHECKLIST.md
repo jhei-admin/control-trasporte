@@ -17,6 +17,8 @@
 
 ### Mantenimiento
 - Ejecutar `python manage.py limpiar_historicos` al menos cada hora o cada 6 horas.
+- Auditar residuos demo con `python manage.py purgar_demo`.
+- Eliminar datos demo confirmados con `python manage.py purgar_demo --aplicar --empresa "Empresa Demo Transporte"` o usernames exactos cuando corresponda.
 - Revisar `GET /healthz/` desde el proveedor o monitor externo.
 - Mantener `GPS_RETENTION_DAYS`, `PARADAS_RETENTION_DAYS`, `INACTIVE_SESSION_RETENTION_DAYS` y `MENSAJES_RETENTION_DAYS` segun el volumen real.
 
