@@ -68,6 +68,11 @@ class Command(BaseCommand):
             action="store_true",
             help="Crea empresas, rutas y salidas sin sembrar ubicaciones ni GPS.",
         )
+        parser.add_argument(
+            "--reset-passwords",
+            action="store_true",
+            help="Reasigna las contraseñas semilla aunque el usuario ya exista.",
+        )
 
     def handle(self, *args, **options):
         prefijo = options["prefijo"].strip() or "Escala"
@@ -77,6 +82,7 @@ class Command(BaseCommand):
         total_unidades = max(options["unidades"], 1)
         historico_gps = max(options["historico_gps"], 0)
         sembrar_gps = not options["sin_gps"]
+        reset_passwords = options["reset_passwords"]
 
         grupo_despachador, _ = Group.objects.get_or_create(name="despachador")
 
@@ -109,6 +115,7 @@ class Command(BaseCommand):
                 grupo_despachador=grupo_despachador,
                 prefijo=prefijo.lower().replace(" ", ""),
                 indice_empresa=indice_empresa,
+                reset_passwords=reset_passwords,
             )
             self._asegurar_configuracion(empresa)
 
@@ -151,29 +158,40 @@ class Command(BaseCommand):
         for clave, valor in resumen.items():
             self.stdout.write(f"{clave.capitalize()}: {valor}")
 
-    def _asegurar_usuarios(self, empresa, grupo_despachador, prefijo, indice_empresa):
-        admin_user, _ = User.objects.get_or_create(
-            username=f"{prefijo}_admin_{indice_empresa:02d}",
+    def _asegurar_usuarios(
+        self,
+        empresa,
+        grupo_despachador,
+        prefijo,
+        indice_empresa,
+        reset_passwords=False,
+    ):
+        admin_username = f"{prefijo}_admin_{indice_empresa:02d}"
+        admin_password = f"Admin{indice_empresa:02d}Segura!"
+        admin_user, admin_created = User.objects.get_or_create(
+            username=admin_username,
             defaults={
                 "is_staff": True,
                 "is_superuser": True,
                 "is_active": True,
             },
         )
-        if not admin_user.has_usable_password():
-            admin_user.set_password(f"Admin{indice_empresa:02d}Segura!")
+        if admin_created or reset_passwords:
+            admin_user.set_password(admin_password)
             admin_user.save(update_fields=["password"])
 
-        desp_user, _ = User.objects.get_or_create(
-            username=f"{prefijo}_desp_{indice_empresa:02d}",
+        desp_username = f"{prefijo}_desp_{indice_empresa:02d}"
+        desp_password = f"Desp{indice_empresa:02d}Segura!"
+        desp_user, desp_created = User.objects.get_or_create(
+            username=desp_username,
             defaults={
                 "is_staff": True,
                 "is_superuser": False,
                 "is_active": True,
             },
         )
-        if not desp_user.has_usable_password():
-            desp_user.set_password(f"Desp{indice_empresa:02d}Segura!")
+        if desp_created or reset_passwords:
+            desp_user.set_password(desp_password)
             desp_user.save(update_fields=["password"])
         desp_user.groups.add(grupo_despachador)
 

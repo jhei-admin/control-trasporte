@@ -183,6 +183,38 @@ class ApiSecurityAndIsolationTests(BaseFlotaTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["mensaje"]["texto"], "Mensaje empresa uno")
 
+    def test_mapa_muestra_unidades_offline_de_la_empresa(self):
+        UbicacionVehiculo.objects.create(
+            vehiculo=self.vehiculo_1,
+            latitud=-16.4,
+            longitud=-71.5,
+            velocidad=0,
+            precision=10,
+        )
+        UbicacionVehiculo.objects.filter(vehiculo=self.vehiculo_1).update(
+            updated_at=timezone.now() - timedelta(minutes=20)
+        )
+        RegistroSalida.objects.create(
+            vehiculo=self.vehiculo_1,
+            ruta=self.ruta_a,
+            fecha=timezone.localdate(),
+            activo=True,
+            en_cola=True,
+            orden_cola=1,
+        )
+
+        user = User.objects.create_user(username="desp_mapa", password="x")
+        user.perfil.empresa = self.empresa
+        user.perfil.save(update_fields=["empresa"])
+        self.client.force_login(user)
+
+        response = self.client.get(reverse("api_despachador_mapa"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.json()), 1)
+        self.assertEqual(response.json()[0]["vehiculo"], self.vehiculo_1.codigo)
+        self.assertEqual(response.json()[0]["estado_gps"], "OFFLINE")
+
 
 class OperacionProduccionTests(BaseFlotaTestCase):
     def test_healthz_responde_ok_en_pruebas(self):

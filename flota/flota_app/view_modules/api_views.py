@@ -448,7 +448,6 @@ def api_despachador_mapa(request):
 
     ubicaciones = list(
         UbicacionVehiculo.objects.for_empresa(empresa)
-        .filter(updated_at__gte=ahora - timedelta(minutes=10))
         .values(
             "vehiculo_id",
             "vehiculo__codigo",
