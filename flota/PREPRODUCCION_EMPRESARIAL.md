@@ -19,6 +19,11 @@
 - Confirmar que `FAIL_ON_SQLITE_IN_PRODUCTION=true`.
 - Ejecutar `python manage.py auditar_preproduccion --allow-warnings`.
 
+Estado actual:
+- Aprobada en Render el 4 de abril de 2026.
+- Auditoria automatica: `0 fallas`, `0 advertencias`, `11 ok`.
+- `healthz`: `200`.
+
 #### 2. Health check
 - Verificar `GET /healthz/` con respuesta `200`.
 - Confirmar que `pending_migrations=0`.
