@@ -52,6 +52,7 @@ def reporte_salidas_diarias(request, vehiculo_id):
             total_puntos = PuntoControl.objects.for_empresa(empresa).filter(
                 ruta=salida.ruta,
                 activo=True,
+                requiere_marcacion=True,
             ).count()
 
         puntos_marcados = salida.marcaciones.exclude(

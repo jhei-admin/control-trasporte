@@ -123,6 +123,7 @@ class PuntoControlAdmin(admin.ModelAdmin):
         "codigo",
         "orden",
         "nombre",
+        "requiere_marcacion",
         "offset_minutos",
         "radio_metros",
         "activo",
@@ -132,6 +133,7 @@ class PuntoControlAdmin(admin.ModelAdmin):
 
     list_editable = (
         "orden",
+        "requiere_marcacion",
         "offset_minutos",
         "radio_metros",
         "activo",

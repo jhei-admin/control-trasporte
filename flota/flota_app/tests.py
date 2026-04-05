@@ -13,6 +13,7 @@ from django.utils import timezone
 from .models import (
     Empresa,
     GPSRegistro,
+    MarcacionPunto,
     MensajeGlobal,
     PuntoControl,
     RegistroSalida,
@@ -215,6 +216,102 @@ class ApiSecurityAndIsolationTests(BaseFlotaTestCase):
         self.assertEqual(len(response.json()), 1)
         self.assertEqual(response.json()[0]["vehiculo"], self.vehiculo_1.codigo)
         self.assertEqual(response.json()[0]["estado_gps"], "OFFLINE")
+
+    def test_api_puntos_control_expone_puntos_referenciales(self):
+        PuntoControl.objects.create(
+            ruta=self.ruta_a,
+            codigo="CTRL",
+            nombre="Control",
+            latitud=-16.401,
+            longitud=-71.501,
+            radio_metros=50,
+            orden=1,
+            offset_minutos=0,
+            requiere_marcacion=True,
+            activo=True,
+        )
+        PuntoControl.objects.create(
+            ruta=self.ruta_a,
+            codigo="ENTR",
+            nombre="Entrada",
+            latitud=-16.402,
+            longitud=-71.502,
+            radio_metros=50,
+            orden=2,
+            offset_minutos=2,
+            requiere_marcacion=False,
+            activo=True,
+        )
+
+        user = User.objects.create_user(username="desp_puntos", password="x")
+        user.perfil.empresa = self.empresa
+        user.perfil.save(update_fields=["empresa"])
+        self.client.force_login(user)
+
+        response = self.client.get(reverse("api_puntos_control"))
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(len(data), 2)
+        self.assertTrue(any(p["requiere_marcacion"] is False for p in data))
+
+
+class PuntoReferenciaTests(BaseFlotaTestCase):
+    def test_reporte_cuenta_solo_puntos_de_marcacion(self):
+        user = User.objects.create_user(username="desp_reportes", password="x")
+        user.perfil.empresa = self.empresa
+        user.perfil.save(update_fields=["empresa"])
+        self.client.force_login(user)
+
+        PuntoControl.objects.create(
+            ruta=self.ruta_a,
+            codigo="SALI",
+            nombre="Salida",
+            latitud=-16.401,
+            longitud=-71.501,
+            radio_metros=50,
+            orden=1,
+            offset_minutos=0,
+            requiere_marcacion=True,
+            activo=True,
+        )
+        punto_ref = PuntoControl.objects.create(
+            ruta=self.ruta_a,
+            codigo="ENTR",
+            nombre="Entrada",
+            latitud=-16.402,
+            longitud=-71.502,
+            radio_metros=50,
+            orden=2,
+            offset_minutos=2,
+            requiere_marcacion=False,
+            activo=True,
+        )
+
+        salida = RegistroSalida.objects.create(
+            vehiculo=self.vehiculo_1,
+            ruta=self.ruta_a,
+            fecha=timezone.localdate(),
+            hora_salida=timezone.now(),
+            activo=True,
+            en_cola=False,
+        )
+        MarcacionPunto.objects.create(
+            registro_salida=salida,
+            punto=PuntoControl.objects.get(codigo="SALI", ruta=self.ruta_a),
+            hora_marcada=timezone.now(),
+        )
+
+        response = self.client.get(
+            reverse("reporte_salidas_diarias", args=[self.vehiculo_1.id]),
+            {"fecha": timezone.localdate().isoformat()},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "100%")
+        self.assertFalse(
+            MarcacionPunto.objects.filter(registro_salida=salida, punto=punto_ref).exists()
+        )
 
 
 class OperacionProduccionTests(BaseFlotaTestCase):

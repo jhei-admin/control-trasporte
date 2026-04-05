@@ -433,7 +433,11 @@ def asignar_hora_fija(request, salida_id):
     salida.bloqueado = True
     salida.save(update_fields=["fecha", "hora_fija", "hora_salida", "bloqueado"])
 
-    puntos = PuntoControl.objects.for_empresa(empresa).filter(ruta=salida.ruta).order_by("orden")
+    puntos = (
+        PuntoControl.objects.for_empresa(empresa)
+        .filter(ruta=salida.ruta, requiere_marcacion=True)
+        .order_by("orden")
+    )
     for punto in puntos:
         MarcacionPunto.objects.get_or_create(registro_salida=salida, punto=punto)
 
@@ -573,7 +577,11 @@ def control_ruta(request, salida_id):
         vehiculo__empresa=empresa,
     )
 
-    puntos = PuntoControl.objects.filter(ruta=salida.ruta, activo=True).order_by("orden")
+    puntos = (
+        PuntoControl.objects
+        .filter(ruta=salida.ruta, activo=True, requiere_marcacion=True)
+        .order_by("orden")
+    )
     controles = []
 
     for punto in puntos:
@@ -617,6 +625,7 @@ def marcar_paso(request, salida_id, punto_id):
         PuntoControl,
         id=punto_id,
         ruta__empresa=empresa,
+        requiere_marcacion=True,
     )
 
     marcacion, _ = MarcacionPunto.objects.get_or_create(
@@ -649,7 +658,11 @@ def marcar_siguiente_punto(request, salida_id):
     punto = marcacion.punto
 
     ultimo = (
-        PuntoControl.objects.filter(ruta=salida.ruta, activo=True)
+        PuntoControl.objects.filter(
+            ruta=salida.ruta,
+            activo=True,
+            requiere_marcacion=True,
+        )
         .order_by("-orden")
         .first()
     )
@@ -815,7 +828,10 @@ def panel_frecuencia(request):
     elif rutas.count() == 1:
         ruta = rutas.first()
 
-    puntos = PuntoControl.objects.for_empresa(empresa).filter(activo=True)
+    puntos = PuntoControl.objects.for_empresa(empresa).filter(
+        activo=True,
+        requiere_marcacion=True,
+    )
     if ruta:
         puntos = puntos.filter(ruta=ruta)
     else:

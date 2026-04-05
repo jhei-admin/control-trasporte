@@ -434,6 +434,10 @@ class PuntoControl(models.Model):
     orden = models.PositiveIntegerField()
 
     offset_minutos = models.PositiveIntegerField(default=0)
+    requiere_marcacion = models.BooleanField(
+        default=True,
+        help_text="Desactive para usar este punto solo como referencia visual en el mapa.",
+    )
     activo = models.BooleanField(default=True)
 
     class Meta:

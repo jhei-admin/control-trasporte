@@ -94,6 +94,15 @@ padding:2px 6px;
 border-radius:6px;
 }
 
+.punto-referencia-label{
+background:rgba(15,23,42,.88);
+color:#dbeafe;
+font-size:11px;
+font-weight:700;
+padding:2px 6px;
+border-radius:6px;
+}
+
 /* LAYOUT PROFESIONAL */
 
 .map-layout{
@@ -457,19 +466,37 @@ puntosControlData
 .forEach(p=>{
 const coord=[p.lat,p.lng]
 
+const esMarcacion=Boolean(p.requiere_marcacion)
+
+const radioColor=esMarcacion ? "#ffd54f" : "#60a5fa"
+const puntoColor=esMarcacion ? "#ff9800" : "#2563eb"
+const tooltipClass=esMarcacion ? "punto-control-label" : "punto-referencia-label"
+const tooltipText=esMarcacion ? p.codigo : `${p.codigo} REF`
+
 L.circle(coord,{
 radius:p.radio||100,
-color:"#ffd54f",
-fillColor:"#ffd54f",
-fillOpacity:.25
+color:radioColor,
+fillColor:radioColor,
+fillOpacity:esMarcacion ? .25 : .14,
+dashArray:esMarcacion ? null : "6,6"
 }).addTo(capaPuntosControl)
 
 L.circleMarker(coord,{
 radius:6,
-color:"#ff9800",
-fillColor:"#ff9800"
+color:puntoColor,
+fillColor:puntoColor,
+fillOpacity:1
 })
-.bindTooltip(p.codigo,{permanent:true,className:"punto-control-label"})
+.bindTooltip(tooltipText,{permanent:true,className:tooltipClass})
+.bindPopup(`
+<div style="min-width:180px">
+<b>${p.nombre}</b><br>
+<b>Codigo:</b> ${p.codigo}<br>
+<b>Tipo:</b> ${esMarcacion ? "Marcacion" : "Referencia"}<br>
+<b>Ruta:</b> ${p.ruta || "--"}<br>
+<b>Radio:</b> ${p.radio || 0} m
+</div>
+`)
 .addTo(capaPuntosControl)
 
 })

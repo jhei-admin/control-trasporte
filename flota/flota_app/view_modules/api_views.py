@@ -248,7 +248,11 @@ def api_gps_conductor(request):
         return JsonResponse({"accion": "ninguna"})
 
     if salida.ruta and not salida.marcaciones.exists():
-        puntos = PuntoControl.objects.filter(ruta=salida.ruta, activo=True).order_by("orden")
+        puntos = (
+            PuntoControl.objects
+            .filter(ruta=salida.ruta, activo=True, requiere_marcacion=True)
+            .order_by("orden")
+        )
         for punto in puntos:
             MarcacionPunto.objects.get_or_create(registro_salida=salida, punto=punto)
 
@@ -516,6 +520,7 @@ def api_puntos_control(request):
             "lat": float(punto.latitud),
             "lng": float(punto.longitud),
             "radio": punto.radio_metros,
+            "requiere_marcacion": punto.requiere_marcacion,
         })
 
     return JsonResponse(data, safe=False)
@@ -1070,7 +1075,10 @@ def api_panel_frecuencia(request):
     if ruta_id:
         ruta = PuntoControl.objects.for_empresa(empresa).filter(ruta_id=ruta_id).values_list("ruta_id", flat=True).first()
 
-    puntos_qs = PuntoControl.objects.for_empresa(empresa).filter(activo=True)
+    puntos_qs = PuntoControl.objects.for_empresa(empresa).filter(
+        activo=True,
+        requiere_marcacion=True,
+    )
     if ruta:
         puntos_qs = puntos_qs.filter(ruta_id=ruta)
     else:

@@ -325,6 +325,7 @@ class Command(BaseCommand):
 
     def _asegurar_marcaciones(self, salida):
         puntos = PuntoControl.objects.filter(ruta=salida.ruta, activo=True).order_by("orden")
+        puntos = puntos.filter(requiere_marcacion=True)
         for punto in puntos:
             MarcacionPunto.objects.get_or_create(
                 registro_salida=salida,
