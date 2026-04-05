@@ -99,7 +99,7 @@ max-width:640px;
 
 .ops-clock{
 text-align:right;
-min-width:220px;
+min-width:260px;
 }
 
 .ops-clock-date{
@@ -111,11 +111,12 @@ font-weight:700;
 }
 
 .ops-clock-time{
-font-size:32px;
+font-size:30px;
 font-weight:800;
 color:#0f172a;
 line-height:1;
 margin-top:6px;
+white-space:nowrap;
 }
 
 .quick-dispatch{
@@ -159,7 +160,7 @@ border:1px solid rgba(147,197,253,.25);
 
 .quick-form{
 display:grid;
-grid-template-columns:minmax(120px,150px) minmax(140px,1fr) minmax(120px,140px) minmax(150px,170px) minmax(180px,220px);
+grid-template-columns:minmax(120px,150px) minmax(170px,1fr) minmax(140px,160px) minmax(170px,190px);
 gap:12px;
 align-items:end;
 }
@@ -218,12 +219,20 @@ justify-content:center;
 text-align:center;
 }
 
+.quick-submit-wrap{
+grid-column:1 / -1;
+display:flex;
+justify-content:flex-end;
+padding-top:4px;
+}
+
 .quick-hint{
 display:flex;
 gap:10px;
 align-items:center;
 font-size:13px;
 color:#cbd5e1;
+flex-wrap:wrap;
 }
 
 .quick-enter{
@@ -506,7 +515,7 @@ grid-template-columns:1fr;
 }
 
 .quick-form{
-grid-template-columns:1fr 1fr 1fr;
+grid-template-columns:1fr 1fr;
 }
 }
 
@@ -526,6 +535,14 @@ grid-template-columns:1fr;
 
 .row-actions{
 justify-content:flex-start;
+}
+
+.quick-submit-wrap{
+justify-content:stretch;
+}
+
+.quick-submit{
+width:100%;
 }
 }
 </style>
@@ -603,7 +620,9 @@ justify-content:flex-start;
             <input id="fechaRapida" type="date" name="fecha_operativa" value="{{ fecha_operativa_iso }}" required>
           </div>
 
-          <button class="quick-submit" type="submit">Registrar y confirmar</button>
+          <div class="quick-submit-wrap">
+            <button class="quick-submit" type="submit">Registrar y confirmar</button>
+          </div>
         </form>
 
         <div class="quick-hint">
