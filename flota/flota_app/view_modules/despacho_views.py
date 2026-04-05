@@ -72,6 +72,54 @@ def redirect_panel_despachador(request, ruta_id=None):
     return redirect(url)
 
 
+def _parse_hora_panel(hora_str, fecha_base=None):
+    if not hora_str:
+        raise ValueError("Hora invalida.")
+
+    try:
+        hora_time = datetime.strptime(hora_str, "%H:%M").time()
+    except ValueError as exc:
+        raise ValueError("Formato de hora invalido.") from exc
+
+    fecha_base = fecha_base or timezone.localdate()
+    return timezone.make_aware(
+        datetime.combine(fecha_base, hora_time),
+        timezone.get_current_timezone(),
+    )
+
+
+def _resolver_ruta_panel(empresa, ruta_id):
+    rutas = Ruta.objects.for_empresa(empresa).order_by("nombre")
+    if ruta_id:
+        return rutas.filter(id=ruta_id).first()
+    if rutas.count() == 1:
+        return rutas.first()
+    return None
+
+
+def _programar_salida(salida, empresa, hora_fija_dt):
+    if salida.hora_real_salida:
+        raise ValidationError("No se puede reprogramar la hora: la unidad ya inicio la ruta.")
+
+    salida.fecha = timezone.localdate()
+    salida.hora_fija = hora_fija_dt
+    salida.hora_salida = hora_fija_dt
+    salida.bloqueado = True
+    salida.save(update_fields=["fecha", "hora_fija", "hora_salida", "bloqueado"])
+
+    puntos = (
+        PuntoControl.objects.for_empresa(empresa)
+        .filter(ruta=salida.ruta, requiere_marcacion=True)
+        .order_by("orden")
+    )
+    for punto in puntos:
+        MarcacionPunto.objects.get_or_create(registro_salida=salida, punto=punto)
+
+    for marcacion in salida.marcaciones.all():
+        marcacion.hora_programada = marcacion.calcular_hora_programada()
+        marcacion.save(update_fields=["hora_programada"])
+
+
 @login_required
 @user_passes_test(es_despachador)
 @empresa_required
@@ -100,6 +148,7 @@ def panel_despachador(request):
     if ruta_actual:
         salidas_qs = salidas_qs.filter(ruta=ruta_actual)
 
+    ahora = timezone.now()
     salidas = list(
         salidas_qs.order_by(
             Case(
@@ -111,6 +160,34 @@ def panel_despachador(request):
             "hora_llegada",
         )
     )
+
+    stats = {
+        "activas": len(salidas),
+        "programadas": 0,
+        "atrasadas": 0,
+        "sin_hora": 0,
+    }
+
+    for salida in salidas:
+        salida.estado_panel = "sin_hora"
+        salida.estado_panel_label = "Sin hora"
+        salida.estado_panel_class = "sin-hora"
+        salida.permite_confirmar = True
+
+        if not salida.hora_salida:
+            stats["sin_hora"] += 1
+            continue
+
+        if salida.hora_salida > ahora:
+            salida.estado_panel = "programado"
+            salida.estado_panel_label = "Programada"
+            salida.estado_panel_class = "programada"
+            stats["programadas"] += 1
+        else:
+            salida.estado_panel = "atrasado"
+            salida.estado_panel_label = "En ventana"
+            salida.estado_panel_class = "atrasada"
+            stats["atrasadas"] += 1
 
     reporte_vehiculo_id = None
     if salidas:
@@ -133,6 +210,9 @@ def panel_despachador(request):
             "reporte_vehiculo_id": reporte_vehiculo_id,
             "rutas": rutas,
             "ruta_actual_id": str(ruta_actual.id) if ruta_actual else "",
+            "ruta_actual_nombre": ruta_actual.nombre if ruta_actual else "",
+            "stats": stats,
+            "hora_actual_hhmm": timezone.localtime().strftime("%H:%M"),
         },
     )
 
@@ -144,6 +224,7 @@ def buscar_unidad_panel(request):
         return redirect_panel_despachador(request)
 
     codigo_raw = request.POST.get("codigo", "").strip()
+    hora_str = request.POST.get("hora_fija", "").strip()
     if not codigo_raw:
         messages.error(request, "Ingrese un codigo de unidad.")
         return redirect_panel_despachador(request)
@@ -161,23 +242,34 @@ def buscar_unidad_panel(request):
         messages.error(request, f"No existe unidad activa con codigo {codigo_raw}.")
         return redirect_panel_despachador(request)
 
-    if RegistroSalida.objects.for_empresa(empresa).filter(
+    salida_existente = RegistroSalida.objects.for_empresa(empresa).filter(
         vehiculo=vehiculo,
         fecha=hoy,
         activo=True,
-    ).exists():
-        messages.info(request, f"La unidad {vehiculo.codigo} ya esta registrada hoy.")
-        return redirect_panel_despachador(request)
+    ).select_related("ruta").first()
+
+    if salida_existente:
+        if not hora_str:
+            messages.info(request, f"La unidad {vehiculo.codigo} ya esta registrada hoy.")
+            return redirect_panel_despachador(request, ruta_id=salida_existente.ruta_id)
+
+        try:
+            hora_fija_dt = _parse_hora_panel(hora_str, fecha_base=hoy)
+            _programar_salida(salida_existente, empresa, hora_fija_dt)
+        except (ValueError, ValidationError) as error:
+            mensaje = error.messages[0] if isinstance(error, ValidationError) else str(error)
+            messages.error(request, mensaje)
+            return redirect_panel_despachador(request, ruta_id=salida_existente.ruta_id)
+
+        messages.success(
+            request,
+            f"Unidad {vehiculo.codigo} actualizada con salida {hora_str}.",
+        )
+        return redirect_panel_despachador(request, ruta_id=salida_existente.ruta_id)
 
     ruta_id = request.POST.get("ruta_id", "").strip()
     rutas = Ruta.objects.for_empresa(empresa).order_by("nombre")
-
-    if ruta_id:
-        ruta = rutas.filter(id=ruta_id).first()
-    elif rutas.count() == 1:
-        ruta = rutas.first()
-    else:
-        ruta = None
+    ruta = _resolver_ruta_panel(empresa, ruta_id)
 
     if not ruta:
         if rutas.exists():
@@ -201,6 +293,23 @@ def buscar_unidad_panel(request):
     except ValidationError as error:
         messages.error(request, f"No se pudo crear la salida: {error.messages[0]}")
         return redirect_panel_despachador(request, ruta_id=ruta.id)
+
+    if hora_str:
+        try:
+            hora_fija_dt = _parse_hora_panel(hora_str, fecha_base=hoy)
+            _programar_salida(salida, empresa, hora_fija_dt)
+            messages.success(
+                request,
+                f"Unidad {vehiculo.codigo} agregada y programada para las {hora_str}.",
+            )
+            return redirect_panel_despachador(request, ruta_id=ruta.id)
+        except (ValueError, ValidationError) as error:
+            mensaje = error.messages[0] if isinstance(error, ValidationError) else str(error)
+            messages.warning(
+                request,
+                f"Unidad {vehiculo.codigo} agregada, pero la hora no se programo: {mensaje}",
+            )
+            return redirect_panel_despachador(request, ruta_id=ruta.id)
 
     messages.success(request, f"Unidad {vehiculo.codigo} agregada correctamente al panel.")
     return redirect_panel_despachador(request, ruta_id=ruta.id)
@@ -410,40 +519,13 @@ def asignar_hora_fija(request, salida_id):
         messages.error(request, "Hora invalida.")
         return redirect_panel_despachador(request, ruta_id=salida.ruta_id)
 
-    hoy = timezone.localdate()
-
     try:
-        hora_time = datetime.strptime(hora_str, "%H:%M").time()
-    except ValueError:
-        messages.error(request, "Formato de hora invalido.")
+        hora_fija_dt = _parse_hora_panel(hora_str, fecha_base=timezone.localdate())
+        _programar_salida(salida, empresa, hora_fija_dt)
+    except (ValueError, ValidationError) as error:
+        mensaje = error.messages[0] if isinstance(error, ValidationError) else str(error)
+        messages.error(request, mensaje)
         return redirect_panel_despachador(request, ruta_id=salida.ruta_id)
-
-    hora_fija_dt = timezone.make_aware(
-        datetime.combine(hoy, hora_time),
-        timezone.get_current_timezone(),
-    )
-
-    if salida.hora_real_salida:
-        messages.error(request, "No se puede reprogramar la hora: la unidad ya inicio la ruta.")
-        return redirect_panel_despachador(request, ruta_id=salida.ruta_id)
-
-    salida.fecha = hoy
-    salida.hora_fija = hora_fija_dt
-    salida.hora_salida = hora_fija_dt
-    salida.bloqueado = True
-    salida.save(update_fields=["fecha", "hora_fija", "hora_salida", "bloqueado"])
-
-    puntos = (
-        PuntoControl.objects.for_empresa(empresa)
-        .filter(ruta=salida.ruta, requiere_marcacion=True)
-        .order_by("orden")
-    )
-    for punto in puntos:
-        MarcacionPunto.objects.get_or_create(registro_salida=salida, punto=punto)
-
-    for marcacion in salida.marcaciones.all():
-        marcacion.hora_programada = marcacion.calcular_hora_programada()
-        marcacion.save(update_fields=["hora_programada"])
 
     messages.success(request, f"Hora de salida programada correctamente: {hora_str}")
     return redirect_panel_despachador(request, ruta_id=salida.ruta_id)

@@ -3,213 +3,763 @@
 {% block title %}Panel del Despachador{% endblock %}
 
 {% block content %}
+<style>
+.ops-shell{
+display:grid;
+gap:18px;
+}
 
-<div style="
-background:#1f2937;
-color:white;
-padding:10px 20px;
-border-radius:8px;
+.ops-topbar{
+background:linear-gradient(135deg,#172033 0%,#243248 100%);
+color:#fff;
+border-radius:18px;
+padding:18px 22px;
 display:flex;
 justify-content:space-between;
 align-items:center;
-margin-bottom:20px;
-">
+gap:16px;
+box-shadow:0 18px 40px rgba(15,23,42,.18);
+}
 
-<div style="font-weight:600">
-Control Transporte
-</div>
+.ops-brand{
+display:grid;
+gap:4px;
+}
 
-<div style="display:flex;gap:15px;align-items:center">
-<span>{{ request.user.username }}</span>
-<span style="color:#4ade80;font-weight:500">Sistema activo</span>
-<a href="{% url 'logout' %}" style="
-background:#ef4444;
-padding:6px 12px;
-color:white;
-border-radius:6px;
-text-decoration:none;
+.ops-brand-kicker{
+font-size:12px;
+letter-spacing:.12em;
+text-transform:uppercase;
+opacity:.65;
+}
+
+.ops-brand-title{
+font-size:22px;
+font-weight:800;
+}
+
+.ops-brand-sub{
+font-size:13px;
+opacity:.75;
+}
+
+.ops-meta{
+display:flex;
+align-items:center;
+gap:14px;
+flex-wrap:wrap;
+justify-content:flex-end;
+}
+
+.pill-live{
+background:rgba(34,197,94,.14);
+color:#86efac;
+border:1px solid rgba(134,239,172,.3);
+border-radius:999px;
+padding:7px 12px;
+font-weight:700;
+font-size:13px;
+}
+
+.ops-hero{
+display:grid;
+grid-template-columns:minmax(0,1.3fr) minmax(320px,.7fr);
+gap:18px;
+align-items:stretch;
+}
+
+.hero-panel{
+background:linear-gradient(180deg,#ffffff 0%,#f8fbff 100%);
+border-radius:20px;
+padding:22px;
+box-shadow:0 12px 28px rgba(15,23,42,.08);
+border:1px solid rgba(148,163,184,.2);
+}
+
+.hero-title{
+display:flex;
+justify-content:space-between;
+gap:14px;
+align-items:flex-start;
+margin-bottom:18px;
+}
+
+.hero-title h1{
+margin:0;
+font-size:34px;
+line-height:1.05;
+}
+
+.hero-title p{
+margin:6px 0 0;
+color:#475569;
 font-size:14px;
-">
-Cerrar sesion
-</a>
-</div>
+max-width:640px;
+}
 
-</div>
+.ops-clock{
+text-align:right;
+min-width:220px;
+}
 
-<div class="d-flex justify-content-between align-items-center mb-4">
-<h2 class="m-0">Panel del Despachador</h2>
-<div class="hora-sistema">
-<span id="horaSistema"></span>
-</div>
-</div>
+.ops-clock-date{
+font-size:12px;
+letter-spacing:.08em;
+text-transform:uppercase;
+color:#64748b;
+font-weight:700;
+}
 
-<div class="dashboard">
-<div class="stat-card stat-green">
-<div class="stat-num">{{ salidas|length }}</div>
-<div class="stat-label">Unidades activas</div>
-</div>
+.ops-clock-time{
+font-size:32px;
+font-weight:800;
+color:#0f172a;
+line-height:1;
+margin-top:6px;
+}
 
-<div class="stat-card stat-blue">
-<div class="stat-num"><span id="countProgramadas">0</span></div>
-<div class="stat-label">Programadas</div>
-</div>
+.quick-dispatch{
+background:#0f172a;
+color:#fff;
+border-radius:20px;
+padding:22px;
+display:grid;
+gap:16px;
+box-shadow:0 12px 28px rgba(15,23,42,.2);
+}
 
-<div class="stat-card stat-red">
-<div class="stat-num"><span id="countAtrasado">0</span></div>
-<div class="stat-label">Atrasadas</div>
-</div>
+.quick-head{
+display:flex;
+justify-content:space-between;
+gap:16px;
+align-items:flex-start;
+}
 
-<div class="stat-card stat-gray">
-<div class="stat-num"><span id="countSinHora">0</span></div>
-<div class="stat-label">Sin hora</div>
-</div>
-</div>
+.quick-head h2{
+margin:0;
+font-size:22px;
+color:#fff;
+}
 
-<div class="toolbar">
-<a href="{% url 'historial_salidas' %}{% if ruta_actual_id %}?ruta={{ ruta_actual_id }}{% endif %}" class="btn btn-dark btn-sm">Historial</a>
-<a href="{% url 'despachador_mapa' %}" class="btn btn-outline-primary btn-sm">Mapa en tiempo real</a>
-<a href="{% url 'panel_frecuencia' %}{% if ruta_actual_id %}?ruta={{ ruta_actual_id }}{% endif %}" class="btn btn-outline-success btn-sm">Frecuencia</a>
-{% if reporte_vehiculo_id %}
-<a href="{% url 'reporte_salidas_diarias' reporte_vehiculo_id %}?fecha={% now 'Y-m-d' %}" class="btn btn-warning btn-sm">
-Salidas del dia
-</a>
-{% else %}
-<button class="btn btn-warning btn-sm" disabled>Salidas del dia</button>
-{% endif %}
-</div>
+.quick-head p{
+margin:6px 0 0;
+font-size:13px;
+color:#cbd5e1;
+}
 
-<div class="card-panel mb-4">
-<form method="get" class="d-flex gap-2 flex-wrap mb-3">
-<select name="ruta" class="form-select" style="max-width:260px" onchange="this.form.submit()">
-<option value="">Todas las rutas</option>
-{% for ruta in rutas %}
-<option value="{{ ruta.id }}" {% if ruta_actual_id == ruta.id|stringformat:"s" %}selected{% endif %}>{{ ruta.nombre }}</option>
-{% endfor %}
-</select>
-</form>
+.route-chip{
+padding:8px 12px;
+border-radius:999px;
+background:rgba(59,130,246,.16);
+color:#bfdbfe;
+font-weight:700;
+font-size:13px;
+border:1px solid rgba(147,197,253,.25);
+}
 
-<form method="post" action="{% url 'buscar_unidad_panel' %}" class="d-flex gap-2 flex-wrap">
-{% csrf_token %}
-<input type="hidden" name="current_ruta_id" value="{{ ruta_actual_id }}">
-<input type="text" name="codigo" class="form-control" placeholder="Buscar unidad (01, 02...)" style="max-width:200px" required>
+.quick-form{
+display:grid;
+grid-template-columns:minmax(120px,170px) minmax(150px,1fr) minmax(130px,160px) auto;
+gap:12px;
+align-items:end;
+}
 
-<select name="ruta_id" class="form-select" style="max-width:220px" {% if rutas|length > 1 %}required{% endif %}>
-<option value="">Seleccionar ruta</option>
-{% for ruta in rutas %}
-<option value="{{ ruta.id }}" {% if ruta_actual_id == ruta.id|stringformat:"s" %}selected{% endif %}>{{ ruta.nombre }}</option>
-{% endfor %}
-</select>
+.quick-form label,
+.filter-grid label{
+display:block;
+font-size:12px;
+font-weight:700;
+letter-spacing:.05em;
+text-transform:uppercase;
+margin-bottom:6px;
+color:#64748b;
+}
 
-<button class="btn btn-success">Agregar</button>
-<input type="text" id="busquedaUnidad" class="form-control" placeholder="Filtrar unidades" style="max-width:220px">
-</form>
-</div>
+.quick-form .dark-label{
+color:#93c5fd;
+}
 
-<div class="table-responsive">
-<table class="table table-modern align-middle">
-<thead class="table-dark text-center">
-<tr>
-<th>Unidad</th>
-<th>Ruta</th>
-<th>Llegada</th>
-<th>Salida</th>
-<th>Estado</th>
-<th style="min-width:280px">Acciones</th>
-</tr>
-</thead>
+.quick-form input,
+.quick-form select{
+height:52px;
+border-radius:14px;
+border:1px solid rgba(148,163,184,.24);
+padding:0 14px;
+font-size:20px;
+font-weight:700;
+background:#fff;
+}
 
-<tbody>
-{% for s in salidas %}
-<tr class="fila-unidad{% if forloop.first %} proxima{% endif %}" data-unidad="{{ s.vehiculo.codigo|lower }}">
-<td class="text-center fw-bold">{{ s.vehiculo.codigo }}</td>
-<td>{{ s.ruta.nombre }}</td>
-<td class="text-center">{{ s.hora_llegada|date:"H:i" }}</td>
-<td class="text-center">{% if s.hora_salida %}{{ s.hora_salida|date:"H:i" }}{% else %}-{% endif %}</td>
-<td class="text-center">
-{% if not s.hora_salida %}
-<span class="badge badge-sinhora">SIN HORA</span>
-{% else %}
-{% now "Y-m-d H:i" as ahora %}
-{% if s.hora_salida|date:"Y-m-d H:i" > ahora %}
-<span class="badge badge-programado">PROGRAMADO</span>
-{% else %}
-<span class="badge badge-atrasado">ATRASADO</span>
-{% endif %}
-{% endif %}
-</td>
+.quick-form select{
+font-size:15px;
+font-weight:600;
+}
 
-<td class="text-center d-flex flex-wrap gap-1 justify-content-center">
-<a href="{% url 'control_ruta' s.id %}" class="btn btn-sm btn-outline-primary btn-icon" title="Control de ruta">Ruta</a>
-<a href="{% url 'detalle_salida' s.id %}" class="btn btn-sm btn-outline-info btn-icon" title="Detalle de salida">Detalle</a>
-<a href="{% url 'ver_qr_unidad' s.vehiculo.id %}" class="btn btn-sm btn-outline-dark btn-icon" title="Ver codigo QR">QR</a>
+.quick-form input[name="hora_fija"]{
+text-align:center;
+letter-spacing:.04em;
+}
 
-<form method="post" action="{% url 'asignar_hora_fija' s.id %}" class="d-flex gap-1">
-{% csrf_token %}
-<input type="hidden" name="current_ruta_id" value="{% if ruta_actual_id %}{{ ruta_actual_id }}{% else %}{{ s.ruta.id }}{% endif %}">
-<input type="time" name="hora_fija" class="form-control form-control-sm" style="width:85px" required>
-<button class="btn btn-sm btn-warning btn-icon" title="{% if s.hora_salida %}Editar hora programada{% else %}Confirmar hora de salida{% endif %}">
-{% if s.hora_salida %}Editar{% else %}Confirmar{% endif %}
-</button>
-</form>
+.quick-submit{
+height:52px;
+border:none;
+border-radius:14px;
+padding:0 22px;
+font-weight:800;
+font-size:15px;
+background:linear-gradient(135deg,#f59e0b 0%,#fbbf24 100%);
+color:#111827;
+box-shadow:0 12px 24px rgba(245,158,11,.3);
+}
 
-{% if s.hora_salida %}
-<form method="post" action="{% url 'desbloquear_hora' s.id %}">
-{% csrf_token %}
-<input type="hidden" name="current_ruta_id" value="{% if ruta_actual_id %}{{ ruta_actual_id }}{% else %}{{ s.ruta.id }}{% endif %}">
-<button class="btn btn-sm btn-outline-secondary btn-icon" title="Desbloquear hora programada">Cancelar</button>
-</form>
-{% endif %}
-</td>
-</tr>
-{% empty %}
-<tr>
-<td colspan="6" class="text-center text-muted">No hay salidas registradas</td>
-</tr>
-{% endfor %}
-</tbody>
-</table>
+.quick-hint{
+display:flex;
+gap:10px;
+align-items:center;
+font-size:13px;
+color:#cbd5e1;
+}
+
+.quick-enter{
+display:inline-flex;
+align-items:center;
+justify-content:center;
+min-width:56px;
+height:30px;
+padding:0 10px;
+border-radius:999px;
+background:rgba(255,255,255,.08);
+border:1px solid rgba(255,255,255,.14);
+font-weight:700;
+}
+
+.hero-stats{
+display:grid;
+grid-template-columns:repeat(2,minmax(0,1fr));
+gap:14px;
+}
+
+.ops-kpi{
+background:#fff;
+border-radius:18px;
+padding:18px;
+border:1px solid rgba(148,163,184,.18);
+box-shadow:0 8px 18px rgba(15,23,42,.06);
+}
+
+.ops-kpi-label{
+font-size:12px;
+letter-spacing:.08em;
+text-transform:uppercase;
+color:#64748b;
+font-weight:700;
+margin-bottom:8px;
+}
+
+.ops-kpi-value{
+font-size:34px;
+font-weight:800;
+line-height:1;
+color:#0f172a;
+}
+
+.ops-kpi-sub{
+margin-top:8px;
+font-size:13px;
+color:#475569;
+}
+
+.ops-kpi.green{border-top:4px solid #22c55e;}
+.ops-kpi.blue{border-top:4px solid #0ea5e9;}
+.ops-kpi.red{border-top:4px solid #ef4444;}
+.ops-kpi.gray{border-top:4px solid #64748b;}
+
+.action-bar{
+display:flex;
+flex-wrap:wrap;
+gap:10px;
+}
+
+.action-bar .btn{
+border-radius:12px;
+padding:10px 14px;
+font-weight:700;
+}
+
+.table-shell{
+background:#fff;
+border-radius:20px;
+padding:18px;
+box-shadow:0 12px 28px rgba(15,23,42,.08);
+border:1px solid rgba(148,163,184,.18);
+}
+
+.table-head{
+display:flex;
+justify-content:space-between;
+align-items:end;
+gap:16px;
+margin-bottom:16px;
+}
+
+.table-head h3{
+margin:0;
+font-size:24px;
+}
+
+.table-head p{
+margin:6px 0 0;
+color:#64748b;
+font-size:14px;
+}
+
+.filter-grid{
+display:grid;
+grid-template-columns:minmax(180px,240px) minmax(180px,240px);
+gap:12px;
+align-items:end;
+}
+
+.filter-grid input,
+.filter-grid select{
+height:46px;
+border-radius:12px;
+}
+
+.ops-table{
+width:100%;
+border-collapse:separate;
+border-spacing:0 12px;
+}
+
+.ops-table thead th{
+background:#1e293b;
+color:#e2e8f0;
+font-size:12px;
+letter-spacing:.08em;
+text-transform:uppercase;
+padding:14px 12px;
+border:none;
+}
+
+.ops-table thead th:first-child{
+border-radius:14px 0 0 14px;
+}
+
+.ops-table thead th:last-child{
+border-radius:0 14px 14px 0;
+}
+
+.ops-table tbody tr{
+background:#fff;
+box-shadow:0 10px 24px rgba(15,23,42,.08);
+}
+
+.ops-table tbody td{
+padding:14px 12px;
+vertical-align:middle;
+border:none;
+}
+
+.ops-table tbody td:first-child{
+border-radius:16px 0 0 16px;
+}
+
+.ops-table tbody td:last-child{
+border-radius:0 16px 16px 0;
+}
+
+.ops-row-highlight{
+outline:2px solid rgba(34,197,94,.18);
+}
+
+.unit-badge{
+display:inline-flex;
+align-items:center;
+justify-content:center;
+min-width:56px;
+height:42px;
+padding:0 14px;
+border-radius:14px;
+background:#eff6ff;
+color:#1d4ed8;
+font-size:22px;
+font-weight:800;
+}
+
+.route-text{
+font-weight:700;
+color:#0f172a;
+}
+
+.subtle-text{
+font-size:12px;
+color:#64748b;
+}
+
+.status-pill{
+display:inline-flex;
+align-items:center;
+gap:8px;
+padding:9px 12px;
+border-radius:999px;
+font-size:13px;
+font-weight:800;
+}
+
+.status-dot{
+width:9px;
+height:9px;
+border-radius:50%;
+}
+
+.status-pill.sin-hora{
+background:#eef2ff;
+color:#475569;
+}
+
+.status-pill.sin-hora .status-dot{
+background:#64748b;
+}
+
+.status-pill.programada{
+background:#ecfeff;
+color:#0369a1;
+}
+
+.status-pill.programada .status-dot{
+background:#0ea5e9;
+}
+
+.status-pill.atrasada{
+background:#fef2f2;
+color:#b91c1c;
+}
+
+.status-pill.atrasada .status-dot{
+background:#ef4444;
+}
+
+.row-actions{
+display:flex;
+justify-content:flex-end;
+align-items:center;
+gap:10px;
+flex-wrap:wrap;
+}
+
+.program-form{
+display:flex;
+align-items:center;
+gap:8px;
+flex-wrap:wrap;
+}
+
+.program-form input{
+width:108px;
+height:40px;
+border-radius:12px;
+text-align:center;
+font-weight:700;
+}
+
+.program-form .btn{
+height:40px;
+border-radius:12px;
+font-weight:800;
+}
+
+.dropdown-menu{
+border:none;
+border-radius:14px;
+box-shadow:0 16px 40px rgba(15,23,42,.18);
+padding:8px;
+}
+
+.dropdown-item{
+border-radius:10px;
+padding:9px 12px;
+font-weight:600;
+}
+
+.empty-state{
+text-align:center;
+padding:48px 24px;
+color:#64748b;
+}
+
+@media (max-width: 1100px){
+.ops-hero{
+grid-template-columns:1fr;
+}
+
+.quick-form{
+grid-template-columns:1fr 1fr;
+}
+}
+
+@media (max-width: 768px){
+.ops-topbar,
+.hero-title,
+.quick-head,
+.table-head{
+flex-direction:column;
+align-items:flex-start;
+}
+
+.quick-form,
+.filter-grid{
+grid-template-columns:1fr;
+}
+
+.row-actions{
+justify-content:flex-start;
+}
+}
+</style>
+
+<div class="ops-shell">
+  <section class="ops-topbar">
+    <div class="ops-brand">
+      <div class="ops-brand-kicker">Centro de Operacion</div>
+      <div class="ops-brand-title">Control Transporte</div>
+      <div class="ops-brand-sub">Despacho diario para {{ request.user.username }}</div>
+    </div>
+
+    <div class="ops-meta">
+      <span class="pill-live">Sistema activo</span>
+      <a href="{% url 'logout' %}" class="btn btn-danger btn-sm">Cerrar sesion</a>
+    </div>
+  </section>
+
+  <section class="ops-hero">
+    <div class="hero-panel">
+      <div class="hero-title">
+        <div>
+          <h1>Panel del Despachador</h1>
+          <p>Flujo rapido de despacho: escriba la unidad, fije la hora y presione Enter. El panel agrega o actualiza la salida del dia sin pasos extra.</p>
+        </div>
+
+        <div class="ops-clock">
+          <div class="ops-clock-date">Hora del sistema</div>
+          <div class="ops-clock-time" id="horaSistema">--:--:--</div>
+        </div>
+      </div>
+
+      <div class="quick-dispatch">
+        <div class="quick-head">
+          <div>
+            <h2>Despacho rapido</h2>
+            <p>Replica el flujo operativo real: codigo de unidad, hora de salida y Enter.</p>
+          </div>
+          <div class="route-chip">
+            {% if ruta_actual_nombre %}
+              Ruta activa: {{ ruta_actual_nombre }}
+            {% else %}
+              Seleccione una ruta
+            {% endif %}
+          </div>
+        </div>
+
+        <form method="post" action="{% url 'buscar_unidad_panel' %}" class="quick-form">
+          {% csrf_token %}
+          <input type="hidden" name="current_ruta_id" value="{{ ruta_actual_id }}">
+
+          <div>
+            <label for="codigoRapido" class="dark-label">Unidad</label>
+            <input id="codigoRapido" type="text" name="codigo" placeholder="01" maxlength="10" autofocus required>
+          </div>
+
+          <div>
+            <label for="rutaRapida" class="dark-label">Ruta</label>
+            <select id="rutaRapida" name="ruta_id" {% if rutas|length > 1 and not ruta_actual_id %}required{% endif %}>
+              <option value="">Seleccionar ruta</option>
+              {% for ruta in rutas %}
+                <option value="{{ ruta.id }}" {% if ruta_actual_id == ruta.id|stringformat:"s" %}selected{% endif %}>{{ ruta.nombre }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div>
+            <label for="horaRapida" class="dark-label">Hora salida</label>
+            <input id="horaRapida" type="time" name="hora_fija" value="{{ hora_actual_hhmm }}" required>
+          </div>
+
+          <button class="quick-submit" type="submit">Registrar y confirmar</button>
+        </form>
+
+        <div class="quick-hint">
+          <span class="quick-enter">Enter</span>
+          <span>Si la unidad ya esta en el panel, el mismo flujo actualiza la hora sin buscar otra pantalla.</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="hero-stats">
+      <article class="ops-kpi green">
+        <div class="ops-kpi-label">Unidades activas</div>
+        <div class="ops-kpi-value">{{ stats.activas }}</div>
+        <div class="ops-kpi-sub">Salidas visibles hoy</div>
+      </article>
+
+      <article class="ops-kpi blue">
+        <div class="ops-kpi-label">Programadas</div>
+        <div class="ops-kpi-value">{{ stats.programadas }}</div>
+        <div class="ops-kpi-sub">Con hora futura registrada</div>
+      </article>
+
+      <article class="ops-kpi red">
+        <div class="ops-kpi-label">En ventana</div>
+        <div class="ops-kpi-value">{{ stats.atrasadas }}</div>
+        <div class="ops-kpi-sub">Hora alcanzada o vencida</div>
+      </article>
+
+      <article class="ops-kpi gray">
+        <div class="ops-kpi-label">Sin hora</div>
+        <div class="ops-kpi-value">{{ stats.sin_hora }}</div>
+        <div class="ops-kpi-sub">Pendientes de programar</div>
+      </article>
+    </div>
+  </section>
+
+  <section class="action-bar">
+    <a href="{% url 'historial_salidas' %}{% if ruta_actual_id %}?ruta={{ ruta_actual_id }}{% endif %}" class="btn btn-dark">Historial</a>
+    <a href="{% url 'despachador_mapa' %}" class="btn btn-outline-primary">Mapa en tiempo real</a>
+    <a href="{% url 'panel_frecuencia' %}{% if ruta_actual_id %}?ruta={{ ruta_actual_id }}{% endif %}" class="btn btn-outline-success">Frecuencia</a>
+    {% if reporte_vehiculo_id %}
+      <a href="{% url 'reporte_salidas_diarias' reporte_vehiculo_id %}?fecha={% now 'Y-m-d' %}" class="btn btn-warning">Salidas del dia</a>
+    {% else %}
+      <button class="btn btn-warning" disabled>Salidas del dia</button>
+    {% endif %}
+  </section>
+
+  <section class="table-shell">
+    <div class="table-head">
+      <div>
+        <h3>Operacion en curso</h3>
+        <p>Monitoreo y programacion de unidades del dia. La primera fila corresponde a la siguiente unidad en la secuencia visible.</p>
+      </div>
+
+      <div class="filter-grid">
+        <form method="get">
+          <label for="filtroRuta">Ruta visible</label>
+          <select id="filtroRuta" name="ruta" class="form-select" onchange="this.form.submit()">
+            <option value="">Todas las rutas</option>
+            {% for ruta in rutas %}
+              <option value="{{ ruta.id }}" {% if ruta_actual_id == ruta.id|stringformat:"s" %}selected{% endif %}>{{ ruta.nombre }}</option>
+            {% endfor %}
+          </select>
+        </form>
+
+        <div>
+          <label for="busquedaUnidad">Buscar unidad</label>
+          <input type="text" id="busquedaUnidad" class="form-control" placeholder="01, 02, 15...">
+        </div>
+      </div>
+    </div>
+
+    <div class="table-responsive">
+      <table class="ops-table">
+        <thead>
+          <tr>
+            <th>Unidad</th>
+            <th>Ruta</th>
+            <th>Llegada</th>
+            <th>Salida</th>
+            <th>Estado</th>
+            <th class="text-end">Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for s in salidas %}
+            <tr class="fila-unidad{% if forloop.first %} ops-row-highlight{% endif %}" data-unidad="{{ s.vehiculo.codigo|lower }}">
+              <td>
+                <div class="unit-badge">{{ s.vehiculo.codigo }}</div>
+              </td>
+              <td>
+                <div class="route-text">{{ s.ruta.nombre }}</div>
+                <div class="subtle-text">Llegada registrada {{ s.hora_llegada|date:"H:i" }}</div>
+              </td>
+              <td class="fw-semibold">{{ s.hora_llegada|date:"H:i" }}</td>
+              <td>
+                <div class="fw-bold fs-5">{% if s.hora_salida %}{{ s.hora_salida|date:"H:i" }}{% else %}--:--{% endif %}</div>
+                <div class="subtle-text">{% if s.hora_salida %}Hora programada{% else %}Pendiente de fijar{% endif %}</div>
+              </td>
+              <td>
+                <span class="status-pill {{ s.estado_panel_class }}">
+                  <span class="status-dot"></span>
+                  {{ s.estado_panel_label }}
+                </span>
+              </td>
+              <td>
+                <div class="row-actions">
+                  <form method="post" action="{% url 'asignar_hora_fija' s.id %}" class="program-form">
+                    {% csrf_token %}
+                    <input type="hidden" name="current_ruta_id" value="{% if ruta_actual_id %}{{ ruta_actual_id }}{% else %}{{ s.ruta.id }}{% endif %}">
+                    <input type="time" name="hora_fija" value="{% if s.hora_salida %}{{ s.hora_salida|date:'H:i' }}{% else %}{{ hora_actual_hhmm }}{% endif %}" class="form-control form-control-sm" required>
+                    <button class="btn btn-warning btn-sm" type="submit">{% if s.hora_salida %}Actualizar{% else %}Confirmar{% endif %}</button>
+                  </form>
+
+                  <div class="dropdown">
+                    <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                      Ver
+                    </button>
+                    <div class="dropdown-menu dropdown-menu-end">
+                      <a class="dropdown-item" href="{% url 'control_ruta' s.id %}">Control de ruta</a>
+                      <a class="dropdown-item" href="{% url 'detalle_salida' s.id %}">Detalle de salida</a>
+                      <a class="dropdown-item" href="{% url 'ver_qr_unidad' s.vehiculo.id %}" target="_blank" rel="noopener">QR de unidad</a>
+                    </div>
+                  </div>
+
+                  {% if s.hora_salida %}
+                    <form method="post" action="{% url 'desbloquear_hora' s.id %}">
+                      {% csrf_token %}
+                      <input type="hidden" name="current_ruta_id" value="{% if ruta_actual_id %}{{ ruta_actual_id }}{% else %}{{ s.ruta.id }}{% endif %}">
+                      <button class="btn btn-outline-danger btn-sm" type="submit">Quitar hora</button>
+                    </form>
+                  {% endif %}
+                </div>
+              </td>
+            </tr>
+          {% empty %}
+            <tr>
+              <td colspan="6">
+                <div class="empty-state">
+                  No hay salidas registradas para esta vista.
+                </div>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
 </div>
 
 <script>
 function actualizarHora(){
-const ahora = new Date()
-const opciones = {
-weekday: 'short',
-year: 'numeric',
-month: 'short',
-day: 'numeric',
-hour: '2-digit',
-minute: '2-digit',
-second: '2-digit'
-}
-document.getElementById("horaSistema").innerText = ahora.toLocaleDateString('es-PE', opciones)
+  const ahora = new Date()
+  const hora = ahora.toLocaleTimeString('es-PE', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit'
+  })
+  document.getElementById("horaSistema").innerText = hora
 }
 
-setInterval(actualizarHora,1000)
+setInterval(actualizarHora, 1000)
 actualizarHora()
 
-let atrasados=0
-let sinHora=0
-let programados=0
-
-document.querySelectorAll(".fila-unidad").forEach(fila=>{
-const texto=fila.innerText
-if(texto.includes("ATRASADO")) atrasados++
-if(texto.includes("SIN HORA")) sinHora++
-if(texto.includes("PROGRAMADO")) programados++
+document.getElementById("busquedaUnidad").addEventListener("input", function(){
+  const filtro = this.value.toLowerCase().trim()
+  document.querySelectorAll(".fila-unidad").forEach(fila => {
+    const unidad = fila.dataset.unidad || ""
+    fila.style.display = unidad.includes(filtro) ? "" : "none"
+  })
 })
 
-document.getElementById("countAtrasado").innerText=atrasados
-document.getElementById("countSinHora").innerText=sinHora
-document.getElementById("countProgramadas").innerText=programados
-
-document.getElementById("busquedaUnidad").addEventListener("keyup",function(){
-const filtro=this.value.toLowerCase()
-document.querySelectorAll(".fila-unidad").forEach(fila=>{
-const unidad=fila.dataset.unidad||""
-fila.style.display=unidad.includes(filtro)?"":"none"
-})
+document.getElementById("codigoRapido").addEventListener("input", function(){
+  this.value = this.value.toUpperCase()
 })
 </script>
-
 {% endblock %}

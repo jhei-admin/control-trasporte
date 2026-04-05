@@ -314,6 +314,92 @@ class PuntoReferenciaTests(BaseFlotaTestCase):
         )
 
 
+class PanelDespachoRapidoTests(BaseFlotaTestCase):
+    def setUp(self):
+        super().setUp()
+        self.user = User.objects.create_user(
+            username="desp_panel",
+            password="x",
+            is_staff=True,
+            is_superuser=True,
+        )
+        self.user.perfil.empresa = self.empresa
+        self.user.perfil.save(update_fields=["empresa"])
+        self.client.force_login(self.user)
+
+    def test_flujo_rapido_crea_salida_y_programa_hora(self):
+        PuntoControl.objects.create(
+            ruta=self.ruta_a,
+            codigo="SALI",
+            nombre="Salida",
+            latitud=-16.401,
+            longitud=-71.501,
+            radio_metros=50,
+            orden=1,
+            offset_minutos=0,
+            requiere_marcacion=True,
+            activo=True,
+        )
+        PuntoControl.objects.create(
+            ruta=self.ruta_a,
+            codigo="ENTR",
+            nombre="Entrada",
+            latitud=-16.402,
+            longitud=-71.502,
+            radio_metros=50,
+            orden=2,
+            offset_minutos=2,
+            requiere_marcacion=False,
+            activo=True,
+        )
+
+        response = self.client.post(
+            reverse("buscar_unidad_panel"),
+            {
+                "codigo": self.vehiculo_1.codigo,
+                "ruta_id": self.ruta_a.id,
+                "hora_fija": "08:15",
+                "current_ruta_id": self.ruta_a.id,
+            },
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        salida = RegistroSalida.objects.get(
+            vehiculo=self.vehiculo_1,
+            fecha=timezone.localdate(),
+            activo=True,
+        )
+        self.assertEqual(salida.ruta, self.ruta_a)
+        self.assertIsNotNone(salida.hora_salida)
+        self.assertEqual(salida.marcaciones.count(), 1)
+
+    def test_flujo_rapido_actualiza_salida_existente(self):
+        salida = RegistroSalida.objects.create(
+            vehiculo=self.vehiculo_1,
+            ruta=self.ruta_a,
+            fecha=timezone.localdate(),
+            hora_llegada=timezone.now(),
+            activo=True,
+            en_cola=False,
+        )
+
+        response = self.client.post(
+            reverse("buscar_unidad_panel"),
+            {
+                "codigo": self.vehiculo_1.codigo,
+                "ruta_id": self.ruta_a.id,
+                "hora_fija": "09:45",
+                "current_ruta_id": self.ruta_a.id,
+            },
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        salida.refresh_from_db()
+        self.assertEqual(timezone.localtime(salida.hora_salida).strftime("%H:%M"), "09:45")
+
+
 class OperacionProduccionTests(BaseFlotaTestCase):
     def test_healthz_responde_ok_en_pruebas(self):
         response = self.client.get(reverse("healthz"))
