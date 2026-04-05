@@ -66,10 +66,30 @@ def redirect_panel_despachador(request, ruta_id=None):
         or request.GET.get("ruta")
         or ""
     )
+    fecha = (
+        request.POST.get("current_fecha")
+        or request.POST.get("fecha_operativa")
+        or request.GET.get("fecha")
+        or ""
+    )
     url = reverse("panel_despachador")
+    query_params = []
     if ruta_id:
-        url = f"{url}?ruta={ruta_id}"
+        query_params.append(f"ruta={ruta_id}")
+    if fecha:
+        query_params.append(f"fecha={fecha}")
+    if query_params:
+        url = f"{url}?{'&'.join(query_params)}"
     return redirect(url)
+
+
+def _parse_fecha_panel(fecha_str):
+    if not fecha_str:
+        return timezone.localdate()
+    try:
+        return datetime.strptime(fecha_str, "%Y-%m-%d").date()
+    except ValueError as exc:
+        raise ValueError("Fecha operativa invalida.") from exc
 
 
 def _parse_hora_panel(hora_str, fecha_base=None):
@@ -97,11 +117,11 @@ def _resolver_ruta_panel(empresa, ruta_id):
     return None
 
 
-def _programar_salida(salida, empresa, hora_fija_dt):
+def _programar_salida(salida, empresa, hora_fija_dt, fecha_operativa=None):
     if salida.hora_real_salida:
         raise ValidationError("No se puede reprogramar la hora: la unidad ya inicio la ruta.")
 
-    salida.fecha = timezone.localdate()
+    salida.fecha = fecha_operativa or salida.fecha or timezone.localdate()
     salida.hora_fija = hora_fija_dt
     salida.hora_salida = hora_fija_dt
     salida.bloqueado = True
@@ -127,6 +147,12 @@ def panel_despachador(request):
     hoy = timezone.localdate()
     empresa = request.empresa
     rutas = list(Ruta.objects.for_empresa(empresa).order_by("nombre"))
+    fecha_str = request.GET.get("fecha", "").strip()
+    try:
+        fecha_operativa = _parse_fecha_panel(fecha_str)
+    except ValueError as error:
+        messages.error(request, str(error))
+        fecha_operativa = hoy
     ruta_id = request.GET.get("ruta", "").strip()
     ruta_actual = None
 
@@ -141,7 +167,7 @@ def panel_despachador(request):
         .filter(
             ruta__isnull=False,
             activo=True,
-            fecha=hoy,
+            fecha=fecha_operativa,
         )
     )
 
@@ -149,6 +175,7 @@ def panel_despachador(request):
         salidas_qs = salidas_qs.filter(ruta=ruta_actual)
 
     ahora = timezone.now()
+    es_fecha_futura = fecha_operativa > hoy
     salidas = list(
         salidas_qs.order_by(
             Case(
@@ -178,7 +205,7 @@ def panel_despachador(request):
             stats["sin_hora"] += 1
             continue
 
-        if salida.hora_salida > ahora:
+        if es_fecha_futura or salida.hora_salida > ahora:
             salida.estado_panel = "programado"
             salida.estado_panel_label = "Programada"
             salida.estado_panel_class = "programada"
@@ -213,6 +240,9 @@ def panel_despachador(request):
             "ruta_actual_nombre": ruta_actual.nombre if ruta_actual else "",
             "stats": stats,
             "hora_actual_hhmm": timezone.localtime().strftime("%H:%M"),
+            "fecha_operativa": fecha_operativa,
+            "fecha_operativa_iso": fecha_operativa.isoformat(),
+            "fecha_es_futura": es_fecha_futura,
         },
     )
 
@@ -225,12 +255,17 @@ def buscar_unidad_panel(request):
 
     codigo_raw = request.POST.get("codigo", "").strip()
     hora_str = request.POST.get("hora_fija", "").strip()
+    fecha_str = request.POST.get("fecha_operativa", "").strip()
     if not codigo_raw:
         messages.error(request, "Ingrese un codigo de unidad.")
         return redirect_panel_despachador(request)
 
     codigo = codigo_raw.zfill(2) if codigo_raw.isdigit() and len(codigo_raw) == 1 else codigo_raw
-    hoy = timezone.localdate()
+    try:
+        fecha_operativa = _parse_fecha_panel(fecha_str)
+    except ValueError as error:
+        messages.error(request, str(error))
+        return redirect_panel_despachador(request)
     empresa = request.empresa
 
     vehiculo = Vehiculo.objects.for_empresa(empresa).filter(
@@ -244,18 +279,18 @@ def buscar_unidad_panel(request):
 
     salida_existente = RegistroSalida.objects.for_empresa(empresa).filter(
         vehiculo=vehiculo,
-        fecha=hoy,
+        fecha=fecha_operativa,
         activo=True,
     ).select_related("ruta").first()
 
     if salida_existente:
         if not hora_str:
-            messages.info(request, f"La unidad {vehiculo.codigo} ya esta registrada hoy.")
+            messages.info(request, f"La unidad {vehiculo.codigo} ya esta registrada para la fecha operativa.")
             return redirect_panel_despachador(request, ruta_id=salida_existente.ruta_id)
 
         try:
-            hora_fija_dt = _parse_hora_panel(hora_str, fecha_base=hoy)
-            _programar_salida(salida_existente, empresa, hora_fija_dt)
+            hora_fija_dt = _parse_hora_panel(hora_str, fecha_base=fecha_operativa)
+            _programar_salida(salida_existente, empresa, hora_fija_dt, fecha_operativa=fecha_operativa)
         except (ValueError, ValidationError) as error:
             mensaje = error.messages[0] if isinstance(error, ValidationError) else str(error)
             messages.error(request, mensaje)
@@ -282,7 +317,7 @@ def buscar_unidad_panel(request):
         salida = RegistroSalida(
             vehiculo=vehiculo,
             ruta=ruta,
-            fecha=hoy,
+            fecha=fecha_operativa,
             hora_llegada=timezone.now(),
             activo=True,
             en_cola=False,
@@ -296,8 +331,8 @@ def buscar_unidad_panel(request):
 
     if hora_str:
         try:
-            hora_fija_dt = _parse_hora_panel(hora_str, fecha_base=hoy)
-            _programar_salida(salida, empresa, hora_fija_dt)
+            hora_fija_dt = _parse_hora_panel(hora_str, fecha_base=fecha_operativa)
+            _programar_salida(salida, empresa, hora_fija_dt, fecha_operativa=fecha_operativa)
             messages.success(
                 request,
                 f"Unidad {vehiculo.codigo} agregada y programada para las {hora_str}.",
@@ -515,13 +550,15 @@ def asignar_hora_fija(request, salida_id):
     )
 
     hora_str = request.POST.get("hora_fija")
+    fecha_str = request.POST.get("current_fecha", "").strip()
     if not hora_str:
         messages.error(request, "Hora invalida.")
         return redirect_panel_despachador(request, ruta_id=salida.ruta_id)
 
     try:
-        hora_fija_dt = _parse_hora_panel(hora_str, fecha_base=timezone.localdate())
-        _programar_salida(salida, empresa, hora_fija_dt)
+        fecha_operativa = _parse_fecha_panel(fecha_str) if fecha_str else salida.fecha
+        hora_fija_dt = _parse_hora_panel(hora_str, fecha_base=fecha_operativa)
+        _programar_salida(salida, empresa, hora_fija_dt, fecha_operativa=fecha_operativa)
     except (ValueError, ValidationError) as error:
         mensaje = error.messages[0] if isinstance(error, ValidationError) else str(error)
         messages.error(request, mensaje)

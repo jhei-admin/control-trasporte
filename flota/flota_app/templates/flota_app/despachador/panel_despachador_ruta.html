@@ -159,7 +159,7 @@ border:1px solid rgba(147,197,253,.25);
 
 .quick-form{
 display:grid;
-grid-template-columns:minmax(120px,170px) minmax(150px,1fr) minmax(130px,160px) auto;
+grid-template-columns:minmax(120px,170px) minmax(150px,1fr) minmax(130px,160px) minmax(150px,180px) auto;
 gap:12px;
 align-items:end;
 }
@@ -315,7 +315,7 @@ font-size:14px;
 
 .filter-grid{
 display:grid;
-grid-template-columns:minmax(180px,240px) minmax(180px,240px);
+grid-template-columns:minmax(180px,220px) minmax(180px,220px) minmax(180px,240px);
 gap:12px;
 align-items:end;
 }
@@ -543,12 +543,13 @@ justify-content:flex-start;
       <div class="hero-title">
         <div>
           <h1>Panel del Despachador</h1>
-          <p>Flujo rapido de despacho: escriba la unidad, fije la hora y presione Enter. El panel agrega o actualiza la salida del dia sin pasos extra.</p>
+          <p>Flujo rapido de despacho: escriba la unidad, seleccione la fecha operativa, fije la hora y presione Enter. El panel agrega o actualiza la salida sin pasos extra.</p>
         </div>
 
         <div class="ops-clock">
           <div class="ops-clock-date">Hora del sistema</div>
           <div class="ops-clock-time" id="horaSistema">--:--:--</div>
+          <div class="subtle-text" style="margin-top:10px;font-size:13px;">Fecha operativa {{ fecha_operativa_iso }}</div>
         </div>
       </div>
 
@@ -556,7 +557,7 @@ justify-content:flex-start;
         <div class="quick-head">
           <div>
             <h2>Despacho rapido</h2>
-            <p>Replica el flujo operativo real: codigo de unidad, hora de salida y Enter.</p>
+            <p>Replica el flujo operativo real: codigo de unidad, fecha operativa, hora de salida y Enter.</p>
           </div>
           <div class="route-chip">
             {% if ruta_actual_nombre %}
@@ -591,12 +592,17 @@ justify-content:flex-start;
             <input id="horaRapida" type="time" name="hora_fija" value="{{ hora_actual_hhmm }}" required>
           </div>
 
+          <div>
+            <label for="fechaRapida" class="dark-label">Fecha operativa</label>
+            <input id="fechaRapida" type="date" name="fecha_operativa" value="{{ fecha_operativa_iso }}" required>
+          </div>
+
           <button class="quick-submit" type="submit">Registrar y confirmar</button>
         </form>
 
         <div class="quick-hint">
           <span class="quick-enter">Enter</span>
-          <span>Si la unidad ya esta en el panel, el mismo flujo actualiza la hora sin buscar otra pantalla.</span>
+          <span>Si la unidad ya esta en el panel para esa fecha, el mismo flujo actualiza la hora sin buscar otra pantalla.</span>
         </div>
       </div>
     </div>
@@ -605,13 +611,13 @@ justify-content:flex-start;
       <article class="ops-kpi green">
         <div class="ops-kpi-label">Unidades activas</div>
         <div class="ops-kpi-value">{{ stats.activas }}</div>
-        <div class="ops-kpi-sub">Salidas visibles hoy</div>
+        <div class="ops-kpi-sub">Salidas visibles en la fecha operativa</div>
       </article>
 
       <article class="ops-kpi blue">
         <div class="ops-kpi-label">Programadas</div>
         <div class="ops-kpi-value">{{ stats.programadas }}</div>
-        <div class="ops-kpi-sub">Con hora futura registrada</div>
+        <div class="ops-kpi-sub">Con hora registrada para la fecha operativa</div>
       </article>
 
       <article class="ops-kpi red">
@@ -623,7 +629,7 @@ justify-content:flex-start;
       <article class="ops-kpi gray">
         <div class="ops-kpi-label">Sin hora</div>
         <div class="ops-kpi-value">{{ stats.sin_hora }}</div>
-        <div class="ops-kpi-sub">Pendientes de programar</div>
+        <div class="ops-kpi-sub">Pendientes de programar para la fecha operativa</div>
       </article>
     </div>
   </section>
@@ -633,7 +639,7 @@ justify-content:flex-start;
     <a href="{% url 'despachador_mapa' %}" class="btn btn-outline-primary">Mapa en tiempo real</a>
     <a href="{% url 'panel_frecuencia' %}{% if ruta_actual_id %}?ruta={{ ruta_actual_id }}{% endif %}" class="btn btn-outline-success">Frecuencia</a>
     {% if reporte_vehiculo_id %}
-      <a href="{% url 'reporte_salidas_diarias' reporte_vehiculo_id %}?fecha={% now 'Y-m-d' %}" class="btn btn-warning">Salidas del dia</a>
+      <a href="{% url 'reporte_salidas_diarias' reporte_vehiculo_id %}?fecha={{ fecha_operativa_iso }}" class="btn btn-warning">Salidas del dia</a>
     {% else %}
       <button class="btn btn-warning" disabled>Salidas del dia</button>
     {% endif %}
@@ -643,11 +649,12 @@ justify-content:flex-start;
     <div class="table-head">
       <div>
         <h3>Operacion en curso</h3>
-        <p>Monitoreo y programacion de unidades del dia. La primera fila corresponde a la siguiente unidad en la secuencia visible.</p>
+        <p>Monitoreo y programacion de unidades de la fecha operativa. La primera fila corresponde a la siguiente unidad en la secuencia visible.</p>
       </div>
 
       <div class="filter-grid">
         <form method="get">
+          <input type="hidden" name="fecha" value="{{ fecha_operativa_iso }}">
           <label for="filtroRuta">Ruta visible</label>
           <select id="filtroRuta" name="ruta" class="form-select" onchange="this.form.submit()">
             <option value="">Todas las rutas</option>
@@ -655,6 +662,14 @@ justify-content:flex-start;
               <option value="{{ ruta.id }}" {% if ruta_actual_id == ruta.id|stringformat:"s" %}selected{% endif %}>{{ ruta.nombre }}</option>
             {% endfor %}
           </select>
+        </form>
+
+        <form method="get">
+          {% if ruta_actual_id %}
+            <input type="hidden" name="ruta" value="{{ ruta_actual_id }}">
+          {% endif %}
+          <label for="fechaVisible">Fecha operativa</label>
+          <input type="date" id="fechaVisible" name="fecha" class="form-control" value="{{ fecha_operativa_iso }}" onchange="this.form.submit()">
         </form>
 
         <div>
@@ -702,6 +717,7 @@ justify-content:flex-start;
                   <form method="post" action="{% url 'asignar_hora_fija' s.id %}" class="program-form">
                     {% csrf_token %}
                     <input type="hidden" name="current_ruta_id" value="{% if ruta_actual_id %}{{ ruta_actual_id }}{% else %}{{ s.ruta.id }}{% endif %}">
+                    <input type="hidden" name="current_fecha" value="{{ fecha_operativa_iso }}">
                     <input type="time" name="hora_fija" value="{% if s.hora_salida %}{{ s.hora_salida|date:'H:i' }}{% else %}{{ hora_actual_hhmm }}{% endif %}" class="form-control form-control-sm" required>
                     <button class="btn btn-warning btn-sm" type="submit">{% if s.hora_salida %}Actualizar{% else %}Confirmar{% endif %}</button>
                   </form>
@@ -721,6 +737,7 @@ justify-content:flex-start;
                     <form method="post" action="{% url 'desbloquear_hora' s.id %}">
                       {% csrf_token %}
                       <input type="hidden" name="current_ruta_id" value="{% if ruta_actual_id %}{{ ruta_actual_id }}{% else %}{{ s.ruta.id }}{% endif %}">
+                      <input type="hidden" name="current_fecha" value="{{ fecha_operativa_iso }}">
                       <button class="btn btn-outline-danger btn-sm" type="submit">Quitar hora</button>
                     </form>
                   {% endif %}

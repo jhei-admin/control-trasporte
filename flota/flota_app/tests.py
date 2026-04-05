@@ -399,6 +399,31 @@ class PanelDespachoRapidoTests(BaseFlotaTestCase):
         salida.refresh_from_db()
         self.assertEqual(timezone.localtime(salida.hora_salida).strftime("%H:%M"), "09:45")
 
+    def test_flujo_rapido_permita_programar_fecha_siguiente(self):
+        manana = timezone.localdate() + timedelta(days=1)
+
+        response = self.client.post(
+            reverse("buscar_unidad_panel"),
+            {
+                "codigo": self.vehiculo_2.codigo,
+                "ruta_id": self.ruta_a.id,
+                "hora_fija": "04:30",
+                "fecha_operativa": manana.isoformat(),
+                "current_ruta_id": self.ruta_a.id,
+                "current_fecha": manana.isoformat(),
+            },
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        salida = RegistroSalida.objects.get(
+            vehiculo=self.vehiculo_2,
+            fecha=manana,
+            activo=True,
+        )
+        self.assertEqual(salida.ruta, self.ruta_a)
+        self.assertEqual(timezone.localtime(salida.hora_salida).strftime("%H:%M"), "04:30")
+
 
 class OperacionProduccionTests(BaseFlotaTestCase):
     def test_healthz_responde_ok_en_pruebas(self):
