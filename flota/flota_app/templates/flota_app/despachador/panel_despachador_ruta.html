@@ -159,12 +159,38 @@ border:1px solid rgba(147,197,253,.25);
 }
 
 .quick-form{
-display:grid;
-grid-template-columns:80px minmax(150px,1fr) minmax(100px,112px) minmax(150px,168px) minmax(132px,144px);
-column-gap:16px;
-row-gap:10px;
+display:flex;
+flex-wrap:nowrap;
+gap:16px;
 align-items:end;
 width:100%;
+}
+
+.quick-field{
+display:flex;
+flex-direction:column;
+justify-content:flex-end;
+}
+
+.quick-field-unit{
+flex:0 0 80px;
+}
+
+.quick-field-route{
+flex:1 1 170px;
+min-width:170px;
+}
+
+.quick-field-time{
+flex:0 0 110px;
+}
+
+.quick-field-date{
+flex:0 0 160px;
+}
+
+.quick-field-submit{
+flex:0 0 140px;
 }
 
 .quick-form label,
@@ -232,7 +258,6 @@ width:100%;
 }
 
 .quick-submit-wrap{
-grid-column:auto;
 display:flex;
 justify-content:stretch;
 }
@@ -526,11 +551,10 @@ grid-template-columns:1fr;
 }
 
 .quick-form{
-grid-template-columns:80px minmax(150px,1fr) minmax(100px,112px) minmax(150px,168px);
+flex-wrap:wrap;
 }
 
 .quick-submit-wrap{
-grid-column:1 / -1;
 justify-content:flex-end;
 }
 }
@@ -611,12 +635,12 @@ width:100%;
           {% csrf_token %}
           <input type="hidden" name="current_ruta_id" value="{{ ruta_actual_id }}">
 
-          <div>
+          <div class="quick-field quick-field-unit">
             <label for="codigoRapido" class="dark-label">Unidad</label>
             <input id="codigoRapido" type="text" name="codigo" placeholder="01" maxlength="3" inputmode="numeric" autofocus required>
           </div>
 
-          <div>
+          <div class="quick-field quick-field-route">
             <label for="rutaRapida" class="dark-label">Ruta</label>
             <select id="rutaRapida" name="ruta_id" {% if rutas|length > 1 and not ruta_actual_id %}required{% endif %}>
               <option value="">Seleccionar ruta</option>
@@ -626,17 +650,17 @@ width:100%;
             </select>
           </div>
 
-          <div>
+          <div class="quick-field quick-field-time">
             <label for="horaRapida" class="dark-label">Hora salida</label>
             <input id="horaRapida" type="time" name="hora_fija" value="{{ hora_actual_hhmm }}" required>
           </div>
 
-          <div>
+          <div class="quick-field quick-field-date">
             <label for="fechaRapida" class="dark-label">Fecha operativa</label>
             <input id="fechaRapida" type="date" name="fecha_operativa" value="{{ fecha_operativa_iso }}" required>
           </div>
 
-          <div class="quick-submit-wrap">
+          <div class="quick-field quick-field-submit quick-submit-wrap">
             <button class="quick-submit" type="submit">Confirmar</button>
           </div>
         </form>
