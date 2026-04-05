@@ -213,6 +213,14 @@ text-align:center;
 letter-spacing:.04em;
 }
 
+.field-friendly-date{
+margin-top:6px;
+font-size:12px;
+font-weight:600;
+color:#cbd5e1;
+min-height:18px;
+}
+
 .quick-submit{
 height:52px;
 border:none;
@@ -588,7 +596,7 @@ width:100%;
         <div class="ops-clock">
           <div class="ops-clock-date">Hora del sistema</div>
           <div class="ops-clock-time" id="horaSistema">--:--:--</div>
-          <div class="subtle-text" style="margin-top:10px;font-size:13px;">Fecha operativa {{ fecha_operativa_iso }}</div>
+          <div class="subtle-text" id="fechaOperativaBonitaHero" style="margin-top:10px;font-size:13px;">Fecha operativa {{ fecha_operativa_iso }}</div>
         </div>
       </div>
 
@@ -634,6 +642,7 @@ width:100%;
           <div>
             <label for="fechaRapida" class="dark-label">Fecha operativa</label>
             <input id="fechaRapida" type="date" name="fecha_operativa" value="{{ fecha_operativa_iso }}" required>
+            <div class="field-friendly-date" id="fechaOperativaBonitaCampo"></div>
           </div>
 
           <div class="quick-submit-wrap">
@@ -813,6 +822,47 @@ function actualizarHora(){
 
 setInterval(actualizarHora, 1000)
 actualizarHora()
+
+function formatearFechaOperativa(valor){
+  if(!valor){
+    return ""
+  }
+
+  const [anio, mes, dia] = valor.split("-").map(Number)
+  if(!anio || !mes || !dia){
+    return valor
+  }
+
+  const fecha = new Date(anio, mes - 1, dia)
+  const texto = new Intl.DateTimeFormat('es-PE', {
+    weekday: 'short',
+    day: '2-digit',
+    month: 'long',
+    year: 'numeric'
+  }).format(fecha)
+
+  return texto.replace(",", "")
+}
+
+function actualizarFechaOperativaBonita(){
+  const inputFecha = document.getElementById("fechaRapida")
+  const campo = document.getElementById("fechaOperativaBonitaCampo")
+  const hero = document.getElementById("fechaOperativaBonitaHero")
+  if(!inputFecha){
+    return
+  }
+
+  const texto = formatearFechaOperativa(inputFecha.value)
+  if(campo){
+    campo.textContent = texto
+  }
+  if(hero){
+    hero.textContent = texto ? `Fecha operativa ${texto}` : "Fecha operativa"
+  }
+}
+
+actualizarFechaOperativaBonita()
+document.getElementById("fechaRapida").addEventListener("change", actualizarFechaOperativaBonita)
 
 document.getElementById("busquedaUnidad").addEventListener("input", function(){
   const filtro = this.value.toLowerCase().trim()
