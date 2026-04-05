@@ -63,7 +63,7 @@ font-size:13px;
 
 .ops-hero{
 display:grid;
-grid-template-columns:minmax(0,1.3fr) minmax(320px,.7fr);
+grid-template-columns:minmax(0,1.9fr) minmax(220px,.6fr);
 gap:18px;
 align-items:stretch;
 }
@@ -99,7 +99,7 @@ max-width:640px;
 
 .ops-clock{
 text-align:right;
-min-width:260px;
+min-width:220px;
 }
 
 .ops-clock-date{
@@ -160,7 +160,7 @@ border:1px solid rgba(147,197,253,.25);
 
 .quick-form{
 display:grid;
-grid-template-columns:minmax(120px,150px) minmax(170px,1fr) minmax(140px,160px) minmax(170px,190px);
+grid-template-columns:88px minmax(150px,1fr) 116px 156px auto;
 gap:12px;
 align-items:end;
 }
@@ -186,7 +186,7 @@ height:52px;
 border-radius:14px;
 border:1px solid rgba(148,163,184,.24);
 padding:0 14px;
-font-size:20px;
+font-size:16px;
 font-weight:700;
 background:#fff;
 }
@@ -194,6 +194,16 @@ background:#fff;
 .quick-form select{
 font-size:15px;
 font-weight:600;
+}
+
+.quick-form input[name="codigo"]{
+padding:0 10px;
+font-size:18px;
+text-align:center;
+width:88px;
+min-width:88px;
+max-width:88px;
+letter-spacing:.04em;
 }
 
 .quick-form input[name="hora_fija"]{
@@ -212,7 +222,7 @@ background:linear-gradient(135deg,#f59e0b 0%,#fbbf24 100%);
 color:#111827;
 box-shadow:0 12px 24px rgba(245,158,11,.3);
 white-space:nowrap;
-min-width:190px;
+min-width:138px;
 display:inline-flex;
 align-items:center;
 justify-content:center;
@@ -220,10 +230,9 @@ text-align:center;
 }
 
 .quick-submit-wrap{
-grid-column:1 / -1;
+grid-column:auto;
 display:flex;
-justify-content:flex-end;
-padding-top:4px;
+justify-content:flex-start;
 }
 
 .quick-hint{
@@ -251,13 +260,14 @@ font-weight:700;
 .hero-stats{
 display:grid;
 grid-template-columns:repeat(2,minmax(0,1fr));
-gap:14px;
+gap:10px;
+align-content:start;
 }
 
 .ops-kpi{
 background:#fff;
 border-radius:18px;
-padding:18px;
+padding:14px 13px;
 border:1px solid rgba(148,163,184,.18);
 box-shadow:0 8px 18px rgba(15,23,42,.06);
 }
@@ -272,7 +282,7 @@ margin-bottom:8px;
 }
 
 .ops-kpi-value{
-font-size:34px;
+font-size:24px;
 font-weight:800;
 line-height:1;
 color:#0f172a;
@@ -280,7 +290,7 @@ color:#0f172a;
 
 .ops-kpi-sub{
 margin-top:8px;
-font-size:13px;
+font-size:11px;
 color:#475569;
 }
 
@@ -515,7 +525,12 @@ grid-template-columns:1fr;
 }
 
 .quick-form{
-grid-template-columns:1fr 1fr;
+grid-template-columns:88px minmax(150px,1fr) 116px 156px;
+}
+
+.quick-submit-wrap{
+grid-column:1 / -1;
+justify-content:flex-end;
 }
 }
 
@@ -597,7 +612,7 @@ width:100%;
 
           <div>
             <label for="codigoRapido" class="dark-label">Unidad</label>
-            <input id="codigoRapido" type="text" name="codigo" placeholder="01" maxlength="10" autofocus required>
+            <input id="codigoRapido" type="text" name="codigo" placeholder="01" maxlength="3" inputmode="numeric" autofocus required>
           </div>
 
           <div>
@@ -621,7 +636,7 @@ width:100%;
           </div>
 
           <div class="quick-submit-wrap">
-            <button class="quick-submit" type="submit">Registrar y confirmar</button>
+            <button class="quick-submit" type="submit">Confirmar</button>
           </div>
         </form>
 
