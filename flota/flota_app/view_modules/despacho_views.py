@@ -217,6 +217,12 @@ def panel_despachador(request):
             stats["atrasadas"] += 1
 
     reporte_vehiculo_id = None
+    codigos_unidad = list(
+        Vehiculo.objects.for_empresa(empresa)
+        .filter(activo=True)
+        .order_by("codigo")
+        .values_list("codigo", flat=True)
+    )
     if salidas:
         reporte_vehiculo_id = salidas[0].vehiculo_id
     else:
@@ -243,6 +249,7 @@ def panel_despachador(request):
             "fecha_operativa": fecha_operativa,
             "fecha_operativa_iso": fecha_operativa.isoformat(),
             "fecha_es_futura": es_fecha_futura,
+            "codigos_unidad": codigos_unidad,
         },
     )
 

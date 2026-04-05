@@ -631,13 +631,13 @@ width:100%;
           </div>
         </div>
 
-        <form method="post" action="{% url 'buscar_unidad_panel' %}" class="quick-form" id="quickDispatchForm">
+        <form method="post" action="{% url 'buscar_unidad_panel' %}" class="quick-form" id="quickDispatchForm" autocomplete="off">
           {% csrf_token %}
           <input type="hidden" name="current_ruta_id" value="{{ ruta_actual_id }}">
 
           <div class="quick-field quick-field-unit">
             <label for="codigoRapido" class="dark-label">Unidad</label>
-            <input id="codigoRapido" type="text" name="codigo" placeholder="01" maxlength="3" inputmode="numeric" autofocus required>
+            <input id="codigoRapido" type="text" name="codigo" placeholder="01" maxlength="3" inputmode="numeric" autocomplete="off" list="listaCodigosUnidad" autofocus required>
           </div>
 
           <div class="quick-field quick-field-route">
@@ -664,6 +664,12 @@ width:100%;
             <button class="quick-submit" type="submit">Confirmar</button>
           </div>
         </form>
+
+        <datalist id="listaCodigosUnidad">
+          {% for codigo in codigos_unidad %}
+            <option value="{{ codigo }}"></option>
+          {% endfor %}
+        </datalist>
 
         <div class="quick-hint">
           <span class="quick-enter">Enter</span>
