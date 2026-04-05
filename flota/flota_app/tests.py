@@ -21,6 +21,7 @@ from .models import (
     UbicacionVehiculo,
     Vehiculo,
 )
+from .management.commands.auditar_preproduccion import Command
 from .services import recalcular_cola
 
 
@@ -338,3 +339,94 @@ class PoblarEscalaTests(TestCase):
         self.assertEqual(Vehiculo.objects.filter(empresa__nombre="Seco Empresa 01").count(), 3)
         self.assertEqual(UbicacionVehiculo.objects.filter(vehiculo__empresa__nombre="Seco Empresa 01").count(), 0)
         self.assertEqual(GPSRegistro.objects.filter(sesion__vehiculo__empresa__nombre="Seco Empresa 01").count(), 0)
+
+    def test_simular_gps_actualiza_ubicaciones_y_historico(self):
+        call_command(
+            "poblar_escala",
+            empresas=1,
+            rutas=1,
+            puntos=3,
+            unidades=2,
+            historico_gps=0,
+            prefijo="SimGps",
+        )
+
+        gps_inicial = GPSRegistro.objects.filter(
+            sesion__vehiculo__empresa__nombre="SimGps Empresa 01"
+        ).count()
+
+        call_command(
+            "simular_gps",
+            prefijo="SimGps",
+            empresas=1,
+            unidades=2,
+            iteraciones=4,
+            interval_seconds=5,
+        )
+
+        self.assertEqual(
+            UbicacionVehiculo.objects.filter(vehiculo__empresa__nombre="SimGps Empresa 01").count(),
+            2,
+        )
+        self.assertEqual(
+            GPSRegistro.objects.filter(sesion__vehiculo__empresa__nombre="SimGps Empresa 01").count(),
+            gps_inicial + 8,
+        )
+        self.assertEqual(
+            SesionUnidad.objects.filter(
+                vehiculo__empresa__nombre="SimGps Empresa 01",
+                last_heartbeat__isnull=False,
+            ).count(),
+            2,
+        )
+
+
+class AuditoriaPreproduccionTests(TestCase):
+    @override_settings(
+        DEBUG=False,
+        SECRET_KEY="ClaveSuperSeguraParaProduccion123!",
+        DATABASES={
+            "default": {
+                "ENGINE": "django.db.backends.postgresql",
+                "NAME": "flota",
+            }
+        },
+        SECURE_SSL_REDIRECT=True,
+        CSRF_COOKIE_SECURE=True,
+        SESSION_COOKIE_SECURE=True,
+        FAIL_ON_SQLITE_IN_PRODUCTION=True,
+        ALLOWED_HOSTS=["control-trasporte.onrender.com"],
+        CSRF_TRUSTED_ORIGINS=["https://control-trasporte.onrender.com"],
+        GPS_RETENTION_DAYS=15,
+        PARADAS_RETENTION_DAYS=2,
+        INACTIVE_SESSION_RETENTION_DAYS=7,
+        MENSAJES_RETENTION_DAYS=30,
+        MAPBOX_TOKEN="pk.test.token",
+    )
+    def test_auditar_preproduccion_detecta_postgresql_como_valido(self):
+        command = Command()
+
+        status, _, detail = command.check_database_engine()
+
+        self.assertEqual(status, "OK")
+        self.assertIn("postgresql", detail)
+
+    @override_settings(
+        DEBUG=True,
+        SECRET_KEY="django-insecure-dev-key",
+        DATABASES={
+            "default": {
+                "ENGINE": "django.db.backends.sqlite3",
+                "NAME": ":memory:",
+            }
+        },
+        CSRF_COOKIE_SECURE=False,
+        SESSION_COOKIE_SECURE=False,
+    )
+    def test_auditar_preproduccion_marca_fallos_criticos_basicos(self):
+        command = Command()
+
+        self.assertEqual(command.check_database_engine()[0], "FAIL")
+        self.assertEqual(command.check_debug_disabled()[0], "FAIL")
+        self.assertEqual(command.check_secret_key()[0], "FAIL")
+        self.assertEqual(command.check_secure_cookies()[0], "FAIL")

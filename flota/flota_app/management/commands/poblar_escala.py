@@ -339,11 +339,21 @@ class Command(BaseCommand):
             "precision": 8 + (numero % 5),
             "updated_at": ahora,
         }
-        _, creada = UbicacionVehiculo.objects.update_or_create(
-            vehiculo=vehiculo,
-            defaults=defaults,
-        )
-        return 1 if creada else 0
+        actualizadas = UbicacionVehiculo.objects.filter(vehiculo=vehiculo).update(**defaults)
+        if actualizadas:
+            return 0
+
+        try:
+            UbicacionVehiculo.objects.create(
+                vehiculo=vehiculo,
+                **defaults,
+            )
+            return 1
+        except Exception:
+            # Si otra operacion concurrente la creo entre el update y el insert,
+            # hacemos un update final y seguimos sin abortar la carga.
+            UbicacionVehiculo.objects.filter(vehiculo=vehiculo).update(**defaults)
+            return 0
 
     def _asegurar_gps(self, sesion, numero, historico_gps, ahora):
         creados = 0
