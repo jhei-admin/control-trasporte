@@ -128,6 +128,8 @@ MIDDLEWARE = [
 
     "django.middleware.security.SecurityMiddleware",
 
+    "flota_app.middleware.startup_audit.StartupAuditMiddleware",
+
     "whitenoise.middleware.WhiteNoiseMiddleware",
 
     "corsheaders.middleware.CorsMiddleware",

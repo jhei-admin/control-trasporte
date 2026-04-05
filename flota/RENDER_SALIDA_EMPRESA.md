@@ -21,6 +21,14 @@
 - Ejecutar `python manage.py auditar_preproduccion --allow-warnings`.
 - Verificar `GET /healthz/`.
 
+#### Alternativa para Render Free sin Shell
+- Agregar `RUN_STARTUP_AUDIT=true` en variables de entorno.
+- Hacer deploy.
+- Abrir `/healthz/` o `/login/` una vez.
+- Revisar los logs de Render.
+- Buscar `Auditoria automatica de preproduccion`.
+- Cuando termines de validar, volver `RUN_STARTUP_AUDIT=false`.
+
 #### Limpieza obligatoria
 - Programar `python manage.py limpiar_historicos`.
 - Frecuencia recomendada: cada hora o cada 6 horas.
