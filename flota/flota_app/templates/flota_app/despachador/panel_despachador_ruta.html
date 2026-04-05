@@ -373,6 +373,12 @@ border-radius:0 16px 16px 0;
 outline:2px solid rgba(34,197,94,.18);
 }
 
+.ops-row-highlight .unit-badge{
+background:#dcfce7;
+color:#166534;
+box-shadow:inset 0 0 0 1px rgba(34,197,94,.18);
+}
+
 .unit-badge{
 display:inline-flex;
 align-items:center;
@@ -561,7 +567,7 @@ justify-content:flex-start;
           </div>
         </div>
 
-        <form method="post" action="{% url 'buscar_unidad_panel' %}" class="quick-form">
+        <form method="post" action="{% url 'buscar_unidad_panel' %}" class="quick-form" id="quickDispatchForm">
           {% csrf_token %}
           <input type="hidden" name="current_ruta_id" value="{{ ruta_actual_id }}">
 
@@ -609,7 +615,7 @@ justify-content:flex-start;
       </article>
 
       <article class="ops-kpi red">
-        <div class="ops-kpi-label">En ventana</div>
+        <div class="ops-kpi-label">Pendientes de salida</div>
         <div class="ops-kpi-value">{{ stats.atrasadas }}</div>
         <div class="ops-kpi-sub">Hora alcanzada o vencida</div>
       </article>
@@ -760,6 +766,13 @@ document.getElementById("busquedaUnidad").addEventListener("input", function(){
 
 document.getElementById("codigoRapido").addEventListener("input", function(){
   this.value = this.value.toUpperCase()
+})
+
+document.getElementById("horaRapida").addEventListener("keydown", function(event){
+  if(event.key === "Enter"){
+    event.preventDefault()
+    document.getElementById("quickDispatchForm").requestSubmit()
+  }
 })
 </script>
 {% endblock %}

@@ -185,7 +185,7 @@ def panel_despachador(request):
             stats["programadas"] += 1
         else:
             salida.estado_panel = "atrasado"
-            salida.estado_panel_label = "En ventana"
+            salida.estado_panel_label = "Pendiente de salida"
             salida.estado_panel_class = "atrasada"
             stats["atrasadas"] += 1
 
