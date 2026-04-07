@@ -2,6 +2,7 @@ from datetime import datetime, timedelta
 import json
 from urllib.parse import parse_qs, urlparse
 
+from django.contrib.auth import authenticate
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.core import signing
@@ -21,16 +22,20 @@ from ..models import (
     Parada,
     PuntoControl,
     RegistroSalida,
+    Ruta,
+    SesionStaffApp,
     SesionUnidad,
     UbicacionVehiculo,
     Vehiculo,
 )
-from ..services import calcular_estado_sesion, validar_sesion
+from ..services import calcular_estado_sesion, validar_sesion, validar_sesion_staff
 from ..utils import distancia_metros
 
 __all__ = [
     "api_app_cola_contexto",
     "api_app_mapa_operativo",
+    "api_app_gerencia_login",
+    "api_app_gerencia_mapa",
     "api_app_estado",
     "api_app_referencia_tiempo",
     "api_buscar_vehiculo_por_codigo",
@@ -55,11 +60,89 @@ GPS_SAVE_INTERVAL = timedelta(
     seconds=max(getattr(settings, "GPS_SAVE_INTERVAL_SECONDS", 5), 1)
 )
 GPS_MAX_PRECISION = getattr(settings, "GPS_MAX_PRECISION", 100.0)
+STAFF_SESSION_HOURS = 12
 
 
 def actualizar_heartbeat(sesion, ahora):
     sesion.last_heartbeat = ahora
     SesionUnidad.objects.filter(pk=sesion.pk).update(last_heartbeat=ahora)
+
+
+def _user_puede_mapa_gerencial(user):
+    if not user or not user.is_authenticated:
+        return False
+    if user.is_superuser:
+        return True
+    return user.groups.filter(name__in=["gerente", "gerencia", "despachador"]).exists()
+
+
+def _resolver_empresa_staff(user):
+    if user.is_superuser:
+        perfil = getattr(user, "perfil", None)
+        return getattr(perfil, "empresa", None)
+
+    perfil = getattr(user, "perfil", None)
+    return getattr(perfil, "empresa", None)
+
+
+def _serializar_unidades_mapa_gerencial(empresa):
+    ahora = timezone.now()
+    hoy = timezone.localdate()
+
+    salidas_activas_qs = (
+        RegistroSalida.objects.for_empresa(empresa)
+        .filter(fecha=hoy, activo=True)
+        .values("vehiculo_id", "ruta_id", "ruta__nombre")
+    )
+    salidas_activas = {
+        salida["vehiculo_id"]: {
+            "ruta_id": salida["ruta_id"],
+            "ruta_nombre": salida["ruta__nombre"] or "",
+        }
+        for salida in salidas_activas_qs
+    }
+
+    ubicaciones = list(
+        UbicacionVehiculo.objects.for_empresa(empresa)
+        .values(
+            "vehiculo_id",
+            "vehiculo__codigo",
+            "vehiculo__placa",
+            "latitud",
+            "longitud",
+            "velocidad",
+            "precision",
+            "updated_at",
+        )
+    )
+
+    data = []
+    for ubicacion in ubicaciones:
+        actualizado_en = ubicacion["updated_at"]
+        delta = ahora - actualizado_en
+        if delta <= timedelta(seconds=30):
+            estado_gps = "ONLINE"
+        elif delta <= timedelta(seconds=120):
+            estado_gps = "LENTO"
+        else:
+            estado_gps = "OFFLINE"
+
+        data.append({
+            "vehiculo_id": ubicacion["vehiculo_id"],
+            "vehiculo": str(ubicacion["vehiculo__codigo"]),
+            "placa": (ubicacion["vehiculo__placa"] or "").strip(),
+            "ruta_id": salidas_activas.get(ubicacion["vehiculo_id"], {}).get("ruta_id"),
+            "ruta_nombre": salidas_activas.get(ubicacion["vehiculo_id"], {}).get("ruta_nombre", ""),
+            "lat": ubicacion["latitud"],
+            "lng": ubicacion["longitud"],
+            "velocidad": ubicacion["velocidad"],
+            "precision": ubicacion["precision"],
+            "estado": "ACTIVO" if ubicacion["vehiculo_id"] in salidas_activas else "INACTIVO",
+            "estado_gps": estado_gps,
+            "actualizado_en": actualizado_en.isoformat(),
+        })
+
+    return data
 
 
 def _extraer_datos_qr(valor_qr):
@@ -434,65 +517,118 @@ def api_gps(request):
 @empresa_required
 @require_GET
 def api_despachador_mapa(request):
-    ahora = timezone.now()
-    hoy = timezone.localdate()
     empresa = request.empresa
+    data = _serializar_unidades_mapa_gerencial(empresa)
+    return JsonResponse(data, safe=False)
 
-    salidas_activas_qs = (
-        RegistroSalida.objects.for_empresa(empresa)
-        .filter(fecha=hoy, activo=True)
-        .values("vehiculo_id", "ruta_id", "ruta__nombre")
-    )
-    salidas_activas = {
-        salida["vehiculo_id"]: {
-            "ruta_id": salida["ruta_id"],
-            "ruta_nombre": salida["ruta__nombre"] or "",
-        }
-        for salida in salidas_activas_qs
-    }
 
-    ubicaciones = list(
-        UbicacionVehiculo.objects.for_empresa(empresa)
-        .values(
-            "vehiculo_id",
-            "vehiculo__codigo",
-            "vehiculo__placa",
-            "latitud",
-            "longitud",
-            "velocidad",
-            "precision",
-            "updated_at",
+@csrf_exempt
+@require_POST
+def api_app_gerencia_login(request):
+    try:
+        payload = json.loads(request.body.decode("utf-8") or "{}")
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        payload = {}
+
+    username = str(payload.get("username") or "").strip()
+    password = str(payload.get("password") or "")
+
+    if not username or not password:
+        return JsonResponse(
+            {"ok": False, "mensaje": "Usuario y contrasena son obligatorios."},
+            status=400,
         )
+
+    user = authenticate(username=username, password=password)
+    if not user:
+        return JsonResponse(
+            {"ok": False, "mensaje": "Credenciales invalidas."},
+            status=401,
+        )
+
+    if not _user_puede_mapa_gerencial(user):
+        return JsonResponse(
+            {"ok": False, "mensaje": "Tu usuario no tiene acceso al mapa gerencial premium."},
+            status=403,
+        )
+
+    empresa = _resolver_empresa_staff(user)
+    if not empresa:
+        return JsonResponse(
+            {"ok": False, "mensaje": "Tu usuario no tiene una empresa asignada."},
+            status=403,
+        )
+
+    ahora = timezone.now()
+    SesionStaffApp.objects.filter(user=user, activa=True).update(activa=False)
+    sesion = SesionStaffApp.objects.create(
+        user=user,
+        empresa=empresa,
+        activa=True,
+        expira_en=ahora + timedelta(hours=STAFF_SESSION_HOURS),
+        ultimo_acceso=ahora,
     )
 
-    data = []
-    for ubicacion in ubicaciones:
-        actualizado_en = ubicacion["updated_at"]
-        delta = ahora - actualizado_en
-        if delta <= timedelta(seconds=30):
-            estado_gps = "ONLINE"
-        elif delta <= timedelta(seconds=120):
-            estado_gps = "LENTO"
-        else:
-            estado_gps = "OFFLINE"
+    rol = "superuser" if user.is_superuser else (
+        user.groups.filter(name__in=["gerente", "gerencia"]).exists() and "gerencia" or "despacho"
+    )
 
-        data.append({
-            "vehiculo_id": ubicacion["vehiculo_id"],
-            "vehiculo": str(ubicacion["vehiculo__codigo"]),
-            "placa": (ubicacion["vehiculo__placa"] or "").strip(),
-            "ruta_id": salidas_activas.get(ubicacion["vehiculo_id"], {}).get("ruta_id"),
-            "ruta_nombre": salidas_activas.get(ubicacion["vehiculo_id"], {}).get("ruta_nombre", ""),
-            "lat": ubicacion["latitud"],
-            "lng": ubicacion["longitud"],
-            "velocidad": ubicacion["velocidad"],
-            "precision": ubicacion["precision"],
-            "estado": "ACTIVO" if ubicacion["vehiculo_id"] in salidas_activas else "INACTIVO",
-            "estado_gps": estado_gps,
-            "fecha": actualizado_en.isoformat(),
-            "actualizado_en": actualizado_en.isoformat(),
+    return JsonResponse({
+        "ok": True,
+        "token": str(sesion.token),
+        "usuario": user.username,
+        "empresa": empresa.nombre,
+        "rol": rol,
+        "expira_en": sesion.expira_en.isoformat() if sesion.expira_en else None,
+    })
+
+
+@require_GET
+def api_app_gerencia_mapa(request):
+    auth = request.headers.get("Authorization", "")
+    if not auth.startswith("Bearer "):
+        return JsonResponse({"ok": False, "mensaje": "Token no enviado."}, status=401)
+
+    token = auth.replace("Bearer ", "").strip()
+    sesion = validar_sesion_staff(token)
+    if not sesion:
+        return JsonResponse({"ok": False, "mensaje": "Sesion gerencial invalida o expirada."}, status=403)
+
+    ahora = timezone.now()
+    SesionStaffApp.objects.filter(pk=sesion.pk).update(ultimo_acceso=ahora)
+    empresa = sesion.empresa
+    rutas = []
+    for ruta in Ruta.objects.for_empresa(empresa).order_by("nombre"):
+        geometria = _serializar_geometria_ruta(ruta)
+        puntos = _serializar_puntos_ruta(ruta)
+        if not geometria and puntos:
+            geometria = [[punto["lat"], punto["lng"]] for punto in puntos]
+        rutas.append({
+            "id": ruta.id,
+            "nombre": ruta.nombre,
+            "geometria": geometria,
+            "puntos": puntos,
         })
 
-    return JsonResponse(data, safe=False)
+    unidades = _serializar_unidades_mapa_gerencial(empresa)
+    online = sum(1 for unidad in unidades if unidad["estado_gps"] == "ONLINE")
+    lentas = sum(1 for unidad in unidades if unidad["estado_gps"] == "LENTO")
+    offline = sum(1 for unidad in unidades if unidad["estado_gps"] == "OFFLINE")
+
+    return JsonResponse({
+        "ok": True,
+        "empresa": empresa.nombre,
+        "actualizado_en": ahora.isoformat(),
+        "stats": {
+            "total_unidades": len(unidades),
+            "online": online,
+            "lentas": lentas,
+            "offline": offline,
+            "rutas": len(rutas),
+        },
+        "rutas": rutas,
+        "unidades": unidades,
+    })
 
 
 @login_required

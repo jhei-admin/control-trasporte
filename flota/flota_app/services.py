@@ -5,7 +5,8 @@ from .models import (
     RegistroSalida,
     ConfiguracionDespacho,
     SesionUnidad,
-    GPSRegistro
+    GPSRegistro,
+    SesionStaffApp,
 )
 
 
@@ -73,6 +74,18 @@ def validar_sesion(token):
             activa=True,
         )
     except SesionUnidad.DoesNotExist:
+        return None
+
+    return sesion if sesion.esta_valida() else None
+
+
+def validar_sesion_staff(token):
+    try:
+        sesion = SesionStaffApp.objects.select_related("user", "empresa").get(
+            token=token,
+            activa=True,
+        )
+    except SesionStaffApp.DoesNotExist:
         return None
 
     return sesion if sesion.esta_valida() else None

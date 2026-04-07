@@ -3,6 +3,8 @@ from django.urls import path
 
 from .view_modules.api_views import (
     api_app_cola_contexto,
+    api_app_gerencia_login,
+    api_app_gerencia_mapa,
     api_app_mapa_operativo,
     api_app_estado,
     api_app_referencia_tiempo,
@@ -74,6 +76,26 @@ urlpatterns = [
     path(
         "api/app/cola-contexto",
         api_app_cola_contexto
+    ),
+
+    path(
+        "api/app/gerencia/login/",
+        api_app_gerencia_login,
+        name="api_app_gerencia_login"
+    ),
+    path(
+        "api/app/gerencia/login",
+        api_app_gerencia_login
+    ),
+
+    path(
+        "api/app/gerencia/mapa/",
+        api_app_gerencia_mapa,
+        name="api_app_gerencia_mapa"
+    ),
+    path(
+        "api/app/gerencia/mapa",
+        api_app_gerencia_mapa
     ),
 
     path(

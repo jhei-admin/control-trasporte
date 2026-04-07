@@ -639,6 +639,57 @@ class SesionUnidad(models.Model):
     def __str__(self):
         return f"Unidad {self.vehiculo.codigo} | {'ACTIVA' if self.activa else 'INACTIVA'}"
 
+
+class SesionStaffApp(models.Model):
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="sesiones_staff_app",
+        db_index=True,
+    )
+
+    empresa = models.ForeignKey(
+        Empresa,
+        on_delete=models.CASCADE,
+        related_name="sesiones_staff_app",
+        db_index=True,
+    )
+
+    token = models.UUIDField(
+        default=uuid.uuid4,
+        unique=True,
+        editable=False,
+        db_index=True,
+    )
+
+    activa = models.BooleanField(default=True, db_index=True)
+    creada_en = models.DateTimeField(auto_now_add=True)
+    expira_en = models.DateTimeField(null=True, blank=True)
+    ultimo_acceso = models.DateTimeField(
+        null=True,
+        blank=True,
+        db_index=True,
+    )
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["user", "activa"]),
+            models.Index(fields=["empresa", "activa"]),
+            models.Index(fields=["token", "activa"]),
+            models.Index(fields=["expira_en"]),
+            models.Index(fields=["ultimo_acceso"]),
+        ]
+
+    def esta_valida(self):
+        if not self.activa:
+            return False
+        if self.expira_en is None:
+            return True
+        return timezone.now() < self.expira_en
+
+    def __str__(self):
+        return f"{self.user.username} | {self.empresa} | {'ACTIVA' if self.activa else 'INACTIVA'}"
+
 # =========================
 # GPS HISTÓRICO
 # =========================
