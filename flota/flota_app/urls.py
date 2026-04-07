@@ -3,6 +3,7 @@ from django.urls import path
 
 from .view_modules.api_views import (
     api_app_cola_contexto,
+    api_app_mapa_operativo,
     api_app_estado,
     api_app_referencia_tiempo,
     api_buscar_vehiculo_por_codigo,
@@ -73,6 +74,16 @@ urlpatterns = [
     path(
         "api/app/cola-contexto",
         api_app_cola_contexto
+    ),
+
+    path(
+        "api/app/mapa-operativo/",
+        api_app_mapa_operativo,
+        name="api_app_mapa_operativo"
+    ),
+    path(
+        "api/app/mapa-operativo",
+        api_app_mapa_operativo
     ),
 
     # ✔️ GPS CONDUCTOR (ruta original)

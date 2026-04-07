@@ -30,6 +30,7 @@ from ..utils import distancia_metros
 
 __all__ = [
     "api_app_cola_contexto",
+    "api_app_mapa_operativo",
     "api_app_estado",
     "api_app_referencia_tiempo",
     "api_buscar_vehiculo_por_codigo",
@@ -640,6 +641,48 @@ def _disable_cache(response):
     return response
 
 
+def _serializar_geometria_ruta(ruta):
+    if not ruta or not isinstance(ruta.geometria, list):
+        return []
+
+    coords_validas = []
+    for punto in ruta.geometria:
+        if not isinstance(punto, (list, tuple)) or len(punto) != 2:
+            continue
+        try:
+            coords_validas.append([float(punto[0]), float(punto[1])])
+        except (TypeError, ValueError):
+            continue
+    return coords_validas
+
+
+def _serializar_puntos_ruta(ruta):
+    if not ruta:
+        return []
+
+    puntos = (
+        PuntoControl.objects
+        .filter(ruta=ruta, activo=True)
+        .order_by("orden")
+    )
+
+    data = []
+    for punto in puntos:
+        if punto.latitud is None or punto.longitud is None:
+            continue
+        data.append({
+            "id": punto.id,
+            "codigo": punto.codigo,
+            "nombre": punto.nombre,
+            "orden": punto.orden,
+            "lat": float(punto.latitud),
+            "lng": float(punto.longitud),
+            "radio": punto.radio_metros,
+            "requiere_marcacion": punto.requiere_marcacion,
+        })
+    return data
+
+
 @csrf_exempt
 @require_POST
 def api_heartbeat(request):
@@ -1061,6 +1104,73 @@ def api_app_cola_contexto(request):
         "actual": {"unidad": salida_actual.vehiculo.codigo, "minutos": 0},
         "atras": [serializar(salida) for salida in atras],
         "adelante": [serializar(salida) for salida in adelante],
+    })
+
+
+@require_GET
+def api_app_mapa_operativo(request):
+    auth = request.headers.get("Authorization", "")
+    if not auth.startswith("Bearer "):
+        return JsonResponse({"ok": False, "mensaje": "Token no enviado"}, status=401)
+
+    token = auth.replace("Bearer ", "").strip()
+    sesion = validar_sesion(token)
+    if not sesion:
+        return JsonResponse({"ok": False, "mensaje": "Sesion invalida"}, status=403)
+
+    hoy = timezone.localdate()
+    salida = (
+        RegistroSalida.objects.for_empresa(sesion.vehiculo.empresa)
+        .select_related("vehiculo", "ruta")
+        .filter(
+            vehiculo=sesion.vehiculo,
+            fecha=hoy,
+            activo=True,
+            ruta__isnull=False,
+        )
+        .order_by("-id")
+        .first()
+    )
+
+    if not salida or not salida.ruta:
+        return JsonResponse({
+            "ok": False,
+            "mensaje": "La unidad aun no tiene una ruta operativa asignada",
+        })
+
+    ruta = salida.ruta
+    geometria = _serializar_geometria_ruta(ruta)
+    puntos = _serializar_puntos_ruta(ruta)
+
+    if not geometria and puntos:
+        geometria = [[punto["lat"], punto["lng"]] for punto in puntos]
+
+    ubicacion = (
+        UbicacionVehiculo.objects
+        .filter(vehiculo=sesion.vehiculo)
+        .only("latitud", "longitud", "precision", "updated_at")
+        .first()
+    )
+
+    return JsonResponse({
+        "ok": True,
+        "ruta": {
+            "id": ruta.id,
+            "nombre": ruta.nombre,
+            "geometria": geometria,
+        },
+        "puntos": puntos,
+        "unidad": {
+            "codigo": sesion.vehiculo.codigo,
+            "lat": ubicacion.latitud if ubicacion else None,
+            "lng": ubicacion.longitud if ubicacion else None,
+            "precision": ubicacion.precision if ubicacion else None,
+            "actualizado_en": (
+                ubicacion.updated_at.isoformat()
+                if ubicacion and ubicacion.updated_at
+                else None
+            ),
+        },
     })
 
 
