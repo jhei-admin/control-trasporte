@@ -36,6 +36,8 @@ __all__ = [
     "api_app_mapa_operativo",
     "api_app_gerencia_login",
     "api_app_gerencia_mapa",
+    "api_app_control_ruta",
+    "api_app_control_marcar",
     "api_app_estado",
     "api_app_referencia_tiempo",
     "api_buscar_vehiculo_por_codigo",
@@ -61,6 +63,12 @@ GPS_SAVE_INTERVAL = timedelta(
 )
 GPS_MAX_PRECISION = getattr(settings, "GPS_MAX_PRECISION", 100.0)
 STAFF_SESSION_HOURS = 12
+
+
+def _format_hora(dt):
+    if not dt:
+        return None
+    return timezone.localtime(dt).strftime("%H:%M")
 
 
 def actualizar_heartbeat(sesion, ahora):
@@ -1154,6 +1162,155 @@ def api_app_referencia_tiempo(request):
             "hora": hora_siguiente_local.strftime("%H:%M") if hora_siguiente_local else None,
         },
     })
+
+
+def _serializar_control_ruta(salida):
+    puntos = (
+        PuntoControl.objects
+        .filter(ruta=salida.ruta, activo=True, requiere_marcacion=True)
+        .order_by("orden")
+    )
+
+    controles = []
+    completados = 0
+
+    for punto in puntos:
+        hora_programada = (
+            salida.hora_salida + timedelta(minutes=punto.offset_minutos)
+            if salida.hora_salida
+            else None
+        )
+        marcacion, _ = MarcacionPunto.objects.get_or_create(
+            registro_salida=salida,
+            punto=punto,
+            defaults={"hora_programada": hora_programada},
+        )
+        if marcacion.hora_marcada:
+            completados += 1
+
+        controles.append({
+            "punto_id": punto.id,
+            "orden": punto.orden,
+            "codigo": punto.codigo,
+            "nombre": punto.nombre,
+            "hora_programada": _format_hora(hora_programada or marcacion.hora_programada),
+            "hora_marcada": _format_hora(marcacion.hora_marcada),
+            "diferencia_minutos": marcacion.diferencia_minutos,
+            "estado": marcacion.estado,
+            "pendiente": marcacion.hora_marcada is None,
+        })
+
+    total = len(controles)
+    siguiente = next((item for item in controles if item["pendiente"]), None)
+
+    return {
+        "ok": True,
+        "salida": {
+            "id": salida.id,
+            "unidad": salida.vehiculo.codigo,
+            "ruta": salida.ruta.nombre if salida.ruta else "",
+            "hora_salida": _format_hora(salida.hora_salida),
+        },
+        "resumen": {
+            "total": total,
+            "completados": completados,
+            "pendientes": max(total - completados, 0),
+            "siguiente_codigo": siguiente["codigo"] if siguiente else None,
+        },
+        "controles": controles,
+    }
+
+
+@require_GET
+def api_app_control_ruta(request):
+    auth = request.headers.get("Authorization", "")
+    if not auth.startswith("Bearer "):
+        return JsonResponse({"ok": False, "mensaje": "Token requerido"}, status=401)
+
+    token = auth.replace("Bearer ", "").strip()
+    sesion = validar_sesion(token)
+    if not sesion:
+        return JsonResponse({"ok": False, "mensaje": "Sesion invalida"}, status=403)
+
+    hoy = timezone.localdate()
+    salida = (
+        RegistroSalida.objects.for_empresa(sesion.vehiculo.empresa)
+        .select_related("vehiculo", "ruta")
+        .filter(
+            vehiculo=sesion.vehiculo,
+            fecha=hoy,
+            activo=True,
+            ruta__isnull=False,
+        )
+        .order_by("-id")
+        .first()
+    )
+
+    if not salida or not salida.ruta:
+        return JsonResponse({
+            "ok": False,
+            "mensaje": "La unidad aun no tiene una ruta programada",
+        })
+
+    return JsonResponse(_serializar_control_ruta(salida))
+
+
+@csrf_exempt
+@require_POST
+def api_app_control_marcar(request):
+    auth = request.headers.get("Authorization", "")
+    if not auth.startswith("Bearer "):
+        return JsonResponse({"ok": False, "mensaje": "Token requerido"}, status=401)
+
+    token = auth.replace("Bearer ", "").strip()
+    sesion = validar_sesion(token)
+    if not sesion:
+        return JsonResponse({"ok": False, "mensaje": "Sesion invalida"}, status=403)
+
+    try:
+        data = json.loads(request.body or "{}")
+    except json.JSONDecodeError:
+        return JsonResponse({"ok": False, "mensaje": "JSON invalido"}, status=400)
+
+    punto_id = data.get("punto_id")
+    hoy = timezone.localdate()
+    salida = (
+        RegistroSalida.objects.for_empresa(sesion.vehiculo.empresa)
+        .select_related("vehiculo", "ruta")
+        .filter(vehiculo=sesion.vehiculo, fecha=hoy, activo=True, ruta__isnull=False)
+        .order_by("-id")
+        .first()
+    )
+    if not salida or not salida.ruta:
+        return JsonResponse({"ok": False, "mensaje": "No hay salida activa"}, status=404)
+
+    punto_qs = PuntoControl.objects.filter(
+        ruta=salida.ruta,
+        activo=True,
+        requiere_marcacion=True,
+    )
+    punto = punto_qs.filter(id=punto_id).first() if punto_id else None
+    if not punto:
+        siguiente = salida.siguiente_marcacion()
+        punto = siguiente.punto if siguiente else None
+    if not punto:
+        return JsonResponse({"ok": False, "mensaje": "No hay puntos pendientes"})
+
+    marcacion, _ = MarcacionPunto.objects.get_or_create(
+        registro_salida=salida,
+        punto=punto,
+    )
+    marcacion.marcar()
+
+    ultimo = punto_qs.order_by("-orden").first()
+    if ultimo and punto.id == ultimo.id:
+        salida.activo = False
+        salida.en_cola = False
+        salida.save(update_fields=["activo", "en_cola"])
+
+    data = _serializar_control_ruta(salida)
+    data["mensaje"] = f"Punto {punto.codigo} marcado"
+    return JsonResponse(data)
 
 
 @require_GET

@@ -3,6 +3,8 @@ from django.urls import path
 
 from .view_modules.api_views import (
     api_app_cola_contexto,
+    api_app_control_marcar,
+    api_app_control_ruta,
     api_app_gerencia_login,
     api_app_gerencia_mapa,
     api_app_mapa_operativo,
@@ -68,6 +70,25 @@ urlpatterns = [
     ),
 
     # 🆕 CONTEXTO DE COLA (GPS IDEOVAL)
+    path(
+        "api/app/control-ruta/",
+        api_app_control_ruta,
+        name="api_app_control_ruta"
+    ),
+    path(
+        "api/app/control-ruta",
+        api_app_control_ruta
+    ),
+    path(
+        "api/app/control-ruta/marcar/",
+        api_app_control_marcar,
+        name="api_app_control_marcar"
+    ),
+    path(
+        "api/app/control-ruta/marcar",
+        api_app_control_marcar
+    ),
+
     path(
         "api/app/cola-contexto/",
         api_app_cola_contexto,
