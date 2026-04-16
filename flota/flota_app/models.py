@@ -898,6 +898,14 @@ class MensajeGlobal(models.Model):
         related_name="mensajes_globales",
     )
 
+    vehiculo = models.ForeignKey(
+        Vehiculo,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="mensajes_directos",
+    )
+
     texto = models.TextField(
         help_text="Mensaje mostrado en la app"
     )
@@ -915,6 +923,7 @@ class MensajeGlobal(models.Model):
 
     class Meta:
         indexes = [
+            models.Index(fields=["vehiculo", "activo", "fecha_inicio", "fecha_fin"]),
             models.Index(fields=["empresa", "activo", "fecha_inicio", "fecha_fin"]),
             models.Index(fields=["activo", "fecha_inicio", "fecha_fin"]),
             models.Index(fields=["activo"]),
@@ -922,7 +931,10 @@ class MensajeGlobal(models.Model):
         ordering = ["-updated_at", "-id"]
 
     def __str__(self):
-        scope = self.empresa.nombre if self.empresa else "GLOBAL"
+        if self.vehiculo:
+            scope = f"Unidad {self.vehiculo.codigo}"
+        else:
+            scope = self.empresa.nombre if self.empresa else "GLOBAL"
         return f"{scope}: {self.texto[:50]} ({self.fecha_inicio} -> {self.fecha_fin})"
 
 # =========================

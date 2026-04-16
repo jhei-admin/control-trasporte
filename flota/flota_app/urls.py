@@ -7,6 +7,7 @@ from .view_modules.api_views import (
     api_app_control_ruta,
     api_app_ganancias,
     api_app_ganancias_movimiento,
+    api_app_mensajes,
     api_app_gerencia_login,
     api_app_gerencia_mapa,
     api_app_mapa_operativo,
@@ -108,6 +109,16 @@ urlpatterns = [
     path(
         "api/app/ganancias/movimiento",
         api_app_ganancias_movimiento
+    ),
+
+    path(
+        "api/app/mensajes/",
+        api_app_mensajes,
+        name="api_app_mensajes"
+    ),
+    path(
+        "api/app/mensajes",
+        api_app_mensajes
     ),
 
     path(

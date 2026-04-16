@@ -260,6 +260,7 @@ class UbicacionVehiculoAdmin(admin.ModelAdmin):
 class MensajeGlobalAdmin(admin.ModelAdmin):
     list_display = (
         "empresa",
+        "vehiculo",
         "texto",
         "activo",
         "fecha_inicio",
@@ -267,9 +268,9 @@ class MensajeGlobalAdmin(admin.ModelAdmin):
         "creado_en",
     )
 
-    list_filter = ("empresa", "activo")
+    list_filter = ("empresa", "vehiculo", "activo")
 
-    search_fields = ("texto", "empresa__nombre")
+    search_fields = ("texto", "empresa__nombre", "vehiculo__codigo", "vehiculo__placa")
 
     ordering = ("-fecha_inicio",)
 

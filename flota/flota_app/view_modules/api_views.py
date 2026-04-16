@@ -40,6 +40,7 @@ __all__ = [
     "api_app_gerencia_mapa",
     "api_app_ganancias",
     "api_app_ganancias_movimiento",
+    "api_app_mensajes",
     "api_app_control_ruta",
     "api_app_control_marcar",
     "api_app_estado",
@@ -141,6 +142,23 @@ def _serializar_ganancias(sesion):
         "resumen_mes": resumen_mes,
         "resumen_ano": resumen_ano,
         "movimientos": movimientos,
+    }
+
+
+def _serializar_mensaje(item):
+    return {
+        "id": item.id,
+        "texto": item.texto,
+        "scope": "unidad" if item.vehiculo_id else ("empresa" if item.empresa_id else "global"),
+        "unidad": item.vehiculo.codigo if item.vehiculo_id else None,
+        "empresa": item.empresa.nombre if item.empresa_id else None,
+        "fecha_inicio": item.fecha_inicio.isoformat(),
+        "fecha_fin": item.fecha_fin.isoformat(),
+        "actualizado_en": (
+            item.updated_at.isoformat()
+            if item.updated_at
+            else item.creado_en.isoformat()
+        ),
     }
 
 
@@ -1467,6 +1485,42 @@ def api_app_ganancias_movimiento(request):
         f"{'Ingreso' if tipo == MovimientoCaja.TIPO_INGRESO else 'Gasto'} registrado correctamente"
     )
     return JsonResponse(payload)
+
+
+@require_GET
+def api_app_mensajes(request):
+    auth = request.headers.get("Authorization", "")
+    if not auth.startswith("Bearer "):
+        return JsonResponse({"ok": False, "mensaje": "Token requerido"}, status=401)
+
+    token = auth.replace("Bearer ", "").strip()
+    sesion = validar_sesion(token)
+    if not sesion:
+        return JsonResponse({"ok": False, "mensaje": "Sesion invalida"}, status=403)
+
+    hoy = timezone.localdate()
+    mensajes_qs = (
+        MensajeGlobal.objects.filter(
+            activo=True,
+            fecha_inicio__lte=hoy,
+            fecha_fin__gte=hoy,
+        )
+        .filter(
+            Q(vehiculo=sesion.vehiculo)
+            | Q(vehiculo__isnull=True, empresa=sesion.vehiculo.empresa)
+            | Q(vehiculo__isnull=True, empresa__isnull=True)
+        )
+        .select_related("empresa", "vehiculo")
+        .order_by("-updated_at", "-id")
+    )
+
+    mensajes = [_serializar_mensaje(item) for item in mensajes_qs]
+    return JsonResponse({
+        "ok": True,
+        "cantidad": len(mensajes),
+        "mensajes": mensajes,
+        "mensaje": "No hay comunicados activos para esta unidad." if not mensajes else None,
+    })
 
 
 @require_GET
