@@ -1585,6 +1585,16 @@ def api_app_cola_contexto(request):
         ubicacion.vehiculo_id: ubicacion
         for ubicacion in UbicacionVehiculo.objects.filter(vehiculo__in=[salida.vehiculo for salida in cola])
     }
+    ultimo_punto_map = {}
+    for marcacion in (
+        MarcacionPunto.objects.filter(
+            registro_salida__in=cola,
+            hora_marcada__isnull=False,
+        )
+        .select_related("punto")
+        .order_by("registro_salida_id", "punto__orden")
+    ):
+        ultimo_punto_map[marcacion.registro_salida_id] = marcacion.punto.codigo
 
     def calcular_minutos(salida):
         if not ub_actual:
@@ -1605,11 +1615,19 @@ def api_app_cola_contexto(request):
         return max(int(round(distancia / metros_min)), 0)
 
     def serializar(salida):
-        return {"unidad": salida.vehiculo.codigo, "minutos": calcular_minutos(salida)}
+        return {
+            "unidad": salida.vehiculo.codigo,
+            "minutos": calcular_minutos(salida),
+            "punto_actual_codigo": ultimo_punto_map.get(salida.id),
+        }
 
     return JsonResponse({
         "ok": True,
-        "actual": {"unidad": salida_actual.vehiculo.codigo, "minutos": 0},
+        "actual": {
+            "unidad": salida_actual.vehiculo.codigo,
+            "minutos": 0,
+            "punto_actual_codigo": ultimo_punto_map.get(salida_actual.id),
+        },
         "atras": [serializar(salida) for salida in atras],
         "adelante": [serializar(salida) for salida in adelante],
     })
