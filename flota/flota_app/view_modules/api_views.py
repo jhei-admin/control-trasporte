@@ -1565,7 +1565,12 @@ def api_app_cola_contexto(request):
     )
 
     index_actual = cola.index(salida_actual)
-    atras = cola[max(0, index_actual - 2):index_actual]
+
+    # La app vertical/horizontal pinta "adelante" con los items que vienen
+    # antes de la unidad actual en la cola. Aqui priorizamos los primeros
+    # visibles del panel (no los ultimos inmediatos) para que coincida con
+    # la lectura operativa del despachador.
+    atras = cola[:index_actual][:2]
     adelante = cola[index_actual + 1:index_actual + 3]
 
     gps_max_delay = timedelta(seconds=60)
