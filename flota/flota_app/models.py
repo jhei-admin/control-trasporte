@@ -693,6 +693,74 @@ class SesionStaffApp(models.Model):
 # =========================
 # GPS HISTÓRICO
 # =========================
+class MovimientoCajaQuerySet(models.QuerySet):
+    def for_empresa(self, empresa):
+        if empresa is None:
+            return self.none()
+        return self.filter(empresa=empresa)
+
+
+class MovimientoCajaManager(models.Manager.from_queryset(MovimientoCajaQuerySet)):
+    pass
+
+
+class MovimientoCaja(models.Model):
+    TIPO_INGRESO = "ingreso"
+    TIPO_GASTO = "gasto"
+    TIPOS = [
+        (TIPO_INGRESO, "Ingreso"),
+        (TIPO_GASTO, "Gasto"),
+    ]
+
+    empresa = models.ForeignKey(
+        Empresa,
+        on_delete=models.CASCADE,
+        related_name="movimientos_caja",
+        db_index=True,
+    )
+    vehiculo = models.ForeignKey(
+        Vehiculo,
+        on_delete=models.CASCADE,
+        related_name="movimientos_caja",
+        db_index=True,
+    )
+    sesion = models.ForeignKey(
+        SesionUnidad,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="movimientos_caja",
+        db_index=True,
+    )
+    salida = models.ForeignKey(
+        RegistroSalida,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="movimientos_caja",
+        db_index=True,
+    )
+    tipo = models.CharField(max_length=10, choices=TIPOS, db_index=True)
+    categoria = models.CharField(max_length=60, default="Otros", db_index=True)
+    nota = models.CharField(max_length=255, blank=True, default="")
+    monto = models.DecimalField(max_digits=10, decimal_places=2)
+    fecha_operacion = models.DateField(default=timezone.localdate, db_index=True)
+    creado_en = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    objects = MovimientoCajaManager()
+
+    class Meta:
+        ordering = ["-fecha_operacion", "-creado_en", "-id"]
+        indexes = [
+            models.Index(fields=["empresa", "vehiculo", "fecha_operacion"]),
+            models.Index(fields=["vehiculo", "tipo", "fecha_operacion"]),
+            models.Index(fields=["sesion", "fecha_operacion"]),
+        ]
+
+    def __str__(self):
+        return f"{self.vehiculo.codigo} | {self.tipo.upper()} | {self.monto}"
+
+
 class GPSRegistro(models.Model):
 
     sesion = models.ForeignKey(

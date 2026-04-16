@@ -1,4 +1,5 @@
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
+from decimal import Decimal, InvalidOperation
 import json
 from urllib.parse import parse_qs, urlparse
 
@@ -7,7 +8,7 @@ from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.core import signing
 from django.db import IntegrityError
-from django.db.models import Max, Q
+from django.db.models import Max, Q, Sum
 from django.http import JsonResponse
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
@@ -19,6 +20,7 @@ from ..models import (
     GPSRegistro,
     MarcacionPunto,
     MensajeGlobal,
+    MovimientoCaja,
     Parada,
     PuntoControl,
     RegistroSalida,
@@ -36,6 +38,8 @@ __all__ = [
     "api_app_mapa_operativo",
     "api_app_gerencia_login",
     "api_app_gerencia_mapa",
+    "api_app_ganancias",
+    "api_app_ganancias_movimiento",
     "api_app_control_ruta",
     "api_app_control_marcar",
     "api_app_estado",
@@ -69,6 +73,75 @@ def _format_hora(dt):
     if not dt:
         return None
     return timezone.localtime(dt).strftime("%H:%M")
+
+
+def _decimal_to_float(value):
+    if value is None:
+        return 0.0
+    return float(value)
+
+
+def _aggregate_movimientos(qs):
+    ingresos = qs.filter(tipo=MovimientoCaja.TIPO_INGRESO).aggregate(total=Sum("monto"))["total"] or Decimal("0")
+    gastos = qs.filter(tipo=MovimientoCaja.TIPO_GASTO).aggregate(total=Sum("monto"))["total"] or Decimal("0")
+    neto = ingresos - gastos
+    return {
+        "ingresos": _decimal_to_float(ingresos),
+        "gastos": _decimal_to_float(gastos),
+        "neto": _decimal_to_float(neto),
+    }
+
+
+def _serializar_ganancias(sesion):
+    hoy = timezone.localdate()
+    inicio_semana = hoy - timedelta(days=hoy.weekday())
+    inicio_mes = hoy.replace(day=1)
+    inicio_ano = date(hoy.year, 1, 1)
+
+    movimientos_qs = (
+        MovimientoCaja.objects.for_empresa(sesion.vehiculo.empresa)
+        .filter(vehiculo=sesion.vehiculo)
+        .order_by("-fecha_operacion", "-creado_en", "-id")
+    )
+
+    resumen_hoy = _aggregate_movimientos(movimientos_qs.filter(fecha_operacion=hoy))
+    resumen_semana = _aggregate_movimientos(movimientos_qs.filter(fecha_operacion__gte=inicio_semana, fecha_operacion__lte=hoy))
+    resumen_mes = _aggregate_movimientos(movimientos_qs.filter(fecha_operacion__gte=inicio_mes, fecha_operacion__lte=hoy))
+    resumen_ano = _aggregate_movimientos(movimientos_qs.filter(fecha_operacion__gte=inicio_ano, fecha_operacion__lte=hoy))
+
+    movimientos = []
+    for movimiento in movimientos_qs[:8]:
+        movimientos.append({
+            "id": movimiento.id,
+            "tipo": movimiento.tipo,
+            "categoria": movimiento.categoria,
+            "nota": movimiento.nota or "",
+            "monto": _decimal_to_float(movimiento.monto),
+            "fecha_operacion": movimiento.fecha_operacion.isoformat(),
+            "creado_en": timezone.localtime(movimiento.creado_en).isoformat(),
+        })
+
+    meta_diaria = 180.0
+    progreso_meta = 0.0
+    if meta_diaria > 0:
+        progreso_meta = min(max(resumen_hoy["neto"] / meta_diaria, 0.0), 1.0)
+
+    return {
+        "ok": True,
+        "meta_diaria": meta_diaria,
+        "progreso_meta": progreso_meta,
+        "caja_dia": {
+            "ingreso_bruto": resumen_hoy["ingresos"],
+            "gasto_total": resumen_hoy["gastos"],
+            "ganancia_neta": resumen_hoy["neto"],
+            "movimientos": int(movimientos_qs.filter(fecha_operacion=hoy).count()),
+        },
+        "resumen_hoy": resumen_hoy,
+        "resumen_semana": resumen_semana,
+        "resumen_mes": resumen_mes,
+        "resumen_ano": resumen_ano,
+        "movimientos": movimientos,
+    }
 
 
 def actualizar_heartbeat(sesion, ahora):
@@ -1311,6 +1384,89 @@ def api_app_control_marcar(request):
     data = _serializar_control_ruta(salida)
     data["mensaje"] = f"Punto {punto.codigo} marcado"
     return JsonResponse(data)
+
+
+@require_GET
+def api_app_ganancias(request):
+    auth = request.headers.get("Authorization", "")
+    if not auth.startswith("Bearer "):
+        return JsonResponse({"ok": False, "mensaje": "Token requerido"}, status=401)
+
+    token = auth.replace("Bearer ", "").strip()
+    sesion = validar_sesion(token)
+    if not sesion:
+        return JsonResponse({"ok": False, "mensaje": "Sesion invalida"}, status=403)
+
+    data = _serializar_ganancias(sesion)
+    if not data["movimientos"]:
+        data["mensaje"] = "Aun no hay movimientos registrados en caja."
+    return JsonResponse(data)
+
+
+@csrf_exempt
+@require_POST
+def api_app_ganancias_movimiento(request):
+    auth = request.headers.get("Authorization", "")
+    if not auth.startswith("Bearer "):
+        return JsonResponse({"ok": False, "mensaje": "Token requerido"}, status=401)
+
+    token = auth.replace("Bearer ", "").strip()
+    sesion = validar_sesion(token)
+    if not sesion:
+        return JsonResponse({"ok": False, "mensaje": "Sesion invalida"}, status=403)
+
+    try:
+        data = json.loads(request.body or "{}")
+    except json.JSONDecodeError:
+        return JsonResponse({"ok": False, "mensaje": "JSON invalido"}, status=400)
+
+    tipo = str(data.get("tipo") or "").strip().lower()
+    categoria = str(data.get("categoria") or "Otros").strip() or "Otros"
+    nota = str(data.get("nota") or "").strip()
+
+    if tipo not in {MovimientoCaja.TIPO_INGRESO, MovimientoCaja.TIPO_GASTO}:
+        return JsonResponse({"ok": False, "mensaje": "Tipo invalido"}, status=400)
+
+    try:
+        monto = Decimal(str(data.get("monto")))
+    except (InvalidOperation, TypeError, ValueError):
+        return JsonResponse({"ok": False, "mensaje": "Monto invalido"}, status=400)
+
+    if monto <= 0:
+        return JsonResponse({"ok": False, "mensaje": "El monto debe ser mayor a cero"}, status=400)
+
+    fecha_operacion_raw = str(data.get("fecha_operacion") or "").strip()
+    fecha_operacion = timezone.localdate()
+    if fecha_operacion_raw:
+        try:
+            fecha_operacion = date.fromisoformat(fecha_operacion_raw)
+        except ValueError:
+            return JsonResponse({"ok": False, "mensaje": "Fecha invalida"}, status=400)
+
+    salida = (
+        RegistroSalida.objects.for_empresa(sesion.vehiculo.empresa)
+        .filter(vehiculo=sesion.vehiculo, fecha=fecha_operacion)
+        .order_by("-id")
+        .first()
+    )
+
+    MovimientoCaja.objects.create(
+        empresa=sesion.vehiculo.empresa,
+        vehiculo=sesion.vehiculo,
+        sesion=sesion,
+        salida=salida,
+        tipo=tipo,
+        categoria=categoria,
+        nota=nota,
+        monto=monto,
+        fecha_operacion=fecha_operacion,
+    )
+
+    payload = _serializar_ganancias(sesion)
+    payload["mensaje"] = (
+        f"{'Ingreso' if tipo == MovimientoCaja.TIPO_INGRESO else 'Gasto'} registrado correctamente"
+    )
+    return JsonResponse(payload)
 
 
 @require_GET

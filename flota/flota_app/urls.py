@@ -5,6 +5,8 @@ from .view_modules.api_views import (
     api_app_cola_contexto,
     api_app_control_marcar,
     api_app_control_ruta,
+    api_app_ganancias,
+    api_app_ganancias_movimiento,
     api_app_gerencia_login,
     api_app_gerencia_mapa,
     api_app_mapa_operativo,
@@ -87,6 +89,25 @@ urlpatterns = [
     path(
         "api/app/control-ruta/marcar",
         api_app_control_marcar
+    ),
+
+    path(
+        "api/app/ganancias/",
+        api_app_ganancias,
+        name="api_app_ganancias"
+    ),
+    path(
+        "api/app/ganancias",
+        api_app_ganancias
+    ),
+    path(
+        "api/app/ganancias/movimiento/",
+        api_app_ganancias_movimiento,
+        name="api_app_ganancias_movimiento"
+    ),
+    path(
+        "api/app/ganancias/movimiento",
+        api_app_ganancias_movimiento
     ),
 
     path(
