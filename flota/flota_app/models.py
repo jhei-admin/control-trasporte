@@ -567,7 +567,7 @@ class MarcacionPunto(models.Model):
         if self.registro_salida and self.registro_salida.hora_salida:
             self.hora_programada = self.calcular_hora_programada()
 
-        if self.hora_marcada and not self.estado:
+        if self.hora_marcada:
             self.evaluar_estado()
 
         super().save(*args, **kwargs)
