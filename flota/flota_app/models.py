@@ -520,7 +520,7 @@ class MarcacionPunto(models.Model):
     # -------------------------------------------------
     # 🧠 EVALUAR ESTADO (REGLA ÚNICA)
     # -------------------------------------------------
-    def evaluar_estado(self, tolerancia_min=2):
+    def evaluar_estado(self, tolerancia_min=0):
         if not self.hora_marcada or not self.hora_programada:
             return
 
