@@ -478,6 +478,10 @@ def api_gps_conductor(request):
             "punto": punto.nombre,
             "estado": marcacion.estado.upper(),
             "diferencia_min": marcacion.diferencia_minutos,
+            "hora_marcada": (
+                timezone.localtime(marcacion.hora_marcada).strftime("%H:%M")
+                if marcacion.hora_marcada else None
+            ),
         },
     })
 
