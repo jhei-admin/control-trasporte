@@ -1,3 +1,4 @@
+import math
 from datetime import timedelta
 import uuid
 
@@ -524,10 +525,16 @@ class MarcacionPunto(models.Model):
         if not self.hora_marcada or not self.hora_programada:
             return
 
-        diff = int(
-            (self.hora_marcada - self.hora_programada)
-            .total_seconds() / 60
-        )
+        diff_seconds = (
+            self.hora_marcada - self.hora_programada
+        ).total_seconds()
+
+        if diff_seconds < 0:
+            diff = math.floor(diff_seconds / 60)
+        elif diff_seconds > 0:
+            diff = math.ceil(diff_seconds / 60)
+        else:
+            diff = 0
 
         self.diferencia_minutos = diff
 
