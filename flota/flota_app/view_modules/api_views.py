@@ -34,6 +34,7 @@ from ..services import calcular_estado_sesion, validar_sesion, validar_sesion_st
 from ..utils import distancia_metros
 
 __all__ = [
+    "api_admin_limpiar_gps",
     "api_app_cola_contexto",
     "api_app_mapa_operativo",
     "api_app_gerencia_login",
@@ -80,6 +81,40 @@ def _decimal_to_float(value):
     if value is None:
         return 0.0
     return float(value)
+
+
+@csrf_exempt
+@require_GET
+def api_admin_limpiar_gps(request):
+    maintenance_key = getattr(settings, "MAINTENANCE_ACTION_KEY", "").strip()
+    provided_key = str(request.GET.get("key") or "").strip()
+
+    if not maintenance_key:
+        return JsonResponse(
+            {"ok": False, "mensaje": "La limpieza temporal no esta habilitada."},
+            status=403,
+        )
+
+    if provided_key != maintenance_key:
+        return JsonResponse(
+            {"ok": False, "mensaje": "Clave de mantenimiento invalida."},
+            status=403,
+        )
+
+    gps_count = GPSRegistro.objects.count()
+    ubicaciones_count = UbicacionVehiculo.objects.count()
+
+    GPSRegistro.objects.all().delete()
+    UbicacionVehiculo.objects.all().delete()
+
+    return JsonResponse(
+        {
+            "ok": True,
+            "mensaje": "Historial GPS y ubicaciones actuales eliminados.",
+            "gps_eliminados": gps_count,
+            "ubicaciones_eliminadas": ubicaciones_count,
+        }
+    )
 
 
 def _aggregate_movimientos(qs):

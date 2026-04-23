@@ -2,6 +2,7 @@
 from django.urls import path
 
 from .view_modules.api_views import (
+    api_admin_limpiar_gps,
     api_app_cola_contexto,
     api_app_control_marcar,
     api_app_control_ruta,
@@ -49,6 +50,16 @@ from .view_modules.despacho_views import (
 from .view_modules.reportes_views import reporte_salidas_diarias
 
 urlpatterns = [
+
+    path(
+        "api/admin/limpiar-gps/",
+        api_admin_limpiar_gps,
+        name="api_admin_limpiar_gps"
+    ),
+    path(
+        "api/admin/limpiar-gps",
+        api_admin_limpiar_gps
+    ),
 
     path(
         "api/app/escanear-qr/",
