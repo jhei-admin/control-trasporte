@@ -439,6 +439,13 @@ def api_gps_conductor(request):
         for punto in puntos:
             MarcacionPunto.objects.get_or_create(registro_salida=salida, punto=punto)
 
+    if salida.finalizar_por_inactividad(ahora=ahora):
+        return JsonResponse({
+            "accion": "ninguna",
+            "finalizada": True,
+            "motivo": "inactividad_punto",
+        })
+
     marcacion = salida.siguiente_marcacion()
     if not marcacion:
         if not salida.hora_real_salida:
@@ -1105,6 +1112,9 @@ def api_app_estado(request):
         .first()
     )
 
+    if salida and salida.finalizar_por_inactividad():
+        salida = None
+
     if not salida:
         return JsonResponse({
             "autorizado": True,
@@ -1205,6 +1215,8 @@ def api_app_referencia_tiempo(request):
         .order_by("-id")
         .first()
     )
+    if salida and salida.finalizar_por_inactividad():
+        return JsonResponse({"ok": False})
     if not salida or not salida.hora_salida:
         return JsonResponse({"ok": False})
 
@@ -1347,6 +1359,12 @@ def api_app_control_ruta(request):
             "mensaje": "La unidad aun no tiene una ruta programada",
         })
 
+    if salida.finalizar_por_inactividad():
+        return JsonResponse({
+            "ok": False,
+            "mensaje": "La ruta fue finalizada por inactividad.",
+        })
+
     return JsonResponse(_serializar_control_ruta(salida))
 
 
@@ -1378,6 +1396,12 @@ def api_app_control_marcar(request):
     )
     if not salida or not salida.ruta:
         return JsonResponse({"ok": False, "mensaje": "No hay salida activa"}, status=404)
+
+    if salida.finalizar_por_inactividad():
+        return JsonResponse({
+            "ok": False,
+            "mensaje": "La ruta fue finalizada por inactividad.",
+        })
 
     punto_qs = PuntoControl.objects.filter(
         ruta=salida.ruta,
@@ -1555,6 +1579,9 @@ def api_app_cola_contexto(request):
     if not salida_actual:
         return JsonResponse({"ok": False})
 
+    if salida_actual.finalizar_por_inactividad(ahora=ahora):
+        return JsonResponse({"ok": False})
+
     cola = list(
         RegistroSalida.objects.for_empresa(sesion.vehiculo.empresa)
         .select_related("vehiculo")
@@ -1570,12 +1597,8 @@ def api_app_cola_contexto(request):
 
     index_actual = cola.index(salida_actual)
 
-    # La app vertical/horizontal pinta "adelante" con los items que vienen
-    # antes de la unidad actual en la cola. Aqui priorizamos los primeros
-    # visibles del panel (no los ultimos inmediatos) para que coincida con
-    # la lectura operativa del despachador.
-    atras = cola[:index_actual][:2]
-    adelante = cola[index_actual + 1:index_actual + 3]
+    adelante = cola[:index_actual][-2:]
+    atras = cola[index_actual + 1:index_actual + 3]
 
     gps_max_delay = timedelta(seconds=60)
     velocidad_promedio = 25
@@ -1632,8 +1655,8 @@ def api_app_cola_contexto(request):
             "minutos": 0,
             "punto_actual_codigo": ultimo_punto_map.get(salida_actual.id),
         },
-        "atras": [serializar(salida) for salida in atras],
         "adelante": [serializar(salida) for salida in adelante],
+        "atras": [serializar(salida) for salida in atras],
     })
 
 
@@ -1666,6 +1689,12 @@ def api_app_mapa_operativo(request):
         return JsonResponse({
             "ok": False,
             "mensaje": "La unidad aun no tiene una ruta operativa asignada",
+        })
+
+    if salida.finalizar_por_inactividad():
+        return JsonResponse({
+            "ok": False,
+            "mensaje": "La ruta fue finalizada por inactividad.",
         })
 
     ruta = salida.ruta

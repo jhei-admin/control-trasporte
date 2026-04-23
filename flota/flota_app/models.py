@@ -360,11 +360,31 @@ class RegistroSalida(models.Model):
     def finalizar_salida(self):
         self.activo = False
         self.en_cola = False
+        self.orden_cola = None
 
         self.save(update_fields=[
             "activo",
-            "en_cola"
+            "en_cola",
+            "orden_cola",
         ])
+
+    def finalizar_por_inactividad(self, ahora=None, minutos_limite=150):
+        if not self.activo or not self.hora_salida or not self.ruta:
+            return False
+
+        ahora = ahora or timezone.now()
+        marcacion = self.siguiente_marcacion()
+        if not marcacion or not marcacion.hora_programada:
+            return False
+
+        if ahora - marcacion.hora_programada < timedelta(minutes=minutos_limite):
+            return False
+
+        self.activo = False
+        self.en_cola = False
+        self.orden_cola = None
+        self.save(update_fields=["activo", "en_cola", "orden_cola"])
+        return True
 
     # =========================
     # 🔥 PUNTO CORRECTO (FIX CLAVE)

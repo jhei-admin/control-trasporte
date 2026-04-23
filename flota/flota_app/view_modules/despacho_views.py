@@ -175,6 +175,19 @@ def panel_despachador(request):
         salidas_qs = salidas_qs.filter(ruta=ruta_actual)
 
     ahora = timezone.now()
+    salidas_revision = list(salidas_qs)
+    finalizadas_por_inactividad = 0
+    for salida in salidas_revision:
+        if salida.finalizar_por_inactividad(ahora=ahora):
+            finalizadas_por_inactividad += 1
+
+    if finalizadas_por_inactividad:
+        messages.info(
+            request,
+            f"{finalizadas_por_inactividad} ruta(s) finalizada(s) por inactividad.",
+        )
+        salidas_qs = salidas_qs.filter(activo=True)
+
     es_fecha_futura = fecha_operativa > hoy
     salidas = list(
         salidas_qs.order_by(
@@ -593,7 +606,12 @@ def desbloquear_hora(request, salida_id):
     ).exists()
 
     if marco_sali:
-        messages.error(request, "No se puede cancelar la salida porque la unidad ya inicio la ruta.")
+        salida.activo = False
+        salida.en_cola = False
+        salida.orden_cola = None
+        salida.save(update_fields=["activo", "en_cola", "orden_cola"])
+        recalcular_cola(empresa=empresa)
+        messages.success(request, "Ruta activa finalizada por despachador.")
         return redirect_panel_despachador(request, ruta_id=salida.ruta_id)
 
     salida.hora_salida = None
