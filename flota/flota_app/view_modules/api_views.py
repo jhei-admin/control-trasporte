@@ -429,6 +429,45 @@ def registrar_gps_historico_si_corresponde(
     return True
 
 
+def _asegurar_marcaciones_salida(salida):
+    if not salida.ruta or salida.marcaciones.exists():
+        return
+
+    puntos = (
+        PuntoControl.objects
+        .filter(ruta=salida.ruta, activo=True, requiere_marcacion=True)
+        .order_by("orden")
+    )
+    for punto in puntos:
+        MarcacionPunto.objects.get_or_create(registro_salida=salida, punto=punto)
+
+
+def _resolver_marcacion_por_ubicacion(salida, lat, lng, ahora):
+    pendientes = list(salida.marcaciones_pendientes())
+    if not pendientes:
+        return None, []
+
+    coincidencia = None
+    for marcacion in pendientes:
+        punto = marcacion.punto
+        distancia = distancia_metros(lat, lng, float(punto.latitud), float(punto.longitud))
+        if distancia <= punto.radio_metros:
+            coincidencia = marcacion
+            break
+
+    if not coincidencia:
+        return pendientes[0], []
+
+    omitidas = []
+    for marcacion in pendientes:
+        if marcacion.punto.orden >= coincidencia.punto.orden:
+            break
+        marcacion.marcar_omitida(hora=ahora)
+        omitidas.append(marcacion)
+
+    return coincidencia, omitidas
+
+
 @csrf_exempt
 def api_gps_conductor(request):
     if request.method != "POST":
@@ -505,14 +544,7 @@ def api_gps_conductor(request):
     if not salida:
         return JsonResponse({"accion": "ninguna"})
 
-    if salida.ruta and not salida.marcaciones.exists():
-        puntos = (
-            PuntoControl.objects
-            .filter(ruta=salida.ruta, activo=True, requiere_marcacion=True)
-            .order_by("orden")
-        )
-        for punto in puntos:
-            MarcacionPunto.objects.get_or_create(registro_salida=salida, punto=punto)
+    _asegurar_marcaciones_salida(salida)
 
     if salida.finalizar_por_inactividad(ahora=ahora):
         return JsonResponse({
@@ -521,7 +553,12 @@ def api_gps_conductor(request):
             "motivo": "inactividad_punto",
         })
 
-    marcacion = salida.siguiente_marcacion()
+    marcacion, omitidas = _resolver_marcacion_por_ubicacion(
+        salida=salida,
+        lat=lat,
+        lng=lng,
+        ahora=ahora,
+    )
     if not marcacion:
         if not salida.hora_real_salida:
             return JsonResponse({"accion": "ninguna"})
@@ -555,6 +592,14 @@ def api_gps_conductor(request):
     return JsonResponse({
         "accion": "audio" if marcacion.audio_flag else "visual",
         "audio": marcacion.audio_flag,
+        "omitidos": [
+            {
+                "codigo": item.punto.codigo,
+                "nombre": item.punto.nombre,
+                "estado": item.estado.upper(),
+            }
+            for item in omitidas
+        ],
         "visual": {
             "codigo": punto.codigo,
             "punto": punto.nombre,

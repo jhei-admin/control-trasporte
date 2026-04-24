@@ -414,6 +414,23 @@ class RegistroSalida(models.Model):
             .first()
         )
 
+    def marcaciones_pendientes(self):
+        from django.apps import apps
+        MarcacionPunto = apps.get_model(
+            "flota_app",
+            "MarcacionPunto"
+        )
+
+        return (
+            MarcacionPunto.objects
+            .filter(
+                registro_salida=self,
+                hora_marcada__isnull=True,
+            )
+            .select_related("punto", "registro_salida")
+            .order_by("punto__orden")
+        )
+
     # =========================
     # UTILIDAD
     # =========================
@@ -504,6 +521,7 @@ class MarcacionPunto(models.Model):
             ("adelantado", "Adelantado"),
             ("a_tiempo", "A tiempo"),
             ("tarde", "Tarde"),
+            ("omitido", "Omitido"),
         ],
         null=True,
         blank=True
@@ -585,6 +603,25 @@ class MarcacionPunto(models.Model):
         self.evaluar_estado()
         self.save()
 
+    def marcar_omitida(self, hora=None):
+        if self.hora_marcada:
+            return
+
+        self.hora_marcada = hora or timezone.now()
+        self.hora_programada = self.calcular_hora_programada()
+
+        if self.hora_programada:
+            diff_seconds = (
+                self.hora_marcada - self.hora_programada
+            ).total_seconds()
+            self.diferencia_minutos = int(math.ceil(diff_seconds / 60))
+        else:
+            self.diferencia_minutos = None
+
+        self.estado = "omitido"
+        self.audio_flag = None
+        self.save()
+
     # -------------------------------------------------
     # 💾 SAVE BLINDADO (ANTI-INCOHERENCIAS)
     # -------------------------------------------------
@@ -594,7 +631,7 @@ class MarcacionPunto(models.Model):
         if self.registro_salida and self.registro_salida.hora_salida:
             self.hora_programada = self.calcular_hora_programada()
 
-        if self.hora_marcada:
+        if self.hora_marcada and self.estado != "omitido":
             self.evaluar_estado()
 
         super().save(*args, **kwargs)

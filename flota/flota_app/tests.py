@@ -345,6 +345,137 @@ class PuntoReferenciaTests(BaseFlotaTestCase):
         )
 
 
+class MarcacionGpsRecoveryTests(BaseFlotaTestCase):
+    def setUp(self):
+        super().setUp()
+        self.sesion = SesionUnidad.objects.create(
+            vehiculo=self.vehiculo_1,
+            activa=True,
+            last_heartbeat=timezone.now(),
+        )
+        self.punto_salida = PuntoControl.objects.create(
+            ruta=self.ruta_a,
+            codigo="SALI",
+            nombre="Salida",
+            latitud=-16.401000,
+            longitud=-71.501000,
+            radio_metros=60,
+            orden=1,
+            offset_minutos=0,
+            requiere_marcacion=True,
+            activo=True,
+        )
+        self.punto_control = PuntoControl.objects.create(
+            ruta=self.ruta_a,
+            codigo="CTRL",
+            nombre="Control",
+            latitud=-16.402000,
+            longitud=-71.502000,
+            radio_metros=60,
+            orden=2,
+            offset_minutos=5,
+            requiere_marcacion=True,
+            activo=True,
+        )
+        self.punto_final = PuntoControl.objects.create(
+            ruta=self.ruta_a,
+            codigo="FIN",
+            nombre="Final",
+            latitud=-16.403000,
+            longitud=-71.503000,
+            radio_metros=60,
+            orden=3,
+            offset_minutos=10,
+            requiere_marcacion=True,
+            activo=True,
+        )
+        self.salida = RegistroSalida.objects.create(
+            vehiculo=self.vehiculo_1,
+            ruta=self.ruta_a,
+            fecha=timezone.localdate(),
+            hora_salida=timezone.now() - timedelta(minutes=10),
+            activo=True,
+            en_cola=False,
+        )
+
+    def test_gps_omite_punto_perdido_y_continua_con_el_siguiente(self):
+        MarcacionPunto.objects.create(
+            registro_salida=self.salida,
+            punto=self.punto_salida,
+            hora_marcada=timezone.now() - timedelta(minutes=9),
+        )
+        MarcacionPunto.objects.create(
+            registro_salida=self.salida,
+            punto=self.punto_control,
+        )
+        MarcacionPunto.objects.create(
+            registro_salida=self.salida,
+            punto=self.punto_final,
+        )
+
+        response = self.client.post(
+            reverse("api_gps_conductor"),
+            data=json.dumps(
+                {
+                    "lat": float(self.punto_final.latitud),
+                    "lng": float(self.punto_final.longitud),
+                    "precision": 10,
+                }
+            ),
+            content_type="application/json",
+            HTTP_AUTHORIZATION=f"Bearer {self.sesion.token}",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["visual"]["codigo"], "FIN")
+        self.assertEqual(data["omitidos"][0]["codigo"], "CTRL")
+
+        omitida = MarcacionPunto.objects.get(registro_salida=self.salida, punto=self.punto_control)
+        final = MarcacionPunto.objects.get(registro_salida=self.salida, punto=self.punto_final)
+
+        self.assertEqual(omitida.estado, "omitido")
+        self.assertIsNotNone(omitida.hora_marcada)
+        self.assertIsNotNone(final.hora_marcada)
+
+    def test_gps_no_omite_si_aun_no_llega_a_un_punto_posterior(self):
+        MarcacionPunto.objects.create(
+            registro_salida=self.salida,
+            punto=self.punto_salida,
+            hora_marcada=timezone.now() - timedelta(minutes=9),
+        )
+        MarcacionPunto.objects.create(
+            registro_salida=self.salida,
+            punto=self.punto_control,
+        )
+        MarcacionPunto.objects.create(
+            registro_salida=self.salida,
+            punto=self.punto_final,
+        )
+
+        response = self.client.post(
+            reverse("api_gps_conductor"),
+            data=json.dumps(
+                {
+                    "lat": -16.450000,
+                    "lng": -71.550000,
+                    "precision": 10,
+                }
+            ),
+            content_type="application/json",
+            HTTP_AUTHORIZATION=f"Bearer {self.sesion.token}",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["accion"], "ninguna")
+
+        omitida = MarcacionPunto.objects.get(registro_salida=self.salida, punto=self.punto_control)
+        final = MarcacionPunto.objects.get(registro_salida=self.salida, punto=self.punto_final)
+
+        self.assertIsNone(omitida.hora_marcada)
+        self.assertIsNone(final.hora_marcada)
+
+
 class PanelDespachoRapidoTests(BaseFlotaTestCase):
     def setUp(self):
         super().setUp()
