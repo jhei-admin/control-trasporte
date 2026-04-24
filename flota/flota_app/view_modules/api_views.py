@@ -327,6 +327,46 @@ def _extraer_datos_qr(valor_qr):
     return None, None, True
 
 
+def _normalizar_codigo_unidad(valor):
+    codigo = str(valor or "").strip()
+    if not codigo:
+        return ""
+    if codigo.isdigit() and len(codigo) == 1:
+        return codigo.zfill(2)
+    return codigo.upper()
+
+
+def _normalizar_placa(valor):
+    return "".join(ch for ch in str(valor or "").upper() if ch.isalnum())
+
+
+def _resolver_vehiculo_por_codigo_placa(codigo, placa=None):
+    codigo_normalizado = _normalizar_codigo_unidad(codigo)
+    if not codigo_normalizado:
+        return None, "CODIGO_REQUERIDO"
+
+    coincidencias = list(
+        Vehiculo.objects.filter(codigo__iexact=codigo_normalizado, activo=True)
+        .select_related("empresa")
+    )
+    if not coincidencias:
+        return None, "NO_ENCONTRADO"
+
+    placa_normalizada = _normalizar_placa(placa)
+    if placa_normalizada:
+        coincidencias = [
+            vehiculo for vehiculo in coincidencias
+            if _normalizar_placa(vehiculo.placa) == placa_normalizada
+        ]
+        if not coincidencias:
+            return None, "PLACA_NO_COINCIDE"
+
+    if len(coincidencias) > 1:
+        return None, "AMBIGUO"
+
+    return coincidencias[0], None
+
+
 def guardar_ubicacion_actual(sesion, ahora, lat, lng, velocidad=None, precision=None):
     defaults = {
         "latitud": lat,
@@ -1062,6 +1102,8 @@ def api_escanear_qr(request):
         or data.get("rawValue")
     )
     vehiculo_id = data.get("vehiculo_id")
+    codigo_manual = data.get("codigo")
+    placa_manual = data.get("placa")
     empresa_id = None
 
     if token_qr:
@@ -1075,18 +1117,42 @@ def api_escanear_qr(request):
         vehiculo_id = vehiculo_qr or vehiculo_id
         empresa_id = empresa_qr or empresa_id
 
-    if not vehiculo_id:
+    vehiculo = None
+    if vehiculo_id:
+        vehiculos = Vehiculo.objects.filter(id=vehiculo_id, activo=True).select_related("empresa")
+        if empresa_id is not None:
+            vehiculos = vehiculos.filter(empresa_id=empresa_id)
+        vehiculo = vehiculos.first()
+    elif codigo_manual:
+        vehiculo, motivo_manual = _resolver_vehiculo_por_codigo_placa(
+            codigo=codigo_manual,
+            placa=placa_manual,
+        )
+        if motivo_manual == "AMBIGUO":
+            return JsonResponse(
+                {
+                    "ok": False,
+                    "error": "Mas de una unidad coincide con ese codigo. Ingresa la placa.",
+                },
+                status=409,
+                headers={"Access-Control-Allow-Origin": "*"},
+            )
+        if motivo_manual == "PLACA_NO_COINCIDE":
+            return JsonResponse(
+                {
+                    "ok": False,
+                    "error": "La placa no coincide con la unidad ingresada.",
+                },
+                status=404,
+                headers={"Access-Control-Allow-Origin": "*"},
+            )
+    else:
         return JsonResponse(
-            {"ok": False, "error": "vehiculo_id o token requeridos"},
+            {"ok": False, "error": "vehiculo_id, token o codigo requeridos"},
             status=400,
             headers={"Access-Control-Allow-Origin": "*"},
         )
 
-    vehiculos = Vehiculo.objects.filter(id=vehiculo_id, activo=True).select_related("empresa")
-    if empresa_id is not None:
-        vehiculos = vehiculos.filter(empresa_id=empresa_id)
-
-    vehiculo = vehiculos.first()
     if not vehiculo:
         return JsonResponse(
             {"ok": False, "error": "Unidad no registrada"},

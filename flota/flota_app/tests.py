@@ -36,16 +36,19 @@ class BaseFlotaTestCase(TestCase):
         self.vehiculo_1 = Vehiculo.objects.create(
             empresa=self.empresa,
             codigo="01",
+            placa="X3P-953",
             activo=True,
         )
         self.vehiculo_2 = Vehiculo.objects.create(
             empresa=self.empresa,
             codigo="02",
+            placa="ABC-222",
             activo=True,
         )
         self.vehiculo_3 = Vehiculo.objects.create(
             empresa=self.empresa,
             codigo="03",
+            placa="ABC-333",
             activo=True,
         )
 
@@ -152,6 +155,34 @@ class ApiSecurityAndIsolationTests(BaseFlotaTestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.json()["ok"])
+
+    def test_codigo_y_placa_abren_sesion_sin_qr(self):
+        response = self.client.post(
+            reverse("api_escanear_qr"),
+            data=json.dumps({"codigo": "01", "placa": "x3p953"}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()["ok"])
+        self.assertEqual(response.json()["unidad"], "01")
+
+    def test_codigo_sin_placa_falla_si_hay_colision_entre_empresas(self):
+        Vehiculo.objects.create(
+            empresa=self.empresa_2,
+            codigo="01",
+            placa="ZZZ-111",
+            activo=True,
+        )
+
+        response = self.client.post(
+            reverse("api_escanear_qr"),
+            data=json.dumps({"codigo": "01"}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 409)
+        self.assertIn("Ingresa la placa", response.json()["error"])
 
     def test_heartbeat_filtra_mensajes_por_empresa(self):
         hoy = timezone.localdate()
