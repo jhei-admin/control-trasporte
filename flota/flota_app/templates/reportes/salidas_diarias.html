@@ -28,17 +28,17 @@
         .hero-mini-value{margin-top:6px;font-size:22px;font-weight:900}
         .report-summary{display:grid;grid-template-columns:1.15fr 1fr;gap:14px}
         .summary-card,.report-panel,.salida-card{background:var(--card);border:1px solid var(--line);border-radius:24px;box-shadow:var(--shadow)}
-        .summary-card{padding:20px}
+        .summary-card{padding:18px}
         .summary-label{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:800}
-        .summary-value{margin-top:8px;font-size:34px;font-weight:900;letter-spacing:-.03em}
+        .summary-value{margin-top:8px;font-size:32px;font-weight:900;letter-spacing:-.03em}
         .summary-sub{margin-top:8px;font-size:13px;color:#475569}
         .summary-wide{background:linear-gradient(135deg,#fff7ed 0%,#fff 100%);display:grid;grid-template-columns:minmax(0,1.05fr) minmax(230px,.8fr);gap:16px;align-items:center}
         .summary-wide-metrics{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
-        .summary-mini{padding:14px;border-radius:18px;background:#fff;border:1px solid rgba(251,146,60,.18)}
+        .summary-mini{padding:12px 14px;border-radius:18px;background:#fff;border:1px solid rgba(251,146,60,.18)}
         .summary-mini .summary-label{color:#9a3412}
         .summary-mini .summary-value{font-size:28px;color:#9a3412}
         .summary-wide-note{font-size:14px;color:#7c2d12;line-height:1.5}
-        .report-panel{padding:20px}
+        .report-panel{padding:18px}
         .report-toolbar{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;align-items:end}
         .toolbar-actions{display:flex;gap:10px;flex-wrap:wrap}
         .report-filters{display:grid;grid-template-columns:170px 220px minmax(160px,220px) 150px;gap:12px;align-items:end}
@@ -48,20 +48,22 @@
         .toolbar-actions a,.report-filters button{font-weight:800}
         .report-filters button{background:linear-gradient(135deg,var(--accent) 0%,var(--accent-2) 100%);border:none;color:#111827}
         .cards-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:16px}
-        .salida-card{padding:20px;text-decoration:none;color:inherit;display:grid;gap:14px;position:relative;overflow:hidden}
-        .salida-card:before{content:"";position:absolute;inset:0;background:linear-gradient(135deg,rgba(251,146,60,.08) 0%,transparent 45%);opacity:0;transition:opacity .18s ease}
+        .salida-card{padding:20px;text-decoration:none;color:inherit;display:grid;gap:14px;position:relative;overflow:hidden;background:
+            linear-gradient(180deg,#ffffff 0%,#fffaf5 100%)}
+        .salida-card:before{content:"";position:absolute;inset:0;background:linear-gradient(135deg,rgba(251,146,60,.10) 0%,transparent 42%);opacity:0;transition:opacity .18s ease}
+        .salida-card:after{content:"";position:absolute;left:0;top:0;bottom:0;width:5px;background:linear-gradient(180deg,var(--accent) 0%,var(--accent-2) 100%);opacity:.9}
         .salida-card:hover{transform:translateY(-2px);border-color:rgba(251,146,60,.22)}
         .salida-card:hover:before{opacity:1}
         .salida-top{display:flex;justify-content:space-between;gap:10px;align-items:center}
-        .hora-chip{font-size:34px;font-weight:900;letter-spacing:-.03em}
+        .hora-chip{font-size:32px;font-weight:900;letter-spacing:-.03em;position:relative;z-index:1}
         .vuelta-chip{padding:8px 12px;border-radius:999px;background:#fff7ed;color:#b45309;font-size:12px;font-weight:800;position:relative;z-index:1}
-        .ruta-title{font-size:24px;font-weight:900;letter-spacing:-.02em}
+        .ruta-title{font-size:24px;font-weight:900;letter-spacing:-.02em;position:relative;z-index:1}
         .progress-shell{display:grid;gap:8px}
         .progress-label-row{display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap}
         .progress-bar{height:12px;border-radius:999px;background:#e2e8f0;overflow:hidden}
         .progress-value{height:100%;background:linear-gradient(90deg,#22c55e 0%,#16a34a 100%)}
         .progress-value.alerta{background:linear-gradient(90deg,#f59e0b 0%,#ef4444 100%)}
-        .salida-footer{display:flex;justify-content:space-between;gap:10px;color:#475569;font-size:13px;flex-wrap:wrap}
+        .salida-footer{display:flex;justify-content:space-between;gap:10px;color:#475569;font-size:13px;flex-wrap:wrap;position:relative;z-index:1}
         .salida-meta{display:flex;gap:10px;flex-wrap:wrap;color:#64748b;font-size:13px}
         .salida-meta span{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border-radius:999px;background:#f8fafc;border:1px solid rgba(148,163,184,.14)}
         .alert-list{display:grid;gap:8px}
@@ -146,7 +148,7 @@
                     <a href="{% url 'panel_despachador' %}" class="btn btn-dark" style="display:inline-flex;align-items:center;justify-content:center;text-decoration:none;color:#fff;padding:0 18px;">Volver al panel</a>
                 </div>
                 <div>
-                    <button class="btn btn-warning w-100" type="submit">Actualizar vista</button>
+                    <button class="btn btn-warning w-100" type="submit">Aplicar filtros</button>
                 </div>
             </form>
         </div>
