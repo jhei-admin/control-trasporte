@@ -4,7 +4,7 @@ from datetime import timedelta
 
 from django.core import signing
 from django.core.management import call_command
-from django.contrib.auth.models import User
+from django.contrib.auth.models import Group, User
 from django.db import IntegrityError
 from django.test import Client, TestCase, override_settings
 from django.urls import reverse
@@ -248,6 +248,7 @@ class ApiSecurityAndIsolationTests(BaseFlotaTestCase):
         self.assertEqual(response.json()[0]["vehiculo"], self.vehiculo_1.codigo)
         self.assertEqual(response.json()[0]["estado_gps"], "OFFLINE")
 
+
     def test_api_puntos_control_expone_puntos_referenciales(self):
         PuntoControl.objects.create(
             ruta=self.ruta_a,
@@ -285,6 +286,62 @@ class ApiSecurityAndIsolationTests(BaseFlotaTestCase):
         data = response.json()
         self.assertEqual(len(data), 2)
         self.assertTrue(any(p["requiere_marcacion"] is False for p in data))
+
+
+class LoginSistemaViewTests(BaseFlotaTestCase):
+    def setUp(self):
+        super().setUp()
+        self.despachador_group, _ = Group.objects.get_or_create(name="despachador")
+
+    def test_login_despachador_con_empresa_redirige_al_panel(self):
+        user = User.objects.create_user(username="desp_ok", password="secret123")
+        user.groups.add(self.despachador_group)
+        user.perfil.empresa = self.empresa
+        user.perfil.save(update_fields=["empresa"])
+
+        response = self.client.post(
+            reverse("login"),
+            {"username": "desp_ok", "password": "secret123"},
+        )
+
+        self.assertRedirects(response, "/sistema/despachador/", fetch_redirect_response=False)
+
+    def test_login_despachador_sin_empresa_cierra_sesion_y_muestra_error(self):
+        user = User.objects.create_user(username="desp_sin_empresa", password="secret123")
+        user.groups.add(self.despachador_group)
+
+        response = self.client.post(
+            reverse("login"),
+            {"username": "desp_sin_empresa", "password": "secret123"},
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Tu usuario despachador no tiene empresa asignada.")
+        self.assertNotIn("_auth_user_id", self.client.session)
+
+    def test_login_usuario_sin_rol_valido_cierra_sesion_y_muestra_error(self):
+        User.objects.create_user(username="sin_rol", password="secret123")
+
+        response = self.client.post(
+            reverse("login"),
+            {"username": "sin_rol", "password": "secret123"},
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Tu usuario no tiene permisos para ingresar al sistema.")
+        self.assertNotIn("_auth_user_id", self.client.session)
+
+    def test_login_autenticado_sin_rol_valido_se_limpia_antes_de_mostrar_login(self):
+        user = User.objects.create_user(username="sin_rol_get", password="secret123")
+        self.client.force_login(user)
+
+        response = self.client.get(reverse("login"), follow=True)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Tu usuario no tiene permisos para ingresar al sistema.")
+        self.assertNotIn("_auth_user_id", self.client.session)
 
 
 class PuntoReferenciaTests(BaseFlotaTestCase):
