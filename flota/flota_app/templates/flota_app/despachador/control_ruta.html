@@ -6,15 +6,19 @@
 <style>
 .route-shell{display:grid;gap:18px}
 .route-hero,.route-card,.route-table-shell{background:#fff;border:1px solid rgba(148,163,184,.18);border-radius:22px;box-shadow:0 14px 30px rgba(15,23,42,.08)}
-.route-hero{padding:24px;background:linear-gradient(135deg,#162033 0%,#22324b 100%);color:#fff}
+.route-hero{padding:24px;background:linear-gradient(135deg,#0f172a 0%,#1d4ed8 100%);color:#fff}
 .route-kicker{font-size:12px;letter-spacing:.12em;text-transform:uppercase;opacity:.72}
 .route-title{margin-top:8px;font-size:34px;font-weight:800}
 .route-sub{margin-top:10px;color:#cbd5e1}
-.route-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.route-summary{display:grid;grid-template-columns:1.2fr 1fr 1fr;gap:12px}
 .route-card{padding:18px}
 .route-label{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#64748b;font-weight:800}
 .route-value{margin-top:8px;font-size:28px;font-weight:800;color:#0f172a}
 .route-subvalue{margin-top:8px;color:#475569;font-size:13px}
+.route-card-primary{background:linear-gradient(180deg,#ffffff 0%,#eef5ff 100%)}
+.route-next-name{display:inline-flex;margin-top:10px;padding:8px 12px;border-radius:999px;background:#dbeafe;color:#1d4ed8;font-size:12px;font-weight:800}
+.route-progress-bar{margin-top:12px;height:10px;border-radius:999px;background:#dbeafe;overflow:hidden}
+.route-progress-value{height:100%;background:linear-gradient(90deg,#2563eb 0%,#22c55e 100%)}
 .route-table-shell{padding:18px}
 .route-head{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;margin-bottom:16px}
 .route-head h2{margin:0;font-size:26px}
@@ -48,25 +52,22 @@
   </section>
 
   <section class="route-summary">
-    <article class="route-card">
+    <article class="route-card route-card-primary">
       <div class="route-label">Unidad</div>
       <div class="route-value">{{ salida.vehiculo.codigo|default:salida.vehiculo.numero }}</div>
       <div class="route-subvalue">Ruta {{ salida.ruta.nombre }}</div>
-    </article>
-    <article class="route-card">
-      <div class="route-label">Hora salida</div>
-      <div class="route-value">{{ salida.hora_salida|date:"H:i"|default:"--:--" }}</div>
-      <div class="route-subvalue">Programacion visible para esta salida</div>
-    </article>
-    <article class="route-card">
-      <div class="route-label">Progreso</div>
-      <div class="route-value" id="controlProgreso">{{ resumen.porcentaje }} %</div>
-      <div class="route-subvalue"><span id="controlCompletados">{{ resumen.completados }}</span> de <span id="controlTotal">{{ resumen.total }}</span> puntos completados</div>
+      <div class="route-next-name">Operacion en seguimiento</div>
     </article>
     <article class="route-card">
       <div class="route-label">Siguiente punto</div>
       <div class="route-value" id="controlSiguiente">{% if resumen.siguiente %}{{ resumen.siguiente.codigo }}{% else %}Finalizada{% endif %}</div>
       <div class="route-subvalue" id="controlSiguienteNombre">{% if resumen.siguiente %}{{ resumen.siguiente.nombre }}{% else %}Sin pendientes{% endif %}</div>
+    </article>
+    <article class="route-card">
+      <div class="route-label">Progreso</div>
+      <div class="route-value" id="controlProgreso">{{ resumen.porcentaje }} %</div>
+      <div class="route-subvalue"><span id="controlCompletados">{{ resumen.completados }}</span> de <span id="controlTotal">{{ resumen.total }}</span> puntos completados</div>
+      <div class="route-progress-bar"><div class="route-progress-value" id="controlProgressBar" style="width: {{ resumen.porcentaje }}%;"></div></div>
     </article>
   </section>
 
@@ -156,6 +157,7 @@ function renderControlRuta(data){
   document.getElementById("controlTotal").textContent = data.resumen.total
   document.getElementById("controlSiguiente").textContent = data.resumen.siguiente ? data.resumen.siguiente.codigo : "Finalizada"
   document.getElementById("controlSiguienteNombre").textContent = data.resumen.siguiente ? data.resumen.siguiente.nombre : "Sin pendientes"
+  document.getElementById("controlProgressBar").style.width = `${data.resumen.porcentaje}%`
 
   const csrf = obtenerCsrfControl()
   const body = document.getElementById("controlRutaBody")

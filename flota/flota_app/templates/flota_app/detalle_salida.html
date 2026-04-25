@@ -6,15 +6,16 @@
 <style>
 .detail-shell{display:grid;gap:18px}
 .detail-hero,.detail-card,.detail-panel{background:#fff;border:1px solid rgba(148,163,184,.18);border-radius:22px;box-shadow:0 14px 30px rgba(15,23,42,.08)}
-.detail-hero{padding:24px;background:linear-gradient(135deg,#162033 0%,#22324b 100%);color:#fff}
+.detail-hero{padding:24px;background:linear-gradient(135deg,#1f2937 0%,#334155 100%);color:#fff}
 .detail-kicker{font-size:12px;letter-spacing:.12em;text-transform:uppercase;opacity:.72}
 .detail-title{margin-top:8px;font-size:34px;font-weight:800}
 .detail-sub{margin-top:10px;color:#cbd5e1}
-.detail-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.detail-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
 .detail-card{padding:18px}
 .detail-label{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#64748b;font-weight:800}
 .detail-value{margin-top:8px;font-size:28px;font-weight:800;color:#0f172a}
 .detail-subvalue{margin-top:8px;font-size:13px;color:#475569}
+.detail-card-soft{background:linear-gradient(180deg,#ffffff 0%,#f8fafc 100%)}
 .detail-panel{padding:18px}
 .detail-head{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;margin-bottom:16px}
 .detail-head h2{margin:0;font-size:26px}
@@ -47,25 +48,20 @@
   </section>
 
   <section class="detail-summary">
-    <article class="detail-card">
+    <article class="detail-card detail-card-soft">
       <div class="detail-label">Fecha</div>
       <div class="detail-value">{{ fecha|date:"Y-m-d" }}</div>
       <div class="detail-subvalue">Jornada operativa analizada</div>
     </article>
-    <article class="detail-card">
-      <div class="detail-label">Hora salida</div>
-      <div class="detail-value">{{ salida.hora_salida|date:"H:i"|default:"--:--" }}</div>
-      <div class="detail-subvalue">Hora base para calcular offsets</div>
-    </article>
-    <article class="detail-card">
+    <article class="detail-card detail-card-soft">
       <div class="detail-label">Puntos completados</div>
       <div class="detail-value"><span id="detalleCompletados">{{ resumen.completados }}</span>/<span id="detalleTotal">{{ resumen.total }}</span></div>
       <div class="detail-subvalue">Cobertura actual del recorrido</div>
     </article>
-    <article class="detail-card">
+    <article class="detail-card detail-card-soft">
       <div class="detail-label">Cumplimiento</div>
       <div class="detail-value" id="detallePorcentaje">{{ resumen.porcentaje }} %</div>
-      <div class="detail-subvalue"><span id="detallePendientes">{{ resumen.pendientes }}</span> puntos pendientes</div>
+      <div class="detail-subvalue">Hora base: {{ salida.hora_salida|date:"H:i"|default:"--:--" }}. <span id="detallePendientes">{{ resumen.pendientes }}</span> puntos pendientes</div>
     </article>
   </section>
 
@@ -73,7 +69,7 @@
     <div class="detail-head">
       <div>
         <h2>Trazabilidad por punto</h2>
-        <p>La informacion se actualiza sola para reflejar nuevas marcaciones registradas en ruta.</p>
+        <p>Vista de lectura y auditoria. La informacion se actualiza sola para reflejar nuevas marcaciones registradas en ruta.</p>
       </div>
       <div class="detail-actions">
         <a href="{% url 'control_ruta' salida.id %}" class="btn btn-outline-secondary">Control de ruta</a>

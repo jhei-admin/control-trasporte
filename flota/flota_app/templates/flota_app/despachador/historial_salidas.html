@@ -10,7 +10,7 @@
 .history-kicker{font-size:12px;letter-spacing:.12em;text-transform:uppercase;opacity:.7}
 .history-title{margin-top:8px;font-size:34px;font-weight:800;line-height:1}
 .history-sub{margin-top:10px;max-width:780px;color:#cbd5e1}
-.history-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.history-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
 .history-card{background:#fff;padding:16px;border-radius:18px;border:1px solid rgba(148,163,184,.16);box-shadow:0 8px 18px rgba(15,23,42,.05)}
 .history-card-label{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#64748b;font-weight:800}
 .history-card-value{margin-top:8px;font-size:28px;font-weight:800;color:#0f172a}
@@ -63,14 +63,14 @@
       <div class="history-card-sub">Salidas sincronizadas con su hora</div>
     </article>
     <article class="history-card">
-      <div class="history-card-label">Tarde</div>
-      <div class="history-card-value" id="histTarde">{{ resumen.tarde }}</div>
-      <div class="history-card-sub">Desviaciones positivas detectadas</div>
-    </article>
-    <article class="history-card">
       <div class="history-card-label">Pendientes</div>
       <div class="history-card-value" id="histPendiente">{{ resumen.pendiente }}</div>
       <div class="history-card-sub">Sin marcacion registrada todavia</div>
+    </article>
+    <article class="history-card">
+      <div class="history-card-label">Desviaciones</div>
+      <div class="history-card-value"><span id="histTarde">{{ resumen.tarde }}</span> / <span id="histAdelantado">{{ resumen.adelantado }}</span></div>
+      <div class="history-card-sub">Tarde y adelantado dentro del periodo visible</div>
     </article>
   </section>
 
@@ -165,6 +165,7 @@ function renderHistorial(data){
   document.getElementById("histTotal").textContent = data.resumen.total
   document.getElementById("histAtiempo").textContent = data.resumen.a_tiempo
   document.getElementById("histTarde").textContent = data.resumen.tarde
+  document.getElementById("histAdelantado").textContent = data.resumen.adelantado
   document.getElementById("histPendiente").textContent = data.resumen.pendiente
   document.getElementById("historyErrors").textContent = (data.errores || []).join(", ")
 
