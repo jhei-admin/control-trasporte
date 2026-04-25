@@ -159,8 +159,8 @@ border:1px solid rgba(147,197,253,.25);
 }
 
 .quick-form{
-display:flex;
-flex-wrap:nowrap;
+display:grid;
+grid-template-columns:80px minmax(150px,1fr) 110px 150px minmax(120px,140px);
 gap:16px;
 align-items:end;
 width:100%;
@@ -190,7 +190,7 @@ flex:0 0 160px;
 }
 
 .quick-field-submit{
-flex:0 0 140px;
+min-width:0;
 }
 
 .quick-form label,
@@ -551,11 +551,35 @@ grid-template-columns:1fr;
 }
 
 .quick-form{
-flex-wrap:wrap;
+grid-template-columns:80px minmax(150px,1fr) 110px 150px;
+}
+
+.quick-field-submit{
+grid-column:1 / -1;
 }
 
 .quick-submit-wrap{
-justify-content:flex-end;
+justify-content:stretch;
+}
+}
+
+@media (max-width: 920px){
+.quick-form{
+grid-template-columns:repeat(2,minmax(0,1fr));
+}
+
+.quick-field-unit,
+.quick-field-route,
+.quick-field-time,
+.quick-field-date,
+.quick-field-submit{
+flex:auto;
+}
+
+.quick-field-unit input[name="codigo"]{
+width:100%;
+min-width:0;
+max-width:none;
 }
 }
 
