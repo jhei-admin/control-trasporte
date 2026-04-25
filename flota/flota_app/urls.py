@@ -20,10 +20,14 @@ from .view_modules.api_views import (
     api_gps,
     api_gps_conductor,
     api_heartbeat,
+    api_historial_salidas,
+    api_control_ruta_web,
+    api_detalle_salida_web,
     api_panel_despachador,
     api_panel_frecuencia,
     api_paradas_vehiculo,
     api_puntos_control,
+    api_reporte_salidas_diarias,
     api_recorrido_vehiculo,
     debug_gps,
 )
@@ -433,6 +437,30 @@ urlpatterns = [
     path(
         "api/despachador/panel",
         api_panel_despachador
+    ),
+    path(
+        "api/despachador/historial/",
+        api_historial_salidas,
+        name="api_historial_salidas"
+    ),
+    path(
+        "api/despachador/historial",
+        api_historial_salidas
+    ),
+    path(
+        "api/despachador/control-ruta/<int:salida_id>/",
+        api_control_ruta_web,
+        name="api_control_ruta_web"
+    ),
+    path(
+        "api/despachador/detalle-salida/<int:salida_id>/",
+        api_detalle_salida_web,
+        name="api_detalle_salida_web"
+    ),
+    path(
+        "api/reportes/salidas/<int:vehiculo_id>/",
+        api_reporte_salidas_diarias,
+        name="api_reporte_salidas_diarias"
     ),
 
     # =========================

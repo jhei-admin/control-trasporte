@@ -1,94 +1,215 @@
 {% extends "flota_app/base.html" %}
 
+{% block title %}Historial de Salidas{% endblock %}
+
 {% block content %}
-<h2>📋 Historial de Salidas</h2>
+<style>
+.history-shell{display:grid;gap:18px}
+.history-hero,.history-panel{background:#fff;border:1px solid rgba(148,163,184,.18);border-radius:22px;box-shadow:0 14px 30px rgba(15,23,42,.08)}
+.history-hero{padding:24px;background:linear-gradient(135deg,#162033 0%,#25344b 100%);color:#fff}
+.history-kicker{font-size:12px;letter-spacing:.12em;text-transform:uppercase;opacity:.7}
+.history-title{margin-top:8px;font-size:34px;font-weight:800;line-height:1}
+.history-sub{margin-top:10px;max-width:780px;color:#cbd5e1}
+.history-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.history-card{background:#fff;padding:16px;border-radius:18px;border:1px solid rgba(148,163,184,.16);box-shadow:0 8px 18px rgba(15,23,42,.05)}
+.history-card-label{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#64748b;font-weight:800}
+.history-card-value{margin-top:8px;font-size:28px;font-weight:800;color:#0f172a}
+.history-card-sub{margin-top:8px;font-size:12px;color:#475569}
+.history-panel{padding:20px}
+.history-head{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;margin-bottom:18px}
+.history-head h2{margin:0;font-size:26px}
+.history-head p{margin:6px 0 0;color:#64748b}
+.history-actions{display:flex;gap:10px;flex-wrap:wrap}
+.history-filters{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;align-items:end}
+.history-filters label{display:block;margin-bottom:6px;font-size:12px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:#64748b}
+.history-filters input,.history-filters select{height:48px;border-radius:14px}
+.history-table{width:100%;border-collapse:separate;border-spacing:0 10px}
+.history-table thead th{background:#1e293b;color:#e2e8f0;padding:14px 12px;font-size:12px;letter-spacing:.08em;text-transform:uppercase}
+.history-table thead th:first-child{border-radius:14px 0 0 14px}
+.history-table thead th:last-child{border-radius:0 14px 14px 0}
+.history-table tbody tr{background:#fff;box-shadow:0 10px 22px rgba(15,23,42,.06)}
+.history-table tbody td{padding:14px 12px;vertical-align:middle}
+.history-table tbody td:first-child{border-radius:16px 0 0 16px}
+.history-table tbody td:last-child{border-radius:0 16px 16px 0}
+.unit-chip{display:inline-flex;align-items:center;justify-content:center;min-width:54px;height:42px;border-radius:14px;background:#eff6ff;color:#1d4ed8;font-size:20px;font-weight:800}
+.state-pill{display:inline-flex;align-items:center;gap:8px;padding:9px 12px;border-radius:999px;font-weight:800;font-size:13px}
+.state-dot{width:9px;height:9px;border-radius:50%}
+.state-a_tiempo{background:#ecfdf5;color:#166534}.state-a_tiempo .state-dot{background:#22c55e}
+.state-tarde{background:#fef2f2;color:#b91c1c}.state-tarde .state-dot{background:#ef4444}
+.state-adelantado{background:#eff6ff;color:#1d4ed8}.state-adelantado .state-dot{background:#3b82f6}
+.state-pendiente{background:#f1f5f9;color:#475569}.state-pendiente .state-dot{background:#64748b}
+.empty-box{text-align:center;padding:44px 18px;color:#64748b}
+.history-note{font-size:12px;color:#64748b}
+@media (max-width: 980px){.history-summary,.history-filters{grid-template-columns:repeat(2,minmax(0,1fr))}.history-head{flex-direction:column}}
+@media (max-width: 640px){.history-summary,.history-filters{grid-template-columns:1fr}.history-title{font-size:28px}}
+</style>
 
-<!-- ========================= -->
-<!-- 🔍 FILTROS -->
-<!-- ========================= -->
-<form method="get" class="row g-3 mb-3">
+<div class="history-shell" id="historialPanel" data-refresh-url="{% url 'api_historial_salidas' %}">
+  <section class="history-hero">
+    <div class="history-kicker">Operacion auditada</div>
+    <div class="history-title">Historial de salidas</div>
+    <div class="history-sub">Consulta programaciones y primeras marcaciones por ruta para revisar puntualidad, adelantos y retrasos sin perder visibilidad operativa.</div>
+  </section>
 
-    <div class="col-md-3">
-        <label class="form-label">Desde</label>
-        <input type="date"
-               name="desde"
-               class="form-control"
-               value="{{ request.GET.desde }}">
+  <section class="history-summary">
+    <article class="history-card">
+      <div class="history-card-label">Registros visibles</div>
+      <div class="history-card-value" id="histTotal">{{ resumen.total }}</div>
+      <div class="history-card-sub">Filas activas bajo los filtros actuales</div>
+    </article>
+    <article class="history-card">
+      <div class="history-card-label">A tiempo</div>
+      <div class="history-card-value" id="histAtiempo">{{ resumen.a_tiempo }}</div>
+      <div class="history-card-sub">Salidas sincronizadas con su hora</div>
+    </article>
+    <article class="history-card">
+      <div class="history-card-label">Tarde</div>
+      <div class="history-card-value" id="histTarde">{{ resumen.tarde }}</div>
+      <div class="history-card-sub">Desviaciones positivas detectadas</div>
+    </article>
+    <article class="history-card">
+      <div class="history-card-label">Pendientes</div>
+      <div class="history-card-value" id="histPendiente">{{ resumen.pendiente }}</div>
+      <div class="history-card-sub">Sin marcacion registrada todavia</div>
+    </article>
+  </section>
+
+  <section class="history-panel">
+    <div class="history-head">
+      <div>
+        <h2>Revision cronologica</h2>
+        <p>El historial se actualiza solo en segundo plano cuando la pestaña esta visible.</p>
+      </div>
+      <div class="history-actions">
+        <a href="{% url 'panel_despachador' %}" class="btn btn-dark">Volver al panel</a>
+      </div>
     </div>
 
-    <div class="col-md-3">
-        <label class="form-label">Hasta</label>
-        <input type="date"
-               name="hasta"
-               class="form-control"
-               value="{{ request.GET.hasta }}">
-    </div>
-
-    <div class="col-md-4">
-        <label class="form-label">Ruta</label>
-        <select name="ruta" class="form-select">
-            <option value="">Todas</option>
-            {% for r in rutas %}
-                <option value="{{ r.id }}"
-                    {% if request.GET.ruta == r.id|stringformat:"s" %}selected{% endif %}>
-                    {{ r.nombre }}
-                </option>
-            {% endfor %}
+    <form method="get" class="history-filters">
+      <div>
+        <label for="histDesde">Desde</label>
+        <input id="histDesde" type="date" name="desde" class="form-control" value="{{ filtros.desde }}">
+      </div>
+      <div>
+        <label for="histHasta">Hasta</label>
+        <input id="histHasta" type="date" name="hasta" class="form-control" value="{{ filtros.hasta }}">
+      </div>
+      <div>
+        <label for="histRuta">Ruta</label>
+        <select id="histRuta" name="ruta" class="form-select">
+          <option value="">Todas</option>
+          {% for r in rutas %}
+            <option value="{{ r.id }}" {% if filtros.ruta == r.id|stringformat:"s" %}selected{% endif %}>{{ r.nombre }}</option>
+          {% endfor %}
         </select>
+      </div>
+      <div>
+        <button class="btn btn-primary w-100" type="submit">Aplicar filtros</button>
+      </div>
+    </form>
+
+    <div class="history-note mt-3" id="historyErrors">
+      {% if errores %}{{ errores|join:", " }}{% endif %}
     </div>
 
-    <div class="col-md-2 d-flex align-items-end">
-        <button class="btn btn-primary w-100">
-            🔍 Filtrar
-        </button>
-    </div>
-</form>
-
-<!-- ========================= -->
-<!-- 📋 TABLA -->
-<!-- ========================= -->
-<table class="table table-bordered table-sm">
-    <thead class="table-dark">
-        <tr>
-            <th>Vehículo</th>
+    <div class="table-responsive mt-3">
+      <table class="history-table">
+        <thead>
+          <tr>
+            <th>Unidad</th>
             <th>Ruta</th>
+            <th>Fecha</th>
             <th>Programada</th>
             <th>Marcada</th>
-            <th>Falta (min)</th>
+            <th>Falta</th>
             <th>Estado</th>
-        </tr>
-    </thead>
-    <tbody>
-        {% for item in historial %}
-        <tr>
-            <td>{{ item.salida.vehiculo.codigo }}</td>
-            <td>{{ item.salida.ruta.nombre|default:"SIN RUTA" }}</td>
-            <td>{{ item.programada|date:"Y-m-d H:i" }}</td>
-            <td>{{ item.marcada|date:"H:i" }}</td>
-            <td>{% if item.falta is not None %}{{ item.falta }}{% else %}&mdash;{% endif %}</td>
-            <td>
-                {% if item.estado == "a_tiempo" %}
-                    <span class="badge bg-success">A TIEMPO</span>
-                {% elif item.estado == "tarde" %}
-                    <span class="badge bg-danger">TARDE</span>
-                {% elif item.estado == "adelantado" %}
-                    <span class="badge bg-warning text-dark">ADELANTADO</span>
-                {% else %}
-                    <span class="badge bg-secondary">PENDIENTE</span>
-                {% endif %}
-            </td>
-        </tr>
-        {% empty %}
-        <tr>
-            <td colspan="6" class="text-center">
-                No hay salidas registradas
-            </td>
-        </tr>
-        {% endfor %}
-    </tbody>
-</table>
+          </tr>
+        </thead>
+        <tbody id="historialBody">
+          {% for item in historial %}
+            <tr>
+              <td><span class="unit-chip">{{ item.salida.vehiculo.codigo }}</span></td>
+              <td><strong>{{ item.salida.ruta.nombre|default:"SIN RUTA" }}</strong></td>
+              <td>{{ item.salida.fecha|date:"Y-m-d" }}</td>
+              <td>{{ item.programada|date:"H:i"|default:"--:--" }}</td>
+              <td>{{ item.marcada|date:"H:i"|default:"--:--" }}</td>
+              <td>{% if item.falta is not None %}{{ item.falta }} min{% else %}&mdash;{% endif %}</td>
+              <td><span class="state-pill state-{{ item.estado }}"><span class="state-dot"></span>{{ item.estado|upper }}</span></td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="7"><div class="empty-box">No hay salidas registradas con estos filtros.</div></td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>
 
-<a href="{% url 'panel_despachador' %}" class="btn btn-secondary">
-    ⬅ Volver al panel
-</a>
+<script>
+const historialPanel = document.getElementById("historialPanel")
+const historialUrl = historialPanel.dataset.refreshUrl
+const HISTORIAL_REFRESH_MS = 20000
+
+function historialUsuarioInteractuando(){
+  const activo = document.activeElement
+  if(!activo){ return false }
+  const tag = (activo.tagName || "").toLowerCase()
+  return tag === "input" || tag === "select" || tag === "textarea"
+}
+
+function estadoHistorialLabel(estado){
+  return estado === "a_tiempo" ? "A_TIEMPO" : estado.toUpperCase()
+}
+
+function renderHistorial(data){
+  document.getElementById("histTotal").textContent = data.resumen.total
+  document.getElementById("histAtiempo").textContent = data.resumen.a_tiempo
+  document.getElementById("histTarde").textContent = data.resumen.tarde
+  document.getElementById("histPendiente").textContent = data.resumen.pendiente
+  document.getElementById("historyErrors").textContent = (data.errores || []).join(", ")
+
+  const body = document.getElementById("historialBody")
+  if(!data.historial.length){
+    body.innerHTML = `<tr><td colspan="7"><div class="empty-box">No hay salidas registradas con estos filtros.</div></td></tr>`
+    return
+  }
+
+  body.innerHTML = data.historial.map(item => `
+    <tr>
+      <td><span class="unit-chip">${item.unidad}</span></td>
+      <td><strong>${item.ruta}</strong></td>
+      <td>${item.fecha}</td>
+      <td>${item.programada || "--:--"}</td>
+      <td>${item.marcada || "--:--"}</td>
+      <td>${item.falta !== null ? `${item.falta} min` : "&mdash;"}</td>
+      <td><span class="state-pill state-${item.estado}"><span class="state-dot"></span>${estadoHistorialLabel(item.estado)}</span></td>
+    </tr>
+  `).join("")
+}
+
+async function refrescarHistorial(){
+  if(document.hidden || historialUsuarioInteractuando()){
+    return
+  }
+
+  const query = new URLSearchParams({
+    desde: document.getElementById("histDesde").value,
+    hasta: document.getElementById("histHasta").value,
+    ruta: document.getElementById("histRuta").value,
+  })
+
+  try{
+    const response = await fetch(`${historialUrl}?${query.toString()}`, { credentials: "same-origin" })
+    if(!response.ok){ return }
+    const data = await response.json()
+    if(!data.ok){ return }
+    renderHistorial(data)
+  }catch(error){
+    console.warn("No se pudo refrescar el historial.", error)
+  }
+}
+
+setInterval(refrescarHistorial, HISTORIAL_REFRESH_MS)
+document.addEventListener("visibilitychange", function(){ if(!document.hidden){ refrescarHistorial() } })
+</script>
 {% endblock %}

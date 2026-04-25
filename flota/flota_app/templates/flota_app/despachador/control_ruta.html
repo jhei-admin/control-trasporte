@@ -3,118 +3,196 @@
 {% block title %}Control de Ruta{% endblock %}
 
 {% block content %}
+<style>
+.route-shell{display:grid;gap:18px}
+.route-hero,.route-card,.route-table-shell{background:#fff;border:1px solid rgba(148,163,184,.18);border-radius:22px;box-shadow:0 14px 30px rgba(15,23,42,.08)}
+.route-hero{padding:24px;background:linear-gradient(135deg,#162033 0%,#22324b 100%);color:#fff}
+.route-kicker{font-size:12px;letter-spacing:.12em;text-transform:uppercase;opacity:.72}
+.route-title{margin-top:8px;font-size:34px;font-weight:800}
+.route-sub{margin-top:10px;color:#cbd5e1}
+.route-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.route-card{padding:18px}
+.route-label{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#64748b;font-weight:800}
+.route-value{margin-top:8px;font-size:28px;font-weight:800;color:#0f172a}
+.route-subvalue{margin-top:8px;color:#475569;font-size:13px}
+.route-table-shell{padding:18px}
+.route-head{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;margin-bottom:16px}
+.route-head h2{margin:0;font-size:26px}
+.route-head p{margin:6px 0 0;color:#64748b}
+.route-actions{display:flex;gap:10px;flex-wrap:wrap}
+.route-table{width:100%;border-collapse:separate;border-spacing:0 10px}
+.route-table thead th{background:#1e293b;color:#e2e8f0;padding:14px 12px;font-size:12px;letter-spacing:.08em;text-transform:uppercase}
+.route-table thead th:first-child{border-radius:14px 0 0 14px}
+.route-table thead th:last-child{border-radius:0 14px 14px 0}
+.route-table tbody tr{background:#fff;box-shadow:0 10px 22px rgba(15,23,42,.06)}
+.route-table tbody td{padding:14px 12px;vertical-align:middle}
+.route-table tbody td:first-child{border-radius:16px 0 0 16px}
+.route-table tbody td:last-child{border-radius:0 16px 16px 0}
+.point-badge{display:inline-flex;min-width:56px;height:42px;align-items:center;justify-content:center;border-radius:14px;background:#eff6ff;color:#1d4ed8;font-size:18px;font-weight:800}
+.status-pill{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border-radius:999px;font-size:13px;font-weight:800}
+.status-dot{width:9px;height:9px;border-radius:50%}
+.status-adelantado{background:#eff6ff;color:#1d4ed8}.status-adelantado .status-dot{background:#3b82f6}
+.status-a_tiempo{background:#ecfdf5;color:#166534}.status-a_tiempo .status-dot{background:#22c55e}
+.status-tarde{background:#fef2f2;color:#b91c1c}.status-tarde .status-dot{background:#ef4444}
+.status-pendiente{background:#f1f5f9;color:#475569}.status-pendiente .status-dot{background:#64748b}
+.empty-box{text-align:center;padding:44px 18px;color:#64748b}
+@media (max-width: 980px){.route-summary{grid-template-columns:repeat(2,minmax(0,1fr))}.route-head{flex-direction:column}}
+@media (max-width: 640px){.route-summary{grid-template-columns:1fr}.route-title{font-size:28px}}
+</style>
 
-<h2 class="mb-3">🧭 Control de Ruta</h2>
+<div class="route-shell" id="controlRutaPanel" data-refresh-url="{% url 'api_control_ruta_web' salida.id %}">
+  <section class="route-hero">
+    <div class="route-kicker">Seguimiento en ruta</div>
+    <div class="route-title">Control de ruta</div>
+    <div class="route-sub">Unidad {{ salida.vehiculo.codigo|default:salida.vehiculo.numero }} en {{ salida.ruta.nombre }}. Esta vista se actualiza en segundo plano para reflejar nuevas marcaciones sin perder contexto.</div>
+  </section>
 
-<div class="card mb-3">
-  <div class="card-body">
-    <strong>Unidad:</strong> {{ salida.vehiculo.numero }} <br>
-    <strong>Ruta:</strong> {{ salida.ruta.nombre }} <br>
-    <strong>Hora programada de salida:</strong>
-    {% if salida.hora_salida %}
-        {{ salida.hora_salida|date:"H:i" }}
-    {% else %}
-        —
-    {% endif %}
-  </div>
+  <section class="route-summary">
+    <article class="route-card">
+      <div class="route-label">Unidad</div>
+      <div class="route-value">{{ salida.vehiculo.codigo|default:salida.vehiculo.numero }}</div>
+      <div class="route-subvalue">Ruta {{ salida.ruta.nombre }}</div>
+    </article>
+    <article class="route-card">
+      <div class="route-label">Hora salida</div>
+      <div class="route-value">{{ salida.hora_salida|date:"H:i"|default:"--:--" }}</div>
+      <div class="route-subvalue">Programacion visible para esta salida</div>
+    </article>
+    <article class="route-card">
+      <div class="route-label">Progreso</div>
+      <div class="route-value" id="controlProgreso">{{ resumen.porcentaje }} %</div>
+      <div class="route-subvalue"><span id="controlCompletados">{{ resumen.completados }}</span> de <span id="controlTotal">{{ resumen.total }}</span> puntos completados</div>
+    </article>
+    <article class="route-card">
+      <div class="route-label">Siguiente punto</div>
+      <div class="route-value" id="controlSiguiente">{% if resumen.siguiente %}{{ resumen.siguiente.codigo }}{% else %}Finalizada{% endif %}</div>
+      <div class="route-subvalue" id="controlSiguienteNombre">{% if resumen.siguiente %}{{ resumen.siguiente.nombre }}{% else %}Sin pendientes{% endif %}</div>
+    </article>
+  </section>
+
+  <section class="route-table-shell">
+    <div class="route-head">
+      <div>
+        <h2>Puntos de control</h2>
+        <p>Marca los puntos pendientes y revisa desfaces de tiempo con una lectura limpia.</p>
+      </div>
+      <div class="route-actions">
+        <form method="post" action="{% url 'marcar_siguiente_punto' salida.id %}">
+          {% csrf_token %}
+          <button class="btn btn-primary" type="submit">Marcar siguiente</button>
+        </form>
+        <a href="{% url 'detalle_salida' salida.id %}" class="btn btn-outline-secondary">Ver detalle</a>
+        <a href="{% url 'panel_despachador' %}" class="btn btn-dark">Volver al panel</a>
+      </div>
+    </div>
+
+    <div class="table-responsive">
+      <table class="route-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Punto</th>
+            <th>Hora programada</th>
+            <th>Hora marcada</th>
+            <th>Diferencia</th>
+            <th>Estado</th>
+            <th>Accion</th>
+          </tr>
+        </thead>
+        <tbody id="controlRutaBody">
+          {% for c in controles %}
+          {% with p=c.punto m=c.marcacion %}
+          <tr>
+            <td>{{ p.orden }}</td>
+            <td>
+              <div class="point-badge">{{ p.codigo }}</div>
+              <div class="mt-2 fw-semibold">{{ p.nombre }}</div>
+            </td>
+            <td>{% if c.hora_programada_calculada %}{{ c.hora_programada_calculada|time:"H:i" }}{% elif m and m.hora_programada %}{{ m.hora_programada|time:"H:i" }}{% else %}&mdash;{% endif %}</td>
+            <td>{% if m and m.hora_marcada %}{{ m.hora_marcada|time:"H:i" }}{% else %}&mdash;{% endif %}</td>
+            <td>{% if m and m.diferencia_minutos is not None %}{{ m.diferencia_minutos }} min{% else %}&mdash;{% endif %}</td>
+            <td><span class="status-pill status-{{ m.estado|default:'pendiente' }}"><span class="status-dot"></span>{% if m and m.estado %}{{ m.estado|upper }}{% else %}PENDIENTE{% endif %}</span></td>
+            <td>
+              {% if not m or not m.hora_marcada %}
+                <form method="post" action="{% url 'marcar_paso' salida.id p.id %}">
+                  {% csrf_token %}
+                  <button class="btn btn-outline-primary btn-sm" type="submit">Marcar paso</button>
+                </form>
+              {% else %}
+                <span class="text-success fw-bold">Registrado</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endwith %}
+          {% empty %}
+            <tr><td colspan="7"><div class="empty-box">No hay puntos de control configurados para esta ruta.</div></td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
 </div>
 
-<table class="table table-bordered table-sm align-middle">
-  <thead class="table-dark text-center">
+<script>
+const controlRutaPanel = document.getElementById("controlRutaPanel")
+const controlRutaUrl = controlRutaPanel.dataset.refreshUrl
+const CONTROL_RUTA_REFRESH_MS = 12000
+
+function controlRutaUsuarioInteractuando(){
+  const activo = document.activeElement
+  if(!activo){ return false }
+  const tag = (activo.tagName || "").toLowerCase()
+  return tag === "input" || tag === "select" || tag === "textarea"
+}
+
+function obtenerCsrfControl(){
+  const csrfInput = document.querySelector('form input[name="csrfmiddlewaretoken"]')
+  return csrfInput ? csrfInput.value : ""
+}
+
+function renderControlRuta(data){
+  document.getElementById("controlProgreso").textContent = `${data.resumen.porcentaje} %`
+  document.getElementById("controlCompletados").textContent = data.resumen.completados
+  document.getElementById("controlTotal").textContent = data.resumen.total
+  document.getElementById("controlSiguiente").textContent = data.resumen.siguiente ? data.resumen.siguiente.codigo : "Finalizada"
+  document.getElementById("controlSiguienteNombre").textContent = data.resumen.siguiente ? data.resumen.siguiente.nombre : "Sin pendientes"
+
+  const csrf = obtenerCsrfControl()
+  const body = document.getElementById("controlRutaBody")
+  if(!data.controles.length){
+    body.innerHTML = `<tr><td colspan="7"><div class="empty-box">No hay puntos de control configurados para esta ruta.</div></td></tr>`
+    return
+  }
+
+  body.innerHTML = data.controles.map(item => `
     <tr>
-      <th>#</th>
-      <th>Punto</th>
-      <th>Hora programada</th>
-      <th>Hora marcada</th>
-      <th>Diferencia (min)</th>
-      <th>Estado</th>
-      <th>Acción</th>
+      <td>${item.orden}</td>
+      <td><div class="point-badge">${item.codigo}</div><div class="mt-2 fw-semibold">${item.nombre}</div></td>
+      <td>${item.hora_programada || "&mdash;"}</td>
+      <td>${item.hora_marcada || "&mdash;"}</td>
+      <td>${item.diferencia !== null ? `${item.diferencia} min` : "&mdash;"}</td>
+      <td><span class="status-pill status-${item.estado}"><span class="status-dot"></span>${item.estado === "a_tiempo" ? "A_TIEMPO" : item.estado.toUpperCase()}</span></td>
+      <td>${item.marcada ? '<span class="text-success fw-bold">Registrado</span>' : `<form method="post" action="${item.marcar_url}"><input type="hidden" name="csrfmiddlewaretoken" value="${csrf}"><button class="btn btn-outline-primary btn-sm" type="submit">Marcar paso</button></form>`}</td>
     </tr>
-  </thead>
+  `).join("")
+}
 
-  <tbody>
-    {% for c in controles %}
-    {% with p=c.punto m=c.marcacion %}
-    <tr class="text-center
-        {% if m %}
-            {% if m.estado == 'adelantado' %} table-info
-            {% elif m.estado == 'a_tiempo' %} table-success
-            {% elif m.estado == 'tarde' %} table-danger
-            {% endif %}
-        {% endif %}
-    ">
-        <td>{{ p.orden }}</td>
+async function refrescarControlRuta(){
+  if(document.hidden || controlRutaUsuarioInteractuando()){
+    return
+  }
+  try{
+    const response = await fetch(controlRutaUrl, { credentials: "same-origin" })
+    if(!response.ok){ return }
+    const data = await response.json()
+    if(!data.ok){ return }
+    renderControlRuta(data)
+  }catch(error){
+    console.warn("No se pudo refrescar control de ruta.", error)
+  }
+}
 
-        <td class="fw-bold">{{ p.codigo }}</td>
-
-        <!-- 🔑 HORA PROGRAMADA CORREGIDA -->
-        <td>
-            {% if c.hora_programada_calculada %}
-                {{ c.hora_programada_calculada|time:"H:i" }}
-            {% elif m and m.hora_programada %}
-                {{ m.hora_programada|time:"H:i" }}
-            {% else %}
-                —
-            {% endif %}
-        </td>
-
-        <td>
-            {% if m and m.hora_marcada %}
-                {{ m.hora_marcada|time:"H:i" }}
-            {% else %}
-                —
-            {% endif %}
-        </td>
-
-        <td>
-            {% if m and m.diferencia_minutos is not None %}
-                {{ m.diferencia_minutos }}
-            {% else %}
-                —
-            {% endif %}
-        </td>
-
-        <td>
-            {% if m and m.estado %}
-                {% if m.estado == "adelantado" %}
-                    <span class="badge bg-primary">🟦 Adelantado</span>
-                {% elif m.estado == "a_tiempo" %}
-                    <span class="badge bg-success">🟩 A tiempo</span>
-                {% elif m.estado == "tarde" %}
-                    <span class="badge bg-danger">🟥 Tarde</span>
-                {% endif %}
-            {% else %}
-                <span class="badge bg-secondary">⏳ Pendiente</span>
-            {% endif %}
-        </td>
-
-        <td>
-            {% if not m or not m.hora_marcada %}
-                <form method="post"
-                      action="{% url 'marcar_paso' salida.id p.id %}">
-                    {% csrf_token %}
-                    <button class="btn btn-sm btn-outline-primary">
-                        Marcar paso
-                    </button>
-                </form>
-            {% else %}
-                ✔
-            {% endif %}
-        </td>
-    </tr>
-    {% endwith %}
-    {% empty %}
-    <tr>
-      <td colspan="7" class="text-center text-muted">
-        No hay puntos de control configurados para esta ruta
-      </td>
-    </tr>
-    {% endfor %}
-  </tbody>
-</table>
-
-<a href="{% url 'panel_despachador' %}" class="btn btn-secondary mt-3">
-  ⬅ Volver al panel
-</a>
-
+setInterval(refrescarControlRuta, CONTROL_RUTA_REFRESH_MS)
+document.addEventListener("visibilitychange", function(){ if(!document.hidden){ refrescarControlRuta() } })
+</script>
 {% endblock %}

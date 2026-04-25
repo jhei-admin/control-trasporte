@@ -3,114 +3,168 @@
 {% block title %}Detalle de Salida{% endblock %}
 
 {% block content %}
-
-<h2 class="mb-3">📍 Detalle de Salida</h2>
-
-<div class="card mb-3">
-    <div class="card-body">
-        <strong>Unidad:</strong> {{ salida.vehiculo.numero }} <br>
-        <strong>Ruta:</strong> {{ salida.ruta.nombre }} <br>
-        <strong>Fecha:</strong> {{ fecha|date:"Y-m-d" }} <br>
-        <strong>Hora de salida:</strong>
-        {% if salida.hora_salida %}
-            {{ salida.hora_salida|date:"H:i" }}
-        {% else %}
-            —
-        {% endif %}
-    </div>
-</div>
-
 <style>
-.fila-adelantado { background-color: #e3f2fd; }
-.fila-atiempo    { background-color: #e8f5e9; }
-.fila-tarde      { background-color: #fdecea; }
-.fila-pendiente  { background-color: #fff8e1; }
+.detail-shell{display:grid;gap:18px}
+.detail-hero,.detail-card,.detail-panel{background:#fff;border:1px solid rgba(148,163,184,.18);border-radius:22px;box-shadow:0 14px 30px rgba(15,23,42,.08)}
+.detail-hero{padding:24px;background:linear-gradient(135deg,#162033 0%,#22324b 100%);color:#fff}
+.detail-kicker{font-size:12px;letter-spacing:.12em;text-transform:uppercase;opacity:.72}
+.detail-title{margin-top:8px;font-size:34px;font-weight:800}
+.detail-sub{margin-top:10px;color:#cbd5e1}
+.detail-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.detail-card{padding:18px}
+.detail-label{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#64748b;font-weight:800}
+.detail-value{margin-top:8px;font-size:28px;font-weight:800;color:#0f172a}
+.detail-subvalue{margin-top:8px;font-size:13px;color:#475569}
+.detail-panel{padding:18px}
+.detail-head{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;margin-bottom:16px}
+.detail-head h2{margin:0;font-size:26px}
+.detail-head p{margin:6px 0 0;color:#64748b}
+.detail-actions{display:flex;gap:10px;flex-wrap:wrap}
+.detail-table{width:100%;border-collapse:separate;border-spacing:0 10px}
+.detail-table thead th{background:#1e293b;color:#e2e8f0;padding:14px 12px;font-size:12px;letter-spacing:.08em;text-transform:uppercase}
+.detail-table thead th:first-child{border-radius:14px 0 0 14px}
+.detail-table thead th:last-child{border-radius:0 14px 14px 0}
+.detail-table tbody tr{background:#fff;box-shadow:0 10px 22px rgba(15,23,42,.06)}
+.detail-table tbody td{padding:14px 12px;vertical-align:middle}
+.detail-table tbody td:first-child{border-radius:16px 0 0 16px}
+.detail-table tbody td:last-child{border-radius:0 16px 16px 0}
+.state-pill{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border-radius:999px;font-weight:800;font-size:13px}
+.state-dot{width:9px;height:9px;border-radius:50%}
+.state-pendiente{background:#f1f5f9;color:#475569}.state-pendiente .state-dot{background:#64748b}
+.state-adelantado{background:#eff6ff;color:#1d4ed8}.state-adelantado .state-dot{background:#3b82f6}
+.state-a_tiempo{background:#ecfdf5;color:#166534}.state-a_tiempo .state-dot{background:#22c55e}
+.state-tarde{background:#fef2f2;color:#b91c1c}.state-tarde .state-dot{background:#ef4444}
+.empty-box{text-align:center;padding:44px 18px;color:#64748b}
+@media (max-width: 980px){.detail-summary{grid-template-columns:repeat(2,minmax(0,1fr))}.detail-head{flex-direction:column}}
+@media (max-width: 640px){.detail-summary{grid-template-columns:1fr}.detail-title{font-size:28px}}
 </style>
 
-<table class="table table-bordered table-sm text-center">
-    <thead class="table-dark">
-        <tr>
+<div class="detail-shell" id="detalleSalidaPanel" data-refresh-url="{% url 'api_detalle_salida_web' salida.id %}">
+  <section class="detail-hero">
+    <div class="detail-kicker">Auditoria puntual</div>
+    <div class="detail-title">Detalle de salida</div>
+    <div class="detail-sub">Unidad {{ salida.vehiculo.codigo|default:salida.vehiculo.numero }} en {{ salida.ruta.nombre }}. Vista ideal para seguir cumplimiento punto por punto sin intervenir el flujo operativo.</div>
+  </section>
+
+  <section class="detail-summary">
+    <article class="detail-card">
+      <div class="detail-label">Fecha</div>
+      <div class="detail-value">{{ fecha|date:"Y-m-d" }}</div>
+      <div class="detail-subvalue">Jornada operativa analizada</div>
+    </article>
+    <article class="detail-card">
+      <div class="detail-label">Hora salida</div>
+      <div class="detail-value">{{ salida.hora_salida|date:"H:i"|default:"--:--" }}</div>
+      <div class="detail-subvalue">Hora base para calcular offsets</div>
+    </article>
+    <article class="detail-card">
+      <div class="detail-label">Puntos completados</div>
+      <div class="detail-value"><span id="detalleCompletados">{{ resumen.completados }}</span>/<span id="detalleTotal">{{ resumen.total }}</span></div>
+      <div class="detail-subvalue">Cobertura actual del recorrido</div>
+    </article>
+    <article class="detail-card">
+      <div class="detail-label">Cumplimiento</div>
+      <div class="detail-value" id="detallePorcentaje">{{ resumen.porcentaje }} %</div>
+      <div class="detail-subvalue"><span id="detallePendientes">{{ resumen.pendientes }}</span> puntos pendientes</div>
+    </article>
+  </section>
+
+  <section class="detail-panel">
+    <div class="detail-head">
+      <div>
+        <h2>Trazabilidad por punto</h2>
+        <p>La informacion se actualiza sola para reflejar nuevas marcaciones registradas en ruta.</p>
+      </div>
+      <div class="detail-actions">
+        <a href="{% url 'control_ruta' salida.id %}" class="btn btn-outline-secondary">Control de ruta</a>
+        <a href="{% url 'panel_despachador' %}" class="btn btn-dark">Volver al panel</a>
+      </div>
+    </div>
+
+    <div class="table-responsive">
+      <table class="detail-table">
+        <thead>
+          <tr>
             <th>#</th>
             <th>Control</th>
             <th>Programada</th>
             <th>Marcada</th>
-            <th>Falta (min)</th>
+            <th>Diferencia</th>
             <th>Estado</th>
-            <th>Acción</th>
-        </tr>
-    </thead>
+          </tr>
+        </thead>
+        <tbody id="detalleSalidaBody">
+          {% for m in detalle %}
+            <tr>
+              <td>{{ forloop.counter }}</td>
+              <td><strong>{{ m.punto.codigo }}</strong><div class="text-muted small mt-1">{{ m.punto.nombre }}</div></td>
+              <td>{% if m.hora_programada %}{{ m.hora_programada|date:"H:i" }}{% else %}&mdash;{% endif %}</td>
+              <td>{% if m.hora_marcada %}{{ m.hora_marcada|date:"H:i" }}{% else %}&mdash;{% endif %}</td>
+              <td>{% if m.diferencia is not None %}{{ m.diferencia }} min{% else %}&mdash;{% endif %}</td>
+              <td><span class="state-pill state-{{ m.estado }}"><span class="state-dot"></span>{% if m.estado == "a_tiempo" %}A_TIEMPO{% else %}{{ m.estado|upper }}{% endif %}</span></td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="6"><div class="empty-box">No hay puntos generados para esta salida.</div></td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>
 
-    <tbody>
-        {% for m in detalle %}
-        <tr class="
-            {% if m.estado == 'pendiente' %}
-                fila-pendiente
-            {% elif m.estado == 'adelantado' %}
-                fila-adelantado
-            {% elif m.estado == 'a_tiempo' %}
-                fila-atiempo
-            {% else %}
-                fila-tarde
-            {% endif %}
-        ">
-            <td>{{ forloop.counter }}</td>
+<script>
+const detalleSalidaPanel = document.getElementById("detalleSalidaPanel")
+const detalleSalidaUrl = detalleSalidaPanel.dataset.refreshUrl
+const DETALLE_REFRESH_MS = 12000
 
-            <td>{{ m.punto.codigo }}</td>
+function detalleUsuarioInteractuando(){
+  const activo = document.activeElement
+  if(!activo){ return false }
+  const tag = (activo.tagName || "").toLowerCase()
+  return tag === "input" || tag === "select" || tag === "textarea"
+}
 
-            <td>
-                {% if m.hora_programada %}
-                    {{ m.hora_programada|date:"H:i" }}
-                {% else %}
-                    —
-                {% endif %}
-            </td>
+function renderDetalle(data){
+  document.getElementById("detalleCompletados").textContent = data.resumen.completados
+  document.getElementById("detalleTotal").textContent = data.resumen.total
+  document.getElementById("detallePendientes").textContent = data.resumen.pendientes
+  document.getElementById("detallePorcentaje").textContent = `${data.resumen.porcentaje} %`
 
-            <td>
-                {% if m.hora_marcada %}
-                    {{ m.hora_marcada|date:"H:i" }}
-                {% else %}
-                    —
-                {% endif %}
-            </td>
+  const body = document.getElementById("detalleSalidaBody")
+  if(!data.detalle.length){
+    body.innerHTML = `<tr><td colspan="6"><div class="empty-box">No hay puntos generados para esta salida.</div></td></tr>`
+    return
+  }
 
-            <td>
-                {% if m.diferencia is not None %}
-                    {{ m.diferencia }}
-                {% else %}
-                    —
-                {% endif %}
-            </td>
+  body.innerHTML = data.detalle.map(item => `
+    <tr>
+      <td>${item.orden}</td>
+      <td><strong>${item.codigo}</strong><div class="text-muted small mt-1">${item.nombre}</div></td>
+      <td>${item.hora_programada || "&mdash;"}</td>
+      <td>${item.hora_marcada || "&mdash;"}</td>
+      <td>${item.diferencia !== null ? `${item.diferencia} min` : "&mdash;"}</td>
+      <td><span class="state-pill state-${item.estado}"><span class="state-dot"></span>${item.estado === "a_tiempo" ? "A_TIEMPO" : item.estado.toUpperCase()}</span></td>
+    </tr>
+  `).join("")
+}
 
-            <td>
-                {% if m.estado == "pendiente" %}
-                    <span class="badge bg-warning text-dark">Pendiente</span>
-                {% elif m.estado == "adelantado" %}
-                    <span class="badge bg-info text-dark">Adelantado</span>
-                {% elif m.estado == "a_tiempo" %}
-                    <span class="badge bg-success">A tiempo</span>
-                {% else %}
-                    <span class="badge bg-danger">Tarde</span>
-                {% endif %}
-            </td>
+async function refrescarDetalle(){
+  if(document.hidden || detalleUsuarioInteractuando()){
+    return
+  }
 
-            <!-- 🔒 AUDITORÍA = SOLO LECTURA -->
-            <td>—</td>
-        </tr>
+  try{
+    const response = await fetch(detalleSalidaUrl, { credentials: "same-origin" })
+    if(!response.ok){ return }
+    const data = await response.json()
+    if(!data.ok){ return }
+    renderDetalle(data)
+  }catch(error){
+    console.warn("No se pudo refrescar el detalle de salida.", error)
+  }
+}
 
-        {% empty %}
-        <tr>
-            <td colspan="7" class="text-muted">
-                No hay puntos generados para esta salida
-            </td>
-        </tr>
-        {% endfor %}
-    </tbody>
-</table>
-
-<!-- 🔙 BOTÓN ATRÁS AL PANEL PRINCIPAL -->
-<a href="{% url 'panel_despachador' %}"
-   class="btn btn-secondary mt-3">
-    ⬅ Volver a Panel Principal
-</a>
-
+setInterval(refrescarDetalle, DETALLE_REFRESH_MS)
+document.addEventListener("visibilitychange", function(){ if(!document.hidden){ refrescarDetalle() } })
+</script>
 {% endblock %}

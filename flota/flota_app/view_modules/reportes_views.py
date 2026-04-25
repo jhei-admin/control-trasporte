@@ -8,11 +8,7 @@ from ..decorators import empresa_required
 from ..models import Parada, PuntoControl, RegistroSalida, Vehiculo
 
 
-@login_required
-@empresa_required
-def reporte_salidas_diarias(request, vehiculo_id):
-    fecha_param = request.GET.get("fecha")
-
+def _construir_reporte_salidas_diarias_contexto(empresa, vehiculo_id, fecha_param):
     if fecha_param:
         try:
             fecha = date.fromisoformat(fecha_param)
@@ -20,8 +16,6 @@ def reporte_salidas_diarias(request, vehiculo_id):
             fecha = timezone.localdate()
     else:
         fecha = timezone.localdate()
-
-    empresa = request.empresa
 
     vehiculo = get_object_or_404(
         Vehiculo,
@@ -110,20 +104,33 @@ def reporte_salidas_diarias(request, vehiculo_id):
     if minutos_totales > 15:
         alertas.append("Exceso de minutos por paradas prolongadas")
 
+    return {
+        "vehiculo": vehiculo,
+        "vehiculos": vehiculos,
+        "fecha": fecha,
+        "salidas": resultado,
+        "total_vueltas": total_vueltas,
+        "promedio_marcacion": promedio_marcacion,
+        "minutos_totales": minutos_totales,
+        "alertas": alertas,
+    }
+
+
+@login_required
+@empresa_required
+def reporte_salidas_diarias(request, vehiculo_id):
+    empresa = request.empresa
+    context = _construir_reporte_salidas_diarias_contexto(
+        empresa=empresa,
+        vehiculo_id=vehiculo_id,
+        fecha_param=request.GET.get("fecha"),
+    )
+
     return render(
         request,
         "reportes/salidas_diarias.html",
-        {
-            "vehiculo": vehiculo,
-            "vehiculos": vehiculos,
-            "fecha": fecha,
-            "salidas": resultado,
-            "total_vueltas": total_vueltas,
-            "promedio_marcacion": promedio_marcacion,
-            "minutos_totales": minutos_totales,
-            "alertas": alertas,
-        },
+        context,
     )
 
 
-__all__ = ["reporte_salidas_diarias"]
+__all__ = ["_construir_reporte_salidas_diarias_contexto", "reporte_salidas_diarias"]

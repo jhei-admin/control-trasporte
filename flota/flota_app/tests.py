@@ -436,6 +436,112 @@ class PanelDespachadorApiTests(BaseFlotaTestCase):
         self.assertFalse(response.json()["ok"])
 
 
+class DispatcherLiveApisTests(BaseFlotaTestCase):
+    def setUp(self):
+        super().setUp()
+        self.user = User.objects.create_user(username="desp_live_api", password="secret123")
+        self.user.perfil.empresa = self.empresa
+        self.user.perfil.save(update_fields=["empresa"])
+        self.client.force_login(self.user)
+
+    def test_api_historial_salidas_devuelve_resumen_y_registros(self):
+        salida = RegistroSalida.objects.create(
+            vehiculo=self.vehiculo_1,
+            ruta=self.ruta_a,
+            fecha=timezone.localdate(),
+            hora_salida=timezone.now(),
+            activo=True,
+        )
+        PuntoControl.objects.create(
+            ruta=self.ruta_a,
+            codigo="SALI",
+            nombre="Salida",
+            latitud=-16.4,
+            longitud=-71.5,
+            radio_metros=50,
+            orden=1,
+            offset_minutos=0,
+            requiere_marcacion=True,
+            activo=True,
+        )
+        MarcacionPunto.objects.create(
+            registro_salida=salida,
+            punto=PuntoControl.objects.get(codigo="SALI"),
+            hora_marcada=salida.hora_salida,
+            diferencia_minutos=0,
+            estado="a_tiempo",
+        )
+
+        response = self.client.get(reverse("api_historial_salidas"))
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data["ok"])
+        self.assertEqual(data["resumen"]["total"], 1)
+        self.assertEqual(data["historial"][0]["unidad"], self.vehiculo_1.codigo)
+
+    def test_api_reporte_salidas_diarias_devuelve_tarjetas_y_urls(self):
+        salida = RegistroSalida.objects.create(
+            vehiculo=self.vehiculo_1,
+            ruta=self.ruta_a,
+            fecha=timezone.localdate(),
+            hora_salida=timezone.now(),
+            activo=True,
+        )
+
+        response = self.client.get(
+            reverse("api_reporte_salidas_diarias", args=[self.vehiculo_1.id]),
+            {"fecha": timezone.localdate().isoformat()},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data["ok"])
+        self.assertEqual(data["resumen"]["total_vueltas"], 1)
+        self.assertEqual(data["salidas"][0]["salida_id"], salida.id)
+        self.assertEqual(
+            data["salidas"][0]["detalle_url"],
+            reverse("detalle_salida", args=[salida.id]),
+        )
+
+    def test_api_control_y_detalle_salida_web_exponen_progreso(self):
+        salida = RegistroSalida.objects.create(
+            vehiculo=self.vehiculo_1,
+            ruta=self.ruta_a,
+            fecha=timezone.localdate(),
+            hora_salida=timezone.now(),
+            activo=True,
+        )
+        punto = PuntoControl.objects.create(
+            ruta=self.ruta_a,
+            codigo="CTRL",
+            nombre="Control 1",
+            latitud=-16.4,
+            longitud=-71.5,
+            radio_metros=50,
+            orden=1,
+            offset_minutos=0,
+            requiere_marcacion=True,
+            activo=True,
+        )
+        MarcacionPunto.objects.create(
+            registro_salida=salida,
+            punto=punto,
+            hora_marcada=salida.hora_salida,
+            diferencia_minutos=0,
+            estado="a_tiempo",
+        )
+
+        control_response = self.client.get(reverse("api_control_ruta_web", args=[salida.id]))
+        detalle_response = self.client.get(reverse("api_detalle_salida_web", args=[salida.id]))
+
+        self.assertEqual(control_response.status_code, 200)
+        self.assertEqual(detalle_response.status_code, 200)
+        self.assertEqual(control_response.json()["resumen"]["completados"], 1)
+        self.assertEqual(detalle_response.json()["resumen"]["completados"], 1)
+        self.assertEqual(detalle_response.json()["detalle"][0]["codigo"], punto.codigo)
+
+
 class PuntoReferenciaTests(BaseFlotaTestCase):
     def test_reporte_cuenta_solo_puntos_de_marcacion(self):
         user = User.objects.create_user(username="desp_reportes", password="x")

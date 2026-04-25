@@ -249,6 +249,211 @@ def _construir_panel_despachador_contexto(empresa, fecha_operativa, ruta_id="", 
     }
 
 
+def _calcular_detalle_salida(salida):
+    marcaciones_qs = (
+        MarcacionPunto.objects.filter(registro_salida=salida)
+        .select_related("punto")
+        .order_by("punto__orden")
+    )
+
+    detalle = []
+    completados = 0
+    pendiente_count = 0
+
+    for marcacion in marcaciones_qs:
+        punto = marcacion.punto
+
+        if salida.hora_salida:
+            hora_programada = salida.hora_salida + timedelta(minutes=punto.offset_minutos)
+        else:
+            hora_programada = None
+
+        estado = "pendiente"
+        diferencia = None
+
+        if marcacion.hora_marcada and hora_programada:
+            diferencia = int((marcacion.hora_marcada - hora_programada).total_seconds() / 60)
+            if diferencia < 0:
+                estado = "adelantado"
+            elif diferencia == 0:
+                estado = "a_tiempo"
+            else:
+                estado = "tarde"
+
+        if marcacion.hora_marcada:
+            completados += 1
+        else:
+            pendiente_count += 1
+
+        detalle.append(
+            {
+                "punto": punto,
+                "hora_programada": hora_programada,
+                "hora_marcada": marcacion.hora_marcada,
+                "diferencia": diferencia,
+                "estado": estado,
+            }
+        )
+
+    total = len(detalle)
+    return {
+        "detalle": detalle,
+        "resumen": {
+            "total": total,
+            "completados": completados,
+            "pendientes": pendiente_count,
+            "porcentaje": int((completados / total) * 100) if total else 0,
+        },
+    }
+
+
+def _construir_control_ruta_contexto(salida):
+    puntos = (
+        PuntoControl.objects
+        .filter(ruta=salida.ruta, activo=True, requiere_marcacion=True)
+        .order_by("orden")
+    )
+    controles = []
+    completados = 0
+
+    for punto in puntos:
+        if salida.hora_salida:
+            hora_programada_calculada = salida.hora_salida + timedelta(minutes=punto.offset_minutos)
+        else:
+            hora_programada_calculada = None
+
+        marcacion, _ = MarcacionPunto.objects.get_or_create(
+            registro_salida=salida,
+            punto=punto,
+            defaults={"hora_programada": hora_programada_calculada},
+        )
+        if marcacion.hora_marcada:
+            completados += 1
+
+        controles.append(
+            {
+                "punto": punto,
+                "marcacion": marcacion,
+                "hora_programada_calculada": hora_programada_calculada,
+            }
+        )
+
+    total = len(controles)
+    siguiente = next(
+        (
+            control for control in controles
+            if not control["marcacion"] or not control["marcacion"].hora_marcada
+        ),
+        None,
+    )
+    return {
+        "salida": salida,
+        "controles": controles,
+        "resumen": {
+            "total": total,
+            "completados": completados,
+            "pendientes": max(total - completados, 0),
+            "porcentaje": int((completados / total) * 100) if total else 0,
+            "siguiente": siguiente["punto"] if siguiente else None,
+        },
+    }
+
+
+def _construir_historial_salidas_contexto(empresa, desde="", hasta="", ruta_id=""):
+    salidas = (
+        RegistroSalida.objects.for_empresa(empresa)
+        .select_related("vehiculo", "ruta")
+        .prefetch_related(
+            Prefetch(
+                "marcaciones",
+                queryset=MarcacionPunto.objects.filter(
+                    hora_marcada__isnull=False,
+                ).select_related("punto").order_by("hora_marcada"),
+                to_attr="marcaciones_registradas",
+            )
+        )
+        .order_by("-fecha", "-hora_salida")
+    )
+    rutas = Ruta.objects.for_empresa(empresa).order_by("nombre")
+    errores = []
+
+    if desde:
+        try:
+            salidas = salidas.filter(
+                fecha__gte=datetime.strptime(desde, "%Y-%m-%d").date()
+            )
+        except ValueError:
+            errores.append("La fecha 'desde' no es valida.")
+
+    if hasta:
+        try:
+            salidas = salidas.filter(
+                fecha__lte=datetime.strptime(hasta, "%Y-%m-%d").date()
+            )
+        except ValueError:
+            errores.append("La fecha 'hasta' no es valida.")
+
+    if ruta_id:
+        salidas = salidas.filter(ruta_id=ruta_id)
+
+    historial = []
+    estados = {
+        "a_tiempo": 0,
+        "tarde": 0,
+        "adelantado": 0,
+        "pendiente": 0,
+    }
+
+    for salida in salidas:
+        hora_programada = salida.hora_salida
+        primera_marcacion = (
+            salida.marcaciones_registradas[0]
+            if getattr(salida, "marcaciones_registradas", None)
+            else None
+        )
+
+        hora_marcada = primera_marcacion.hora_marcada if primera_marcacion else None
+        estado = "pendiente"
+        diferencia = None
+
+        if hora_programada and hora_marcada:
+            diferencia = int((hora_marcada - hora_programada).total_seconds() / 60)
+            if diferencia < 0:
+                estado = "adelantado"
+            elif diferencia == 0:
+                estado = "a_tiempo"
+            else:
+                estado = "tarde"
+
+        estados[estado] += 1
+        historial.append(
+            {
+                "salida": salida,
+                "programada": hora_programada,
+                "marcada": hora_marcada,
+                "falta": diferencia,
+                "estado": estado,
+            }
+        )
+
+    return {
+        "historial": historial,
+        "rutas": rutas,
+        "filtros": {
+            "desde": desde,
+            "hasta": hasta,
+            "ruta": ruta_id,
+        },
+        "resumen": {
+            "total": len(historial),
+            "a_tiempo": estados["a_tiempo"],
+            "tarde": estados["tarde"],
+            "adelantado": estados["adelantado"],
+            "pendiente": estados["pendiente"],
+        },
+        "errores": errores,
+    }
+
 @login_required
 @user_passes_test(es_despachador)
 @empresa_required
@@ -644,50 +849,15 @@ def detalle_salida(request, salida_id):
         id=salida_id,
         vehiculo__empresa=empresa,
     )
-
-    marcaciones_qs = (
-        MarcacionPunto.objects.filter(registro_salida=salida)
-        .select_related("punto")
-        .order_by("punto__orden")
-    )
-
-    detalle = []
-    for marcacion in marcaciones_qs:
-        punto = marcacion.punto
-
-        if salida.hora_salida:
-            hora_programada = salida.hora_salida + timedelta(minutes=punto.offset_minutos)
-        else:
-            hora_programada = None
-
-        estado = "pendiente"
-        diferencia = None
-
-        if marcacion.hora_marcada and hora_programada:
-            diferencia = int((marcacion.hora_marcada - hora_programada).total_seconds() / 60)
-            if diferencia < 0:
-                estado = "adelantado"
-            elif diferencia == 0:
-                estado = "a_tiempo"
-            else:
-                estado = "tarde"
-
-        detalle.append(
-            {
-                "punto": punto,
-                "hora_programada": hora_programada,
-                "hora_marcada": marcacion.hora_marcada,
-                "diferencia": diferencia,
-                "estado": estado,
-            }
-        )
+    context = _calcular_detalle_salida(salida)
 
     return render(
         request,
         "flota_app/detalle_salida.html",
         {
             "salida": salida,
-            "detalle": detalle,
+            "detalle": context["detalle"],
+            "resumen": context["resumen"],
             "vehiculo_id": salida.vehiculo.id,
             "fecha": salida.fecha,
         },
@@ -735,37 +905,12 @@ def control_ruta(request, salida_id):
         vehiculo__empresa=empresa,
     )
 
-    puntos = (
-        PuntoControl.objects
-        .filter(ruta=salida.ruta, activo=True, requiere_marcacion=True)
-        .order_by("orden")
-    )
-    controles = []
-
-    for punto in puntos:
-        if salida.hora_salida:
-            hora_programada_calculada = salida.hora_salida + timedelta(minutes=punto.offset_minutos)
-        else:
-            hora_programada_calculada = None
-
-        marcacion, _ = MarcacionPunto.objects.get_or_create(
-            registro_salida=salida,
-            punto=punto,
-            defaults={"hora_programada": hora_programada_calculada},
-        )
-
-        controles.append(
-            {
-                "punto": punto,
-                "marcacion": marcacion,
-                "hora_programada_calculada": hora_programada_calculada,
-            }
-        )
+    context = _construir_control_ruta_contexto(salida)
 
     return render(
         request,
         "flota_app/despachador/control_ruta.html",
-        {"salida": salida, "controles": controles},
+        context,
     )
 
 
@@ -874,84 +1019,22 @@ def auditoria_horas(request):
 @empresa_required
 def historial_salidas(request):
     empresa = request.empresa
-    salidas = (
-        RegistroSalida.objects.for_empresa(empresa)
-        .select_related("vehiculo", "ruta")
-        .prefetch_related(
-            Prefetch(
-                "marcaciones",
-                queryset=MarcacionPunto.objects.filter(
-                    hora_marcada__isnull=False,
-                ).select_related("punto").order_by("hora_marcada"),
-                to_attr="marcaciones_registradas",
-            )
-        )
-        .order_by("-fecha", "-hora_salida")
-    )
-    rutas = Ruta.objects.for_empresa(empresa).order_by("nombre")
     desde = request.GET.get("desde", "").strip()
     hasta = request.GET.get("hasta", "").strip()
     ruta_id = request.GET.get("ruta", "").strip()
-
-    if desde:
-        try:
-            salidas = salidas.filter(
-                fecha__gte=datetime.strptime(desde, "%Y-%m-%d").date()
-            )
-        except ValueError:
-            messages.error(request, "La fecha 'desde' no es valida.")
-
-    if hasta:
-        try:
-            salidas = salidas.filter(
-                fecha__lte=datetime.strptime(hasta, "%Y-%m-%d").date()
-            )
-        except ValueError:
-            messages.error(request, "La fecha 'hasta' no es valida.")
-
-    if ruta_id:
-        salidas = salidas.filter(ruta_id=ruta_id)
-
-    historial = []
-
-    for salida in salidas:
-        hora_programada = salida.hora_salida
-        primera_marcacion = (
-            salida.marcaciones_registradas[0]
-            if getattr(salida, "marcaciones_registradas", None)
-            else None
-        )
-
-        hora_marcada = primera_marcacion.hora_marcada if primera_marcacion else None
-        estado = "pendiente"
-        diferencia = None
-
-        if hora_programada and hora_marcada:
-            diferencia = int((hora_marcada - hora_programada).total_seconds() / 60)
-            if diferencia < 0:
-                estado = "adelantado"
-            elif diferencia == 0:
-                estado = "a_tiempo"
-            else:
-                estado = "tarde"
-
-        historial.append(
-            {
-                "salida": salida,
-                "programada": hora_programada,
-                "marcada": hora_marcada,
-                "falta": diferencia,
-                "estado": estado,
-            }
-        )
+    context = _construir_historial_salidas_contexto(
+        empresa=empresa,
+        desde=desde,
+        hasta=hasta,
+        ruta_id=ruta_id,
+    )
+    for error in context["errores"]:
+        messages.error(request, error)
 
     return render(
         request,
         "flota_app/despachador/historial_salidas.html",
-        {
-            "historial": historial,
-            "rutas": rutas,
-        },
+        context,
     )
 
 

@@ -10,6 +10,7 @@ from django.core import signing
 from django.db import IntegrityError
 from django.db.models import Max, Q, Sum
 from django.http import JsonResponse
+from django.shortcuts import get_object_or_404
 from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
@@ -34,10 +35,14 @@ from ..models import (
 from ..services import calcular_estado_sesion, validar_sesion, validar_sesion_staff
 from ..utils import distancia_metros
 from .despacho_views import (
+    _calcular_detalle_salida,
+    _construir_control_ruta_contexto,
+    _construir_historial_salidas_contexto,
     _construir_panel_despachador_contexto,
     _parse_fecha_panel,
     es_despachador,
 )
+from .reportes_views import _construir_reporte_salidas_diarias_contexto
 
 __all__ = [
     "api_admin_limpiar_gps",
@@ -61,6 +66,10 @@ __all__ = [
     "api_panel_frecuencia",
     "api_paradas_vehiculo",
     "api_panel_despachador",
+    "api_reporte_salidas_diarias",
+    "api_historial_salidas",
+    "api_control_ruta_web",
+    "api_detalle_salida_web",
     "api_puntos_control",
     "api_recorrido_vehiculo",
     "debug_gps",
@@ -143,6 +152,84 @@ def _serializar_panel_despachador(contexto):
                 hora_actual_hhmm=hora_actual_hhmm,
             )
             for salida in contexto["salidas"]
+        ],
+    }
+
+
+def _serializar_historial_item(item):
+    return {
+        "unidad": item["salida"].vehiculo.codigo,
+        "ruta": item["salida"].ruta.nombre if item["salida"].ruta else "SIN RUTA",
+        "fecha": item["salida"].fecha.isoformat(),
+        "programada": _format_hora(item["programada"]),
+        "marcada": _format_hora(item["marcada"]),
+        "falta": item["falta"],
+        "estado": item["estado"],
+    }
+
+
+def _serializar_reporte_item(item):
+    return {
+        "hora": _format_hora(item["hora"]),
+        "ruta": item["ruta"],
+        "vuelta": item["vuelta"],
+        "porcentaje": item["porcentaje"],
+        "minutos": item["minutos"],
+        "salida_id": item["salida_id"],
+        "detalle_url": reverse("detalle_salida", args=[item["salida_id"]]),
+    }
+
+
+def _serializar_control_web(contexto):
+    controles = []
+    for control in contexto["controles"]:
+        punto = control["punto"]
+        marcacion = control["marcacion"]
+        controles.append(
+            {
+                "orden": punto.orden,
+                "codigo": punto.codigo,
+                "nombre": punto.nombre,
+                "hora_programada": _format_hora(
+                    control["hora_programada_calculada"] or getattr(marcacion, "hora_programada", None)
+                ),
+                "hora_marcada": _format_hora(getattr(marcacion, "hora_marcada", None)),
+                "diferencia": getattr(marcacion, "diferencia_minutos", None),
+                "estado": getattr(marcacion, "estado", None) or "pendiente",
+                "marcada": bool(getattr(marcacion, "hora_marcada", None)),
+                "marcar_url": reverse("marcar_paso", args=[contexto["salida"].id, punto.id]),
+            }
+        )
+
+    siguiente = contexto["resumen"]["siguiente"]
+    return {
+        "ok": True,
+        "resumen": {
+            **contexto["resumen"],
+            "siguiente": {
+                "codigo": siguiente.codigo,
+                "nombre": siguiente.nombre,
+            } if siguiente else None,
+        },
+        "controles": controles,
+    }
+
+
+def _serializar_detalle_web(contexto):
+    return {
+        "ok": True,
+        "resumen": contexto["resumen"],
+        "detalle": [
+            {
+                "orden": index + 1,
+                "codigo": item["punto"].codigo,
+                "nombre": item["punto"].nombre,
+                "hora_programada": _format_hora(item["hora_programada"]),
+                "hora_marcada": _format_hora(item["hora_marcada"]),
+                "diferencia": item["diferencia"],
+                "estado": item["estado"],
+            }
+            for index, item in enumerate(contexto["detalle"])
         ],
     }
 
@@ -1967,6 +2054,72 @@ def api_panel_despachador(request):
         ruta_id=ruta_id,
     )
     return JsonResponse(_serializar_panel_despachador(contexto))
+
+
+@login_required
+@empresa_required
+@require_GET
+def api_historial_salidas(request):
+    context = _construir_historial_salidas_contexto(
+        empresa=request.empresa,
+        desde=request.GET.get("desde", "").strip(),
+        hasta=request.GET.get("hasta", "").strip(),
+        ruta_id=request.GET.get("ruta", "").strip(),
+    )
+    return JsonResponse(
+        {
+            "ok": True,
+            "resumen": context["resumen"],
+            "historial": [_serializar_historial_item(item) for item in context["historial"]],
+            "errores": context["errores"],
+        }
+    )
+
+
+@login_required
+@empresa_required
+@require_GET
+def api_reporte_salidas_diarias(request, vehiculo_id):
+    context = _construir_reporte_salidas_diarias_contexto(
+        empresa=request.empresa,
+        vehiculo_id=vehiculo_id,
+        fecha_param=request.GET.get("fecha"),
+    )
+    return JsonResponse(
+        {
+            "ok": True,
+            "fecha": context["fecha"].isoformat(),
+            "resumen": {
+                "total_vueltas": context["total_vueltas"],
+                "promedio_marcacion": context["promedio_marcacion"],
+                "minutos_totales": context["minutos_totales"],
+                "alertas": context["alertas"],
+            },
+            "salidas": [_serializar_reporte_item(item) for item in context["salidas"]],
+        }
+    )
+
+
+@login_required
+@empresa_required
+@require_GET
+def api_control_ruta_web(request, salida_id):
+    salida = get_object_or_404(
+        RegistroSalida.objects.for_empresa(request.empresa).select_related("vehiculo", "ruta"),
+        id=salida_id,
+    )
+    return JsonResponse(_serializar_control_web(_construir_control_ruta_contexto(salida)))
+
+
+@login_required
+@empresa_required
+@require_GET
+def api_detalle_salida_web(request, salida_id):
+    salida = get_object_or_404(
+        RegistroSalida.objects.for_empresa(request.empresa).select_related("vehiculo", "ruta"),
+        id=salida_id,
+    )
+    return JsonResponse(_serializar_detalle_web(_calcular_detalle_salida(salida)))
 
 
 @login_required
