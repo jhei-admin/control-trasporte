@@ -183,42 +183,13 @@ body::before{
 .vehicle-area{
     position:relative;
     margin-top:26px;
-    min-height:250px;
+    min-height:230px;
 }
 
 .vehicle-area img{
-    width:min(440px, 78%);
+    width:min(420px, 74%);
     display:block;
     filter:drop-shadow(0 20px 38px rgba(0,0,0,.45));
-}
-
-.route-line{
-    position:absolute;
-    left:20px;
-    right:0;
-    bottom:18px;
-    height:96px;
-    pointer-events:none;
-}
-
-.route-line svg{
-    width:100%;
-    height:100%;
-}
-
-.route-path{
-    fill:none;
-    stroke:rgba(95, 212, 255, .9);
-    stroke-width:3;
-    stroke-linecap:round;
-    stroke-dasharray:9 8;
-    filter:drop-shadow(0 0 10px rgba(95, 212, 255, .42));
-    animation:routeFlow 8s linear infinite;
-}
-
-.route-node{
-    fill:#6bddff;
-    filter:drop-shadow(0 0 8px rgba(107, 221, 255, .7));
 }
 
 .login-card{
@@ -282,10 +253,10 @@ body::before{
 }
 
 .login-text{
-    margin:0 0 20px;
+    margin:0 0 18px;
     color:var(--muted);
-    font-size:.98rem;
-    line-height:1.72;
+    font-size:.95rem;
+    line-height:1.65;
 }
 
 .field-label{
@@ -351,53 +322,16 @@ body::before{
     box-shadow:0 18px 34px rgba(255, 171, 51, .3);
 }
 
-.helper{
-    display:flex;
-    justify-content:space-between;
-    gap:10px;
+.login-note{
     margin-top:14px;
     color:var(--muted);
-    font-size:.92rem;
+    font-size:.9rem;
+    line-height:1.55;
 }
 
-.helper span{
-    display:inline-flex;
-    align-items:center;
-    gap:8px;
-}
-
-.helper i{
+.login-note i{
     color:var(--blue);
-}
-
-.mini-info{
-    display:grid;
-    grid-template-columns:repeat(2, minmax(0, 1fr));
-    gap:12px;
-    margin-top:18px;
-}
-
-.mini-card{
-    padding:14px;
-    border-radius:18px;
-    background:rgba(255,255,255,.035);
-    border:1px solid rgba(129, 179, 243, .12);
-}
-
-.mini-card small{
-    display:block;
-    margin-bottom:6px;
-    color:#88a0bf;
-    font-size:.76rem;
-    font-weight:700;
-    letter-spacing:.08em;
-    text-transform:uppercase;
-}
-
-.mini-card strong{
-    display:block;
-    font-size:1rem;
-    line-height:1.45;
+    margin-right:8px;
 }
 
 .alert{
@@ -408,11 +342,6 @@ body::before{
 @keyframes fall{
     from{ transform:translateY(0); }
     to{ transform:translateY(130vh); }
-}
-
-@keyframes routeFlow{
-    from{ stroke-dashoffset:0; }
-    to{ stroke-dashoffset:-130; }
 }
 
 @media (max-width: 1180px){
@@ -452,19 +381,6 @@ body::before{
         width:min(330px, 88%);
     }
 
-    .route-line{
-        display:none;
-    }
-
-    .helper{
-        flex-direction:column;
-        align-items:flex-start;
-    }
-
-    .mini-info{
-        grid-template-columns:1fr;
-    }
-
     .particle:nth-child(n+9){
         display:none;
     }
@@ -492,12 +408,12 @@ body::before{
         <div class="hero">
             <div class="badge">Centro de operacion conectado</div>
             <h1 class="title">
-                Control de flota
-                <span class="accent">mas limpio</span>
-                y directo.
+                Control Transporte
+                <span class="accent">para tu operacion</span>
+                diaria.
             </h1>
             <p class="subtitle">
-                Accede al sistema de despacho con una pantalla mas compacta, moderna y enfocada en lo esencial.
+                Accede al sistema de despacho con una experiencia visual mas sobria, clara y enfocada en lo esencial.
             </p>
 
             <div class="chips">
@@ -508,15 +424,6 @@ body::before{
 
             <div class="vehicle-area">
                 <img src="{% static 'img/combi.png' %}" alt="Unidad de transporte">
-                <div class="route-line">
-                    <svg viewBox="0 0 760 96" aria-hidden="true">
-                        <path class="route-path" d="M20 72 C120 24 210 92 310 46 S510 32 730 66" />
-                        <circle class="route-node" cx="20" cy="72" r="5" />
-                        <circle class="route-node" cx="240" cy="56" r="5" />
-                        <circle class="route-node" cx="520" cy="48" r="5" />
-                        <circle class="route-node" cx="730" cy="66" r="5" />
-                    </svg>
-                </div>
             </div>
         </div>
 
@@ -548,11 +455,6 @@ body::before{
 
                 <button type="submit" class="btn-login">Entrar al sistema</button>
 
-                <div class="helper">
-                    <span><i class="fa-solid fa-shield-halved"></i> Acceso protegido</span>
-                    <span><i class="fa-solid fa-clock"></i> Operacion 24/7</span>
-                </div>
-
                 {% if messages %}
                 {% for message in messages %}
                 <div class="alert alert-danger mt-3 mb-0">{{ message }}</div>
@@ -562,15 +464,9 @@ body::before{
                 {% endif %}
             </form>
 
-            <div class="mini-info">
-                <div class="mini-card">
-                    <small>Cobertura</small>
-                    <strong>Despacho diario y control de ruta</strong>
-                </div>
-                <div class="mini-card">
-                    <small>Ciudad</small>
-                    <strong>Arequipa, Peru</strong>
-                </div>
+            <div class="login-note">
+                <i class="fa-solid fa-shield-halved"></i>
+                Acceso protegido para administracion y despacho.
             </div>
         </aside>
     </section>
