@@ -306,6 +306,23 @@ class LoginSistemaViewTests(BaseFlotaTestCase):
 
         self.assertRedirects(response, "/sistema/despachador/", fetch_redirect_response=False)
 
+    def test_login_despachador_staff_con_empresa_prioriza_panel(self):
+        user = User.objects.create_user(
+            username="desp_staff",
+            password="secret123",
+            is_staff=True,
+        )
+        user.groups.add(self.despachador_group)
+        user.perfil.empresa = self.empresa
+        user.perfil.save(update_fields=["empresa"])
+
+        response = self.client.post(
+            reverse("login"),
+            {"username": "desp_staff", "password": "secret123"},
+        )
+
+        self.assertRedirects(response, "/sistema/despachador/", fetch_redirect_response=False)
+
     def test_login_despachador_sin_empresa_cierra_sesion_y_muestra_error(self):
         user = User.objects.create_user(username="desp_sin_empresa", password="secret123")
         user.groups.add(self.despachador_group)
@@ -342,6 +359,21 @@ class LoginSistemaViewTests(BaseFlotaTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Tu usuario no tiene permisos para ingresar al sistema.")
         self.assertNotIn("_auth_user_id", self.client.session)
+
+    def test_login_superuser_sigue_yendo_a_admin(self):
+        User.objects.create_user(
+            username="admin_total",
+            password="secret123",
+            is_staff=True,
+            is_superuser=True,
+        )
+
+        response = self.client.post(
+            reverse("login"),
+            {"username": "admin_total", "password": "secret123"},
+        )
+
+        self.assertRedirects(response, "/admin/", fetch_redirect_response=False)
 
 
 class PuntoReferenciaTests(BaseFlotaTestCase):

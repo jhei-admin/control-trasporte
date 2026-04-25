@@ -18,7 +18,7 @@ class LoginSistemaView(LoginView):
     redirect_authenticated_user = True
 
     def _resolve_user_redirect(self, user):
-        if user.is_superuser or user.is_staff:
+        if user.is_superuser:
             return "/admin/", None
 
         if user.groups.filter(name="despachador").exists():
@@ -26,6 +26,9 @@ class LoginSistemaView(LoginView):
             if empresa:
                 return "/sistema/despachador/", None
             return None, "Tu usuario despachador no tiene empresa asignada."
+
+        if user.is_staff:
+            return "/admin/", None
 
         return None, "Tu usuario no tiene permisos para ingresar al sistema."
 
