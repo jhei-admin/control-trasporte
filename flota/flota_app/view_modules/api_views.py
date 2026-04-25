@@ -10,6 +10,7 @@ from django.core import signing
 from django.db import IntegrityError
 from django.db.models import Max, Q, Sum
 from django.http import JsonResponse
+from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET, require_POST
@@ -32,6 +33,11 @@ from ..models import (
 )
 from ..services import calcular_estado_sesion, validar_sesion, validar_sesion_staff
 from ..utils import distancia_metros
+from .despacho_views import (
+    _construir_panel_despachador_contexto,
+    _parse_fecha_panel,
+    es_despachador,
+)
 
 __all__ = [
     "api_admin_limpiar_gps",
@@ -54,6 +60,7 @@ __all__ = [
     "api_heartbeat",
     "api_panel_frecuencia",
     "api_paradas_vehiculo",
+    "api_panel_despachador",
     "api_puntos_control",
     "api_recorrido_vehiculo",
     "debug_gps",
@@ -81,6 +88,63 @@ def _decimal_to_float(value):
     if value is None:
         return 0.0
     return float(value)
+
+
+def _serializar_salida_panel(salida, ruta_actual_id, fecha_operativa_iso, hora_actual_hhmm):
+    ruta_contexto = ruta_actual_id or str(salida.ruta_id)
+
+    return {
+        "id": salida.id,
+        "unidad": salida.vehiculo.codigo,
+        "ruta_nombre": salida.ruta.nombre if salida.ruta else "",
+        "ruta_id": salida.ruta_id,
+        "hora_llegada": timezone.localtime(salida.hora_llegada).strftime("%H:%M"),
+        "hora_salida": _format_hora(salida.hora_salida),
+        "estado_label": salida.estado_panel_label,
+        "estado_class": salida.estado_panel_class,
+        "urls": {
+            "asignar_hora": reverse("asignar_hora_fija", args=[salida.id]),
+            "control_ruta": reverse("control_ruta", args=[salida.id]),
+            "detalle_salida": reverse("detalle_salida", args=[salida.id]),
+            "ver_qr": reverse("ver_qr_unidad", args=[salida.vehiculo.id]),
+            "desbloquear_hora": reverse("desbloquear_hora", args=[salida.id]),
+        },
+        "form": {
+            "current_ruta_id": ruta_contexto,
+            "current_fecha": fecha_operativa_iso,
+            "hora_fija": _format_hora(salida.hora_salida) or hora_actual_hhmm,
+        },
+    }
+
+
+def _serializar_panel_despachador(contexto):
+    fecha_operativa_iso = contexto["fecha_operativa_iso"]
+    ruta_actual_id = contexto["ruta_actual_id"]
+    hora_actual_hhmm = contexto["hora_actual_hhmm"]
+    reporte_vehiculo_id = contexto["reporte_vehiculo_id"]
+    reporte_url = None
+    if reporte_vehiculo_id:
+        reporte_url = f"{reverse('reporte_salidas_diarias', args=[reporte_vehiculo_id])}?fecha={fecha_operativa_iso}"
+
+    return {
+        "ok": True,
+        "stats": contexto["stats"],
+        "ruta_actual_id": ruta_actual_id,
+        "ruta_actual_nombre": contexto["ruta_actual_nombre"],
+        "fecha_operativa_iso": fecha_operativa_iso,
+        "hora_actual_hhmm": hora_actual_hhmm,
+        "reporte_vehiculo_id": reporte_vehiculo_id,
+        "reporte_url": reporte_url,
+        "salidas": [
+            _serializar_salida_panel(
+                salida,
+                ruta_actual_id=ruta_actual_id,
+                fecha_operativa_iso=fecha_operativa_iso,
+                hora_actual_hhmm=hora_actual_hhmm,
+            )
+            for salida in contexto["salidas"]
+        ],
+    }
 
 
 @csrf_exempt
@@ -1877,6 +1941,32 @@ def api_app_mapa_operativo(request):
             ),
         },
     })
+
+
+@login_required
+@empresa_required
+@require_GET
+def api_panel_despachador(request):
+    if not es_despachador(request.user):
+        return JsonResponse(
+            {"ok": False, "mensaje": "No tienes permisos para ver este panel."},
+            status=403,
+        )
+
+    fecha_str = request.GET.get("fecha", "").strip()
+    ruta_id = request.GET.get("ruta", "").strip()
+
+    try:
+        fecha_operativa = _parse_fecha_panel(fecha_str)
+    except ValueError as error:
+        return JsonResponse({"ok": False, "mensaje": str(error)}, status=400)
+
+    contexto = _construir_panel_despachador_contexto(
+        empresa=request.empresa,
+        fecha_operativa=fecha_operativa,
+        ruta_id=ruta_id,
+    )
+    return JsonResponse(_serializar_panel_despachador(contexto))
 
 
 @login_required

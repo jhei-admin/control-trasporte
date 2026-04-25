@@ -20,6 +20,7 @@ from .view_modules.api_views import (
     api_gps,
     api_gps_conductor,
     api_heartbeat,
+    api_panel_despachador,
     api_panel_frecuencia,
     api_paradas_vehiculo,
     api_puntos_control,
@@ -423,6 +424,15 @@ urlpatterns = [
         "api/frecuencia/",
         api_panel_frecuencia,
         name="api_panel_frecuencia"
+    ),
+    path(
+        "api/despachador/panel/",
+        api_panel_despachador,
+        name="api_panel_despachador"
+    ),
+    path(
+        "api/despachador/panel",
+        api_panel_despachador
     ),
 
     # =========================

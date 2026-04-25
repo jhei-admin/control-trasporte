@@ -140,24 +140,14 @@ def _programar_salida(salida, empresa, hora_fija_dt, fecha_operativa=None):
         marcacion.save(update_fields=["hora_programada"])
 
 
-@login_required
-@user_passes_test(es_despachador)
-@empresa_required
-def panel_despachador(request):
+def _construir_panel_despachador_contexto(empresa, fecha_operativa, ruta_id="", ahora=None):
     hoy = timezone.localdate()
-    empresa = request.empresa
+    ahora = ahora or timezone.now()
     rutas = list(Ruta.objects.for_empresa(empresa).order_by("nombre"))
-    fecha_str = request.GET.get("fecha", "").strip()
-    try:
-        fecha_operativa = _parse_fecha_panel(fecha_str)
-    except ValueError as error:
-        messages.error(request, str(error))
-        fecha_operativa = hoy
-    ruta_id = request.GET.get("ruta", "").strip()
     ruta_actual = None
 
     if ruta_id:
-        ruta_actual = next((ruta for ruta in rutas if str(ruta.id) == ruta_id), None)
+        ruta_actual = next((ruta for ruta in rutas if str(ruta.id) == str(ruta_id)), None)
     elif len(rutas) == 1:
         ruta_actual = rutas[0]
 
@@ -174,7 +164,6 @@ def panel_despachador(request):
     if ruta_actual:
         salidas_qs = salidas_qs.filter(ruta=ruta_actual)
 
-    ahora = timezone.now()
     salidas_revision = list(salidas_qs)
     finalizadas_por_inactividad = 0
     for salida in salidas_revision:
@@ -182,10 +171,6 @@ def panel_despachador(request):
             finalizadas_por_inactividad += 1
 
     if finalizadas_por_inactividad:
-        messages.info(
-            request,
-            f"{finalizadas_por_inactividad} ruta(s) finalizada(s) por inactividad.",
-        )
         salidas_qs = salidas_qs.filter(activo=True)
 
     es_fecha_futura = fecha_operativa > hoy
@@ -248,22 +233,51 @@ def panel_despachador(request):
         if vehiculo:
             reporte_vehiculo_id = vehiculo.id
 
+    return {
+        "salidas": salidas,
+        "reporte_vehiculo_id": reporte_vehiculo_id,
+        "rutas": rutas,
+        "ruta_actual_id": str(ruta_actual.id) if ruta_actual else "",
+        "ruta_actual_nombre": ruta_actual.nombre if ruta_actual else "",
+        "stats": stats,
+        "hora_actual_hhmm": timezone.localtime(ahora).strftime("%H:%M"),
+        "fecha_operativa": fecha_operativa,
+        "fecha_operativa_iso": fecha_operativa.isoformat(),
+        "fecha_es_futura": es_fecha_futura,
+        "codigos_unidad": codigos_unidad,
+        "finalizadas_por_inactividad": finalizadas_por_inactividad,
+    }
+
+
+@login_required
+@user_passes_test(es_despachador)
+@empresa_required
+def panel_despachador(request):
+    empresa = request.empresa
+    fecha_str = request.GET.get("fecha", "").strip()
+    try:
+        fecha_operativa = _parse_fecha_panel(fecha_str)
+    except ValueError as error:
+        messages.error(request, str(error))
+        fecha_operativa = timezone.localdate()
+    ruta_id = request.GET.get("ruta", "").strip()
+
+    context = _construir_panel_despachador_contexto(
+        empresa=empresa,
+        fecha_operativa=fecha_operativa,
+        ruta_id=ruta_id,
+    )
+
+    if context["finalizadas_por_inactividad"]:
+        messages.info(
+            request,
+            f"{context['finalizadas_por_inactividad']} ruta(s) finalizada(s) por inactividad.",
+        )
+
     return render(
         request,
         "flota_app/despachador/panel_despachador_ruta.html",
-        {
-            "salidas": salidas,
-            "reporte_vehiculo_id": reporte_vehiculo_id,
-            "rutas": rutas,
-            "ruta_actual_id": str(ruta_actual.id) if ruta_actual else "",
-            "ruta_actual_nombre": ruta_actual.nombre if ruta_actual else "",
-            "stats": stats,
-            "hora_actual_hhmm": timezone.localtime().strftime("%H:%M"),
-            "fecha_operativa": fecha_operativa,
-            "fecha_operativa_iso": fecha_operativa.isoformat(),
-            "fecha_es_futura": es_fecha_futura,
-            "codigos_unidad": codigos_unidad,
-        },
+        context,
     )
 
 

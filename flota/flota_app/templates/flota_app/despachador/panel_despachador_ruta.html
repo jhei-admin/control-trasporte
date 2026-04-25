@@ -611,7 +611,7 @@ width:100%;
 }
 </style>
 
-<div class="ops-shell">
+<div class="ops-shell" id="dispatcherPanel" data-refresh-url="{% url 'api_panel_despachador' %}" data-fecha="{{ fecha_operativa_iso }}" data-ruta="{{ ruta_actual_id }}">
   <section class="ops-topbar">
     <div class="ops-brand">
       <div class="ops-brand-kicker">Centro de Operacion</div>
@@ -646,7 +646,7 @@ width:100%;
             <h2>Despacho rapido</h2>
             <p>Replica el flujo operativo real: codigo de unidad, fecha operativa, hora de salida y Enter.</p>
           </div>
-          <div class="route-chip">
+          <div class="route-chip" id="routeChip">
             {% if ruta_actual_nombre %}
               Ruta activa: {{ ruta_actual_nombre }}
             {% else %}
@@ -705,25 +705,25 @@ width:100%;
     <div class="hero-stats">
       <article class="ops-kpi green">
         <div class="ops-kpi-label">Unidades activas</div>
-        <div class="ops-kpi-value">{{ stats.activas }}</div>
+        <div class="ops-kpi-value" id="kpiActivas">{{ stats.activas }}</div>
         <div class="ops-kpi-sub">Salidas visibles en la fecha operativa</div>
       </article>
 
       <article class="ops-kpi blue">
         <div class="ops-kpi-label">Programadas</div>
-        <div class="ops-kpi-value">{{ stats.programadas }}</div>
+        <div class="ops-kpi-value" id="kpiProgramadas">{{ stats.programadas }}</div>
         <div class="ops-kpi-sub">Con hora registrada para la fecha operativa</div>
       </article>
 
       <article class="ops-kpi red">
         <div class="ops-kpi-label">Pendientes de salida</div>
-        <div class="ops-kpi-value">{{ stats.atrasadas }}</div>
+        <div class="ops-kpi-value" id="kpiAtrasadas">{{ stats.atrasadas }}</div>
         <div class="ops-kpi-sub">Hora alcanzada o vencida</div>
       </article>
 
       <article class="ops-kpi gray">
         <div class="ops-kpi-label">Sin hora</div>
-        <div class="ops-kpi-value">{{ stats.sin_hora }}</div>
+        <div class="ops-kpi-value" id="kpiSinHora">{{ stats.sin_hora }}</div>
         <div class="ops-kpi-sub">Pendientes de programar para la fecha operativa</div>
       </article>
     </div>
@@ -734,9 +734,9 @@ width:100%;
     <a href="{% url 'despachador_mapa' %}" class="btn btn-outline-primary">Mapa en tiempo real</a>
     <a href="{% url 'panel_frecuencia' %}{% if ruta_actual_id %}?ruta={{ ruta_actual_id }}{% endif %}" class="btn btn-outline-success">Frecuencia</a>
     {% if reporte_vehiculo_id %}
-      <a href="{% url 'reporte_salidas_diarias' reporte_vehiculo_id %}?fecha={{ fecha_operativa_iso }}" class="btn btn-warning">Salidas del dia</a>
+      <a id="reportesDiaLink" href="{% url 'reporte_salidas_diarias' reporte_vehiculo_id %}?fecha={{ fecha_operativa_iso }}" class="btn btn-warning">Salidas del dia</a>
     {% else %}
-      <button class="btn btn-warning" disabled>Salidas del dia</button>
+      <button id="reportesDiaLink" class="btn btn-warning" disabled>Salidas del dia</button>
     {% endif %}
   </section>
 
@@ -748,7 +748,7 @@ width:100%;
       </div>
 
       <div class="filter-grid">
-        <form method="get">
+        <form method="get" id="rutaFilterForm">
           <input type="hidden" name="fecha" value="{{ fecha_operativa_iso }}">
           <label for="filtroRuta">Ruta visible</label>
           <select id="filtroRuta" name="ruta" class="form-select" onchange="this.form.submit()">
@@ -759,7 +759,7 @@ width:100%;
           </select>
         </form>
 
-        <form method="get">
+        <form method="get" id="fechaFilterForm">
           {% if ruta_actual_id %}
             <input type="hidden" name="ruta" value="{{ ruta_actual_id }}">
           {% endif %}
@@ -786,7 +786,7 @@ width:100%;
             <th class="text-end">Acciones</th>
           </tr>
         </thead>
-        <tbody>
+        <tbody id="panelSalidasBody">
           {% for s in salidas %}
             <tr class="fila-unidad{% if forloop.first %} ops-row-highlight{% endif %}" data-unidad="{{ s.vehiculo.codigo|lower }}">
               <td>
@@ -868,13 +868,238 @@ function actualizarHora(){
 setInterval(actualizarHora, 1000)
 actualizarHora()
 
-document.getElementById("busquedaUnidad").addEventListener("input", function(){
-  const filtro = this.value.toLowerCase().trim()
+const PANEL_AUTO_REFRESH_MS = 15000
+let panelRefreshTimer = null
+const dispatcherPanel = document.getElementById("dispatcherPanel")
+const panelRefreshUrl = dispatcherPanel?.dataset.refreshUrl || ""
+
+function obtenerCsrfToken(){
+  const csrfInput = document.querySelector('#quickDispatchForm input[name="csrfmiddlewaretoken"]')
+  if(csrfInput){
+    return csrfInput.value
+  }
+
+  const match = document.cookie.match(/(?:^|; )csrftoken=([^;]+)/)
+  return match ? decodeURIComponent(match[1]) : ""
+}
+
+function escapeHtml(valor){
+  return String(valor ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;")
+}
+
+function usuarioInteractuandoConFormulario(){
+  const activo = document.activeElement
+  if(!activo){
+    return false
+  }
+
+  const tag = (activo.tagName || "").toLowerCase()
+  return tag === "input" || tag === "select" || tag === "textarea"
+}
+
+function obtenerFiltrosPanel(){
+  return {
+    ruta: document.getElementById("filtroRuta")?.value || "",
+    fecha: document.getElementById("fechaVisible")?.value || dispatcherPanel?.dataset.fecha || "",
+  }
+}
+
+function aplicarFiltroUnidad(){
+  const filtro = (document.getElementById("busquedaUnidad")?.value || "").toLowerCase().trim()
   document.querySelectorAll(".fila-unidad").forEach(fila => {
     const unidad = fila.dataset.unidad || ""
     fila.style.display = unidad.includes(filtro) ? "" : "none"
   })
-})
+}
+
+function construirFilaSalida(salida, index, csrfToken){
+  const horaSalida = salida.hora_salida || "--:--"
+  const subtituloSalida = salida.hora_salida ? "Hora programada" : "Pendiente de fijar"
+  const botonHora = salida.hora_salida ? "Actualizar" : "Confirmar"
+  const quitarHoraHtml = salida.hora_salida ? `
+    <form method="post" action="${escapeHtml(salida.urls.desbloquear_hora)}">
+      <input type="hidden" name="csrfmiddlewaretoken" value="${csrfToken}">
+      <input type="hidden" name="current_ruta_id" value="${escapeHtml(salida.form.current_ruta_id)}">
+      <input type="hidden" name="current_fecha" value="${escapeHtml(salida.form.current_fecha)}">
+      <button class="btn btn-outline-danger btn-sm" type="submit">Quitar hora</button>
+    </form>
+  ` : ""
+
+  return `
+    <tr class="fila-unidad${index === 0 ? " ops-row-highlight" : ""}" data-unidad="${escapeHtml(String(salida.unidad).toLowerCase())}">
+      <td>
+        <div class="unit-badge">${escapeHtml(salida.unidad)}</div>
+      </td>
+      <td>
+        <div class="route-text">${escapeHtml(salida.ruta_nombre)}</div>
+        <div class="subtle-text">Llegada registrada ${escapeHtml(salida.hora_llegada)}</div>
+      </td>
+      <td class="fw-semibold">${escapeHtml(salida.hora_llegada)}</td>
+      <td>
+        <div class="fw-bold fs-5">${escapeHtml(horaSalida)}</div>
+        <div class="subtle-text">${subtituloSalida}</div>
+      </td>
+      <td>
+        <span class="status-pill ${escapeHtml(salida.estado_class)}">
+          <span class="status-dot"></span>
+          ${escapeHtml(salida.estado_label)}
+        </span>
+      </td>
+      <td>
+        <div class="row-actions">
+          <form method="post" action="${escapeHtml(salida.urls.asignar_hora)}" class="program-form">
+            <input type="hidden" name="csrfmiddlewaretoken" value="${csrfToken}">
+            <input type="hidden" name="current_ruta_id" value="${escapeHtml(salida.form.current_ruta_id)}">
+            <input type="hidden" name="current_fecha" value="${escapeHtml(salida.form.current_fecha)}">
+            <input type="time" name="hora_fija" value="${escapeHtml(salida.form.hora_fija)}" class="form-control form-control-sm" required>
+            <button class="btn btn-warning btn-sm" type="submit">${botonHora}</button>
+          </form>
+
+          <div class="dropdown">
+            <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+              Ver
+            </button>
+            <div class="dropdown-menu dropdown-menu-end">
+              <a class="dropdown-item" href="${escapeHtml(salida.urls.control_ruta)}">Control de ruta</a>
+              <a class="dropdown-item" href="${escapeHtml(salida.urls.detalle_salida)}">Detalle de salida</a>
+              <a class="dropdown-item" href="${escapeHtml(salida.urls.ver_qr)}" target="_blank" rel="noopener">QR de unidad</a>
+            </div>
+          </div>
+
+          ${quitarHoraHtml}
+        </div>
+      </td>
+    </tr>
+  `
+}
+
+function renderizarSalidasPanel(data){
+  const body = document.getElementById("panelSalidasBody")
+  if(!body){
+    return
+  }
+
+  if(!Array.isArray(data.salidas) || !data.salidas.length){
+    body.innerHTML = `
+      <tr>
+        <td colspan="6">
+          <div class="empty-state">
+            No hay salidas registradas para esta vista.
+          </div>
+        </td>
+      </tr>
+    `
+    return
+  }
+
+  const csrfToken = escapeHtml(obtenerCsrfToken())
+  body.innerHTML = data.salidas
+    .map((salida, index) => construirFilaSalida(salida, index, csrfToken))
+    .join("")
+}
+
+function actualizarResumenPanel(data){
+  document.getElementById("kpiActivas").textContent = data.stats.activas
+  document.getElementById("kpiProgramadas").textContent = data.stats.programadas
+  document.getElementById("kpiAtrasadas").textContent = data.stats.atrasadas
+  document.getElementById("kpiSinHora").textContent = data.stats.sin_hora
+
+  const routeChip = document.getElementById("routeChip")
+  if(routeChip){
+    routeChip.textContent = data.ruta_actual_nombre
+      ? `Ruta activa: ${data.ruta_actual_nombre}`
+      : "Seleccione una ruta"
+  }
+
+  const reportesDiaLink = document.getElementById("reportesDiaLink")
+  if(!reportesDiaLink){
+    return
+  }
+
+  if(data.reporte_url){
+    if(reportesDiaLink.tagName.toLowerCase() === "a"){
+      reportesDiaLink.href = data.reporte_url
+    } else {
+      const enlace = document.createElement("a")
+      enlace.id = "reportesDiaLink"
+      enlace.className = "btn btn-warning"
+      enlace.href = data.reporte_url
+      enlace.textContent = "Salidas del dia"
+      reportesDiaLink.replaceWith(enlace)
+    }
+    return
+  }
+
+  if(reportesDiaLink.tagName.toLowerCase() === "button"){
+    reportesDiaLink.disabled = true
+  } else {
+    const boton = document.createElement("button")
+    boton.id = "reportesDiaLink"
+    boton.className = "btn btn-warning"
+    boton.disabled = true
+    boton.textContent = "Salidas del dia"
+    reportesDiaLink.replaceWith(boton)
+  }
+}
+
+async function refrescarPanelSiCorresponde(){
+  if(document.hidden || usuarioInteractuandoConFormulario()){
+    return
+  }
+
+  const filtros = obtenerFiltrosPanel()
+  const query = new URLSearchParams()
+  if(filtros.ruta){
+    query.set("ruta", filtros.ruta)
+  }
+  if(filtros.fecha){
+    query.set("fecha", filtros.fecha)
+  }
+
+  try{
+    const response = await fetch(`${panelRefreshUrl}?${query.toString()}`, {
+      headers: {
+        "X-Requested-With": "XMLHttpRequest"
+      },
+      credentials: "same-origin"
+    })
+
+    if(!response.ok){
+      return
+    }
+
+    const data = await response.json()
+    if(!data.ok){
+      return
+    }
+
+    if(dispatcherPanel){
+      dispatcherPanel.dataset.ruta = data.ruta_actual_id || ""
+      dispatcherPanel.dataset.fecha = data.fecha_operativa_iso || filtros.fecha || ""
+    }
+
+    renderizarSalidasPanel(data)
+    actualizarResumenPanel(data)
+    aplicarFiltroUnidad()
+  }catch(error){
+    console.warn("No se pudo refrescar el panel en segundo plano.", error)
+  }
+}
+
+function iniciarAutoRefreshPanel(){
+  if(panelRefreshTimer){
+    clearInterval(panelRefreshTimer)
+  }
+
+  panelRefreshTimer = setInterval(refrescarPanelSiCorresponde, PANEL_AUTO_REFRESH_MS)
+}
+
+document.getElementById("busquedaUnidad").addEventListener("input", aplicarFiltroUnidad)
 
 document.getElementById("codigoRapido").addEventListener("input", function(){
   this.value = this.value.toUpperCase()
@@ -886,5 +1111,13 @@ document.getElementById("horaRapida").addEventListener("keydown", function(event
     document.getElementById("quickDispatchForm").requestSubmit()
   }
 })
+
+document.addEventListener("visibilitychange", function(){
+  if(!document.hidden){
+    refrescarPanelSiCorresponde()
+  }
+})
+
+iniciarAutoRefreshPanel()
 </script>
 {% endblock %}

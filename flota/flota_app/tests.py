@@ -376,6 +376,66 @@ class LoginSistemaViewTests(BaseFlotaTestCase):
         self.assertRedirects(response, "/admin/", fetch_redirect_response=False)
 
 
+class PanelDespachadorApiTests(BaseFlotaTestCase):
+    def setUp(self):
+        super().setUp()
+        self.despachador_group, _ = Group.objects.get_or_create(name="despachador")
+        self.user = User.objects.create_user(username="desp_panel_api", password="secret123")
+        self.user.groups.add(self.despachador_group)
+        self.user.perfil.empresa = self.empresa
+        self.user.perfil.save(update_fields=["empresa"])
+        self.client.force_login(self.user)
+
+    def test_api_panel_despachador_devuelve_kpis_y_salidas_serializadas(self):
+        hora_llegada = timezone.now() - timedelta(minutes=5)
+        hora_salida = timezone.now() + timedelta(minutes=10)
+        salida = RegistroSalida.objects.create(
+            vehiculo=self.vehiculo_1,
+            ruta=self.ruta_a,
+            fecha=timezone.localdate(),
+            hora_llegada=hora_llegada,
+            hora_salida=hora_salida,
+            activo=True,
+            en_cola=False,
+            bloqueado=True,
+        )
+
+        response = self.client.get(
+            reverse("api_panel_despachador"),
+            {"ruta": self.ruta_a.id, "fecha": timezone.localdate().isoformat()},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data["ok"])
+        self.assertEqual(data["stats"]["activas"], 1)
+        self.assertEqual(data["stats"]["programadas"], 1)
+        self.assertEqual(data["stats"]["atrasadas"], 0)
+        self.assertEqual(data["stats"]["sin_hora"], 0)
+        self.assertEqual(data["ruta_actual_id"], str(self.ruta_a.id))
+        self.assertEqual(data["ruta_actual_nombre"], self.ruta_a.nombre)
+        self.assertEqual(len(data["salidas"]), 1)
+        self.assertEqual(data["salidas"][0]["id"], salida.id)
+        self.assertEqual(data["salidas"][0]["unidad"], self.vehiculo_1.codigo)
+        self.assertEqual(
+            data["salidas"][0]["urls"]["asignar_hora"],
+            reverse("asignar_hora_fija", args=[salida.id]),
+        )
+        self.assertIn(
+            reverse("reporte_salidas_diarias", args=[self.vehiculo_1.id]),
+            data["reporte_url"],
+        )
+
+    def test_api_panel_despachador_rechaza_fecha_invalida(self):
+        response = self.client.get(
+            reverse("api_panel_despachador"),
+            {"fecha": "2026-99-99"},
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(response.json()["ok"])
+
+
 class PuntoReferenciaTests(BaseFlotaTestCase):
     def test_reporte_cuenta_solo_puntos_de_marcacion(self):
         user = User.objects.create_user(username="desp_reportes", password="x")
