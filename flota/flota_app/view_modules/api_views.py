@@ -1,5 +1,6 @@
 from datetime import date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
+from pathlib import Path
 import json
 from urllib.parse import parse_qs, urlparse
 
@@ -9,7 +10,7 @@ from django.contrib.auth.decorators import login_required
 from django.core import signing
 from django.db import IntegrityError
 from django.db.models import Max, Q, Sum
-from django.http import JsonResponse
+from django.http import FileResponse, Http404, HttpResponseRedirect, JsonResponse
 from django.shortcuts import get_object_or_404
 from django.urls import reverse
 from django.utils import timezone
@@ -53,6 +54,8 @@ __all__ = [
     "api_app_ganancias",
     "api_app_ganancias_movimiento",
     "api_app_mensajes",
+    "api_app_version",
+    "api_app_update_apk",
     "api_app_control_ruta",
     "api_app_control_marcar",
     "api_app_estado",
@@ -97,6 +100,59 @@ def _decimal_to_float(value):
     if value is None:
         return 0.0
     return float(value)
+
+
+def _resolve_app_update_url(request):
+    external_url = getattr(settings, "APP_UPDATE_APK_URL", "").strip()
+    if external_url:
+        return external_url
+    return request.build_absolute_uri(reverse("api_app_update_apk"))
+
+
+@require_GET
+def api_app_version(request):
+    latest_version_code = int(getattr(settings, "APP_LATEST_VERSION_CODE", 0) or 0)
+    latest_version_name = getattr(settings, "APP_LATEST_VERSION_NAME", "").strip()
+    changelog = getattr(settings, "APP_UPDATE_CHANGELOG", "").strip()
+    published_at = getattr(settings, "APP_UPDATE_PUBLISHED_AT", "").strip()
+    apk_url = _resolve_app_update_url(request)
+    local_apk_path = Path(getattr(settings, "APP_UPDATE_APK_PATH", ""))
+    local_apk_exists = local_apk_path.is_file()
+    external_url = getattr(settings, "APP_UPDATE_APK_URL", "").strip()
+    update_ready = bool(latest_version_code > 0 and (external_url or local_apk_exists))
+
+    return JsonResponse(
+        {
+            "ok": True,
+            "update_ready": update_ready,
+            "latest_version_code": latest_version_code,
+            "latest_version_name": latest_version_name,
+            "force_update": bool(getattr(settings, "APP_UPDATE_FORCE", False)),
+            "changelog": changelog,
+            "published_at": published_at,
+            "apk_url": apk_url if update_ready else None,
+        }
+    )
+
+
+@require_GET
+def api_app_update_apk(request):
+    external_url = getattr(settings, "APP_UPDATE_APK_URL", "").strip()
+    if external_url:
+        return HttpResponseRedirect(external_url)
+
+    apk_path = Path(getattr(settings, "APP_UPDATE_APK_PATH", ""))
+    if not apk_path.is_file():
+        raise Http404("APK no disponible")
+
+    response = FileResponse(
+        apk_path.open("rb"),
+        as_attachment=True,
+        filename=apk_path.name,
+        content_type="application/vnd.android.package-archive",
+    )
+    response["Cache-Control"] = "no-store, max-age=0"
+    return response
 
 
 def _serializar_salida_panel(salida, ruta_actual_id, fecha_operativa_iso, hora_actual_hhmm):

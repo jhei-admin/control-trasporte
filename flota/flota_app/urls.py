@@ -9,6 +9,8 @@ from .view_modules.api_views import (
     api_app_ganancias,
     api_app_ganancias_movimiento,
     api_app_mensajes,
+    api_app_update_apk,
+    api_app_version,
     api_app_gerencia_login,
     api_app_gerencia_mapa,
     api_app_mapa_operativo,
@@ -80,6 +82,24 @@ urlpatterns = [
         "api/app/estado/",
         api_app_estado,
         name="api_app_estado"
+    ),
+    path(
+        "api/app/version/",
+        api_app_version,
+        name="api_app_version"
+    ),
+    path(
+        "api/app/version",
+        api_app_version
+    ),
+    path(
+        "api/app/update-apk/",
+        api_app_update_apk,
+        name="api_app_update_apk"
+    ),
+    path(
+        "api/app/update-apk",
+        api_app_update_apk
     ),
 
     path(

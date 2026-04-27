@@ -356,6 +356,22 @@ MENSAJES_RETENTION_DAYS = int(os.getenv("MENSAJES_RETENTION_DAYS", "30"))
 
 
 # =================================================
+# APP UPDATES
+# =================================================
+APP_LATEST_VERSION_CODE = int(os.getenv("APP_LATEST_VERSION_CODE", "0"))
+APP_LATEST_VERSION_NAME = os.getenv("APP_LATEST_VERSION_NAME", "").strip()
+APP_UPDATE_FORCE = env_bool("APP_UPDATE_FORCE", False)
+APP_UPDATE_CHANGELOG = os.getenv("APP_UPDATE_CHANGELOG", "").strip()
+APP_UPDATE_PUBLISHED_AT = os.getenv("APP_UPDATE_PUBLISHED_AT", "").strip()
+APP_UPDATE_APK_URL = os.getenv("APP_UPDATE_APK_URL", "").strip()
+APP_UPDATE_APK_FILENAME = (
+    os.getenv("APP_UPDATE_APK_FILENAME", "gpsflotaaqp-latest.apk").strip()
+    or "gpsflotaaqp-latest.apk"
+)
+APP_UPDATE_APK_PATH = BASE_DIR / "app_updates" / APP_UPDATE_APK_FILENAME
+
+
+# =================================================
 # MAPBOX
 # =================================================
 MAPBOX_TOKEN = os.getenv("MAPBOX_TOKEN")
