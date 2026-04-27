@@ -609,10 +609,18 @@ def _resolver_marcacion_por_ubicacion(salida, lat, lng, ahora):
     if not coincidencia:
         return pendientes[0], []
 
+    pendientes_previas = [
+        marcacion
+        for marcacion in pendientes
+        if marcacion.punto.orden < coincidencia.punto.orden
+    ]
+
+    # Evita saltos agresivos: solo se recupera un punto perdido por GPS.
+    if len(pendientes_previas) > 1:
+        return pendientes[0], []
+
     omitidas = []
-    for marcacion in pendientes:
-        if marcacion.punto.orden >= coincidencia.punto.orden:
-            break
+    for marcacion in pendientes_previas:
         marcacion.marcar_omitida(hora=ahora)
         omitidas.append(marcacion)
 
@@ -1705,9 +1713,22 @@ def api_app_control_marcar(request):
         activo=True,
         requiere_marcacion=True,
     )
+    siguiente = salida.siguiente_marcacion()
     punto = punto_qs.filter(id=punto_id).first() if punto_id else None
+    if punto and siguiente and punto.id != siguiente.punto_id:
+        return JsonResponse(
+            {
+                "ok": False,
+                "mensaje": "Punto fuera de secuencia",
+                "esperado": {
+                    "id": siguiente.punto_id,
+                    "codigo": siguiente.punto.codigo,
+                    "nombre": siguiente.punto.nombre,
+                },
+            },
+            status=409,
+        )
     if not punto:
-        siguiente = salida.siguiente_marcacion()
         punto = siguiente.punto if siguiente else None
     if not punto:
         return JsonResponse({"ok": False, "mensaje": "No hay puntos pendientes"})

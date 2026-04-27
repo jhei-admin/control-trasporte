@@ -128,6 +128,42 @@ class ApiSecurityAndIsolationTests(BaseFlotaTestCase):
             activa=True,
             last_heartbeat=timezone.now(),
         )
+        self.punto_salida = PuntoControl.objects.create(
+            ruta=self.ruta_a,
+            codigo="SALI",
+            nombre="Salida",
+            latitud=-16.401,
+            longitud=-71.501,
+            radio_metros=50,
+            orden=1,
+            offset_minutos=0,
+            requiere_marcacion=True,
+            activo=True,
+        )
+        self.punto_control = PuntoControl.objects.create(
+            ruta=self.ruta_a,
+            codigo="CTRL",
+            nombre="Control",
+            latitud=-16.402,
+            longitud=-71.502,
+            radio_metros=50,
+            orden=2,
+            offset_minutos=5,
+            requiere_marcacion=True,
+            activo=True,
+        )
+        self.punto_retorno = PuntoControl.objects.create(
+            ruta=self.ruta_a,
+            codigo="RETO",
+            nombre="Retorno",
+            latitud=-16.403,
+            longitud=-71.503,
+            radio_metros=50,
+            orden=3,
+            offset_minutos=10,
+            requiere_marcacion=True,
+            activo=True,
+        )
 
     @override_settings(ALLOW_LEGACY_QR=False)
     def test_qr_invalido_no_abre_sesion(self):
@@ -248,28 +284,49 @@ class ApiSecurityAndIsolationTests(BaseFlotaTestCase):
         self.assertEqual(response.json()[0]["vehiculo"], self.vehiculo_1.codigo)
         self.assertEqual(response.json()[0]["estado_gps"], "OFFLINE")
 
+    def test_api_app_control_marcar_rechaza_punto_fuera_de_secuencia(self):
+        salida = RegistroSalida.objects.create(
+            vehiculo=self.vehiculo_1,
+            ruta=self.ruta_a,
+            fecha=timezone.localdate(),
+            hora_salida=timezone.now(),
+            activo=True,
+            en_cola=False,
+        )
+        MarcacionPunto.objects.create(
+            registro_salida=salida,
+            punto=self.punto_salida,
+            hora_marcada=timezone.now(),
+        )
+        MarcacionPunto.objects.create(registro_salida=salida, punto=self.punto_control)
+        MarcacionPunto.objects.create(registro_salida=salida, punto=self.punto_retorno)
+
+        response = self.client.post(
+            reverse("api_app_control_marcar"),
+            data=json.dumps({"punto_id": self.punto_retorno.id}),
+            content_type="application/json",
+            HTTP_AUTHORIZATION=f"Bearer {self.sesion.token}",
+        )
+
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(response.json()["mensaje"], "Punto fuera de secuencia")
+        self.assertEqual(response.json()["esperado"]["codigo"], "CTRL")
+        self.assertIsNone(
+            MarcacionPunto.objects.get(
+                registro_salida=salida,
+                punto=self.punto_retorno,
+            ).hora_marcada
+        )
 
     def test_api_puntos_control_expone_puntos_referenciales(self):
         PuntoControl.objects.create(
             ruta=self.ruta_a,
-            codigo="CTRL",
-            nombre="Control",
-            latitud=-16.401,
-            longitud=-71.501,
-            radio_metros=50,
-            orden=1,
-            offset_minutos=0,
-            requiere_marcacion=True,
-            activo=True,
-        )
-        PuntoControl.objects.create(
-            ruta=self.ruta_a,
             codigo="ENTR",
             nombre="Entrada",
-            latitud=-16.402,
-            longitud=-71.502,
+            latitud=-16.404,
+            longitud=-71.504,
             radio_metros=50,
-            orden=2,
+            orden=4,
             offset_minutos=2,
             requiere_marcacion=False,
             activo=True,
@@ -284,7 +341,7 @@ class ApiSecurityAndIsolationTests(BaseFlotaTestCase):
 
         self.assertEqual(response.status_code, 200)
         data = response.json()
-        self.assertEqual(len(data), 2)
+        self.assertEqual(len(data), 4)
         self.assertTrue(any(p["requiere_marcacion"] is False for p in data))
 
 
@@ -541,6 +598,39 @@ class DispatcherLiveApisTests(BaseFlotaTestCase):
         self.assertEqual(detalle_response.json()["resumen"]["completados"], 1)
         self.assertEqual(detalle_response.json()["detalle"][0]["codigo"], punto.codigo)
 
+    def test_api_detalle_salida_web_respeta_estado_omitido(self):
+        salida = RegistroSalida.objects.create(
+            vehiculo=self.vehiculo_1,
+            ruta=self.ruta_a,
+            fecha=timezone.localdate(),
+            hora_salida=timezone.now(),
+            activo=True,
+        )
+        punto = PuntoControl.objects.create(
+            ruta=self.ruta_a,
+            codigo="CTRL",
+            nombre="Control omitido",
+            latitud=-16.4,
+            longitud=-71.5,
+            radio_metros=50,
+            orden=1,
+            offset_minutos=15,
+            requiere_marcacion=True,
+            activo=True,
+        )
+        MarcacionPunto.objects.create(
+            registro_salida=salida,
+            punto=punto,
+            hora_marcada=salida.hora_salida,
+            diferencia_minutos=-15,
+            estado="omitido",
+        )
+
+        detalle_response = self.client.get(reverse("api_detalle_salida_web", args=[salida.id]))
+
+        self.assertEqual(detalle_response.status_code, 200)
+        self.assertEqual(detalle_response.json()["detalle"][0]["estado"], "omitido")
+
 
 class PuntoReferenciaTests(BaseFlotaTestCase):
     def test_reporte_cuenta_solo_puntos_de_marcacion(self):
@@ -729,6 +819,77 @@ class MarcacionGpsRecoveryTests(BaseFlotaTestCase):
 
         self.assertIsNone(omitida.hora_marcada)
         self.assertIsNone(final.hora_marcada)
+
+    def test_gps_no_omite_varios_puntos_en_un_solo_salto(self):
+        self.punto_final.orden = 4
+        self.punto_final.offset_minutos = 10
+        self.punto_final.save(update_fields=["orden", "offset_minutos"])
+        punto_extra = PuntoControl.objects.create(
+            ruta=self.ruta_a,
+            codigo="MID2",
+            nombre="Control 2",
+            latitud=-16.402500,
+            longitud=-71.502500,
+            radio_metros=60,
+            orden=3,
+            offset_minutos=7,
+            requiere_marcacion=True,
+            activo=True,
+        )
+
+        MarcacionPunto.objects.create(
+            registro_salida=self.salida,
+            punto=self.punto_salida,
+            hora_marcada=timezone.now() - timedelta(minutes=9),
+        )
+        MarcacionPunto.objects.create(
+            registro_salida=self.salida,
+            punto=self.punto_control,
+        )
+        MarcacionPunto.objects.create(
+            registro_salida=self.salida,
+            punto=punto_extra,
+        )
+        MarcacionPunto.objects.create(
+            registro_salida=self.salida,
+            punto=self.punto_final,
+        )
+
+        response = self.client.post(
+            reverse("api_gps_conductor"),
+            data=json.dumps(
+                {
+                    "lat": float(self.punto_final.latitud),
+                    "lng": float(self.punto_final.longitud),
+                    "precision": 10,
+                }
+            ),
+            content_type="application/json",
+            HTTP_AUTHORIZATION=f"Bearer {self.sesion.token}",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["accion"], "ninguna")
+        self.assertEqual(response.json().get("omitidos"), None)
+
+        self.assertIsNone(
+            MarcacionPunto.objects.get(
+                registro_salida=self.salida,
+                punto=self.punto_control,
+            ).hora_marcada
+        )
+        self.assertIsNone(
+            MarcacionPunto.objects.get(
+                registro_salida=self.salida,
+                punto=punto_extra,
+            ).hora_marcada
+        )
+        self.assertIsNone(
+            MarcacionPunto.objects.get(
+                registro_salida=self.salida,
+                punto=self.punto_final,
+            ).hora_marcada
+        )
 
 
 class PanelDespachoRapidoTests(BaseFlotaTestCase):

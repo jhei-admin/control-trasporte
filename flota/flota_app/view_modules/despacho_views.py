@@ -268,10 +268,12 @@ def _calcular_detalle_salida(salida):
         else:
             hora_programada = None
 
-        estado = "pendiente"
+        estado = marcacion.estado or "pendiente"
         diferencia = None
 
-        if marcacion.hora_marcada and hora_programada:
+        if marcacion.estado == "omitido":
+            diferencia = marcacion.diferencia_minutos
+        elif marcacion.hora_marcada and hora_programada:
             diferencia = int((marcacion.hora_marcada - hora_programada).total_seconds() / 60)
             if diferencia < 0:
                 estado = "adelantado"
