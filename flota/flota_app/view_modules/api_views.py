@@ -652,7 +652,7 @@ def _asegurar_marcaciones_salida(salida):
 def _resolver_marcacion_por_ubicacion(salida, lat, lng, ahora):
     pendientes = list(salida.marcaciones_pendientes())
     if not pendientes:
-        return None, []
+        return None, [], None
 
     coincidencia = None
     for marcacion in pendientes:
@@ -663,7 +663,7 @@ def _resolver_marcacion_por_ubicacion(salida, lat, lng, ahora):
             break
 
     if not coincidencia:
-        return pendientes[0], []
+        return pendientes[0], [], None
 
     pendientes_previas = [
         marcacion
@@ -671,16 +671,33 @@ def _resolver_marcacion_por_ubicacion(salida, lat, lng, ahora):
         if marcacion.punto.orden < coincidencia.punto.orden
     ]
 
+    punto_esperado = pendientes[0]
+
+    # En el tramo inicial la señal puede fallar y permitimos recuperar un solo
+    # punto perdido. Desde ZAMA en adelante la ruta comparte radios entre
+    # subida y bajada, asi que se bloquea cualquier salto automatico.
+    if punto_esperado.punto.orden >= 4 and pendientes_previas:
+        return punto_esperado, [], coincidencia
+
     # Evita saltos agresivos: solo se recupera un punto perdido por GPS.
     if len(pendientes_previas) > 1:
-        return pendientes[0], []
+        return punto_esperado, [], coincidencia
+
+    # En rutas ida/vuelta puede ocurrir que el trazado pase cerca de un punto
+    # posterior antes de llegar al control correcto. Solo permitimos omitir un
+    # punto si ese control previo ya estaba "vencido" por horario.
+    if len(pendientes_previas) == 1:
+        punto_previo = pendientes_previas[0]
+        hora_previa = punto_previo.hora_programada or punto_previo.calcular_hora_programada()
+        if hora_previa and ahora < hora_previa:
+            return punto_esperado, [], coincidencia
 
     omitidas = []
     for marcacion in pendientes_previas:
         marcacion.marcar_omitida(hora=ahora)
         omitidas.append(marcacion)
 
-    return coincidencia, omitidas
+    return coincidencia, omitidas, None
 
 
 @csrf_exempt
@@ -768,12 +785,26 @@ def api_gps_conductor(request):
             "motivo": "inactividad_punto",
         })
 
-    marcacion, omitidas = _resolver_marcacion_por_ubicacion(
+    marcacion, omitidas, punto_bloqueado = _resolver_marcacion_por_ubicacion(
         salida=salida,
         lat=lat,
         lng=lng,
         ahora=ahora,
     )
+    if punto_bloqueado is not None:
+        return JsonResponse({
+            "accion": "beep",
+            "motivo": "punto_bloqueado",
+            "esperado": {
+                "codigo": marcacion.punto.codigo,
+                "nombre": marcacion.punto.nombre,
+            },
+            "bloqueado": {
+                "codigo": punto_bloqueado.punto.codigo,
+                "nombre": punto_bloqueado.punto.nombre,
+            },
+        })
+
     if not marcacion:
         if not salida.hora_real_salida:
             return JsonResponse({"accion": "ninguna"})
