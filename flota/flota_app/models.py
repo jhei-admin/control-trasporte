@@ -559,7 +559,7 @@ class MarcacionPunto(models.Model):
     # -------------------------------------------------
     # 🧠 EVALUAR ESTADO (REGLA ÚNICA)
     # -------------------------------------------------
-    def evaluar_estado(self, tolerancia_min=0):
+    def evaluar_estado(self, tolerancia_min=0, tolerancia_seg=30):
         if not self.hora_marcada or not self.hora_programada:
             return
 
@@ -567,7 +567,11 @@ class MarcacionPunto(models.Model):
             self.hora_marcada - self.hora_programada
         ).total_seconds()
 
-        if diff_seconds < 0:
+        tolerancia_total_seg = max(0, (tolerancia_min * 60) + tolerancia_seg)
+
+        if abs(diff_seconds) <= tolerancia_total_seg:
+            diff = 0
+        elif diff_seconds < 0:
             diff = math.floor(diff_seconds / 60)
         elif diff_seconds > 0:
             diff = math.ceil(diff_seconds / 60)
@@ -576,11 +580,11 @@ class MarcacionPunto(models.Model):
 
         self.diferencia_minutos = diff
 
-        if diff < -tolerancia_min:
+        if diff_seconds < -tolerancia_total_seg:
             self.estado = "adelantado"
             self.audio_flag = "audio_adelantado"
 
-        elif diff > tolerancia_min:
+        elif diff_seconds > tolerancia_total_seg:
             self.estado = "tarde"
             self.audio_flag = "audio_tarde"
 

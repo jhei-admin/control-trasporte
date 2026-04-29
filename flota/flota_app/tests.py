@@ -1302,6 +1302,73 @@ class PoblarEscalaTests(TestCase):
         )
 
 
+class MarcacionToleranciaTests(BaseFlotaTestCase):
+    def setUp(self):
+        super().setUp()
+        self.punto = PuntoControl.objects.create(
+            ruta=self.ruta_a,
+            codigo="TEST",
+            nombre="Punto Test",
+            latitud=-16.401000,
+            longitud=-71.501000,
+            radio_metros=60,
+            orden=1,
+            offset_minutos=0,
+            requiere_marcacion=True,
+            activo=True,
+        )
+        self.salida = RegistroSalida.objects.create(
+            vehiculo=self.vehiculo_1,
+            ruta=self.ruta_a,
+            fecha=timezone.localdate(),
+            hora_salida=timezone.now(),
+            activo=True,
+            en_cola=False,
+        )
+
+    def test_mantiene_a_tiempo_dentro_de_tolerancia_de_30_segundos(self):
+        programada = timezone.now().replace(microsecond=0)
+        marcacion = MarcacionPunto(
+            registro_salida=self.salida,
+            punto=self.punto,
+            hora_programada=programada,
+            hora_marcada=programada + timedelta(seconds=29),
+        )
+
+        marcacion.evaluar_estado()
+
+        self.assertEqual(marcacion.estado, "a_tiempo")
+        self.assertEqual(marcacion.diferencia_minutos, 0)
+
+    def test_marca_tarde_fuera_de_tolerancia_de_30_segundos(self):
+        programada = timezone.now().replace(microsecond=0)
+        marcacion = MarcacionPunto(
+            registro_salida=self.salida,
+            punto=self.punto,
+            hora_programada=programada,
+            hora_marcada=programada + timedelta(seconds=31),
+        )
+
+        marcacion.evaluar_estado()
+
+        self.assertEqual(marcacion.estado, "tarde")
+        self.assertEqual(marcacion.diferencia_minutos, 1)
+
+    def test_marca_adelantado_fuera_de_tolerancia_de_30_segundos(self):
+        programada = timezone.now().replace(microsecond=0)
+        marcacion = MarcacionPunto(
+            registro_salida=self.salida,
+            punto=self.punto,
+            hora_programada=programada,
+            hora_marcada=programada - timedelta(seconds=31),
+        )
+
+        marcacion.evaluar_estado()
+
+        self.assertEqual(marcacion.estado, "adelantado")
+        self.assertEqual(marcacion.diferencia_minutos, -1)
+
+
 class AuditoriaPreproduccionTests(TestCase):
     @override_settings(
         DEBUG=False,
