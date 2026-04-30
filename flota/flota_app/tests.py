@@ -1,6 +1,7 @@
 import json
 from io import StringIO
 from datetime import timedelta
+from unittest.mock import patch
 
 from django.core import signing
 from django.core.management import call_command
@@ -343,6 +344,103 @@ class ApiSecurityAndIsolationTests(BaseFlotaTestCase):
         data = response.json()
         self.assertEqual(len(data), 4)
         self.assertTrue(any(p["requiere_marcacion"] is False for p in data))
+
+    def test_api_gps_conductor_identifica_ultimo_punto_y_prepara_audio_profesional(self):
+        ahora = timezone.now().replace(hour=17, minute=40, second=0, microsecond=0)
+        salida = RegistroSalida.objects.create(
+            vehiculo=self.vehiculo_1,
+            ruta=self.ruta_a,
+            fecha=timezone.localdate(),
+            hora_salida=ahora - timedelta(minutes=17),
+            activo=True,
+            en_cola=False,
+        )
+        MarcacionPunto.objects.create(
+            registro_salida=salida,
+            punto=self.punto_salida,
+            hora_programada=ahora - timedelta(minutes=10),
+            hora_marcada=ahora - timedelta(minutes=10),
+            estado="a_tiempo",
+            diferencia_minutos=0,
+        )
+        MarcacionPunto.objects.create(
+            registro_salida=salida,
+            punto=self.punto_control,
+            hora_programada=ahora - timedelta(minutes=5),
+            hora_marcada=ahora - timedelta(minutes=3),
+            estado="tarde",
+            diferencia_minutos=2,
+        )
+        MarcacionPunto.objects.create(
+            registro_salida=salida,
+            punto=self.punto_retorno,
+            hora_programada=ahora - timedelta(minutes=7),
+        )
+
+        with patch("flota_app.view_modules.api_views.timezone.now", return_value=ahora):
+            response = self.client.post(
+                reverse("api_gps_conductor"),
+                data=json.dumps({
+                    "lat": float(self.punto_retorno.latitud),
+                    "lng": float(self.punto_retorno.longitud),
+                    "precision": 10,
+                }),
+                content_type="application/json",
+                HTTP_AUTHORIZATION=f"Bearer {self.sesion.token}",
+            )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["accion"], "audio")
+        self.assertEqual(data["audio"], "audio_tarde")
+        self.assertTrue(data["finalizada"])
+        hora_audio = timezone.localtime(ahora).strftime("%H:%M")
+        self.assertEqual(
+            data["audio_texto"],
+            f"RETORNO {hora_audio} 7, RUTA FINALIZADA. BUEN TRABAJO",
+        )
+        self.assertEqual(data["visual"]["estado"], "TARDE")
+        self.assertEqual(data["visual"]["diferencia_min"], 7)
+
+    def test_api_gps_conductor_devuelve_audio_de_ruta_completada_al_siguiente_ping(self):
+        ahora = timezone.now().replace(second=0, microsecond=0)
+        salida = RegistroSalida.objects.create(
+            vehiculo=self.vehiculo_1,
+            ruta=self.ruta_a,
+            fecha=timezone.localdate(),
+            hora_salida=ahora - timedelta(minutes=15),
+            hora_real_salida=ahora - timedelta(minutes=15),
+            activo=True,
+            en_cola=False,
+        )
+        for punto in (self.punto_salida, self.punto_control, self.punto_retorno):
+            MarcacionPunto.objects.create(
+                registro_salida=salida,
+                punto=punto,
+                hora_programada=ahora - timedelta(minutes=5),
+                hora_marcada=ahora - timedelta(minutes=4),
+                estado="a_tiempo",
+                diferencia_minutos=0,
+            )
+
+        with patch("flota_app.view_modules.api_views.timezone.now", return_value=ahora):
+            response = self.client.post(
+                reverse("api_gps_conductor"),
+                data=json.dumps({
+                    "lat": float(self.punto_retorno.latitud),
+                    "lng": float(self.punto_retorno.longitud),
+                    "precision": 10,
+                }),
+                content_type="application/json",
+                HTTP_AUTHORIZATION=f"Bearer {self.sesion.token}",
+            )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["accion"], "audio")
+        self.assertEqual(data["audio"], "ruta_completada")
+        self.assertTrue(data["finalizada"])
+        self.assertEqual(data["audio_texto"], "RUTA FINALIZADA. BUEN TRABAJO")
 
 
 class LoginSistemaViewTests(BaseFlotaTestCase):

@@ -96,6 +96,39 @@ def _format_hora(dt):
     return timezone.localtime(dt).strftime("%H:%M")
 
 
+def _label_audio_punto(punto):
+    if punto.nombre:
+        return punto.nombre.strip().upper()
+    return (punto.codigo or "PUNTO").strip().upper()
+
+
+def _formatear_diferencia_audio(diferencia_minutos):
+    if diferencia_minutos in (None, 0):
+        return None
+    return str(int(diferencia_minutos))
+
+
+def _construir_audio_texto_marcacion(marcacion, *, finalizada=False):
+    partes = [_label_audio_punto(marcacion.punto)]
+
+    if marcacion.hora_marcada:
+        partes.append(_format_hora(marcacion.hora_marcada))
+
+    # En el cierre de ruta evitamos repetir tarde/adelantado para que
+    # el audio final suene mas limpio.
+    if not finalizada and marcacion.estado in {"tarde", "adelantado"}:
+        partes.append(marcacion.estado)
+
+    diferencia_audio = _formatear_diferencia_audio(marcacion.diferencia_minutos)
+    if diferencia_audio:
+        partes.append(diferencia_audio)
+
+    texto = " ".join(partes)
+    if finalizada:
+        return f"{texto}, RUTA FINALIZADA. BUEN TRABAJO"
+    return texto
+
+
 def _decimal_to_float(value):
     if value is None:
         return 0.0
@@ -812,7 +845,12 @@ def api_gps_conductor(request):
         salida.activo = False
         salida.en_cola = False
         salida.save(update_fields=["activo", "en_cola"])
-        return JsonResponse({"accion": "audio", "audio": "ruta_completada"})
+        return JsonResponse({
+            "accion": "audio",
+            "audio": "ruta_completada",
+            "finalizada": True,
+            "audio_texto": "RUTA FINALIZADA. BUEN TRABAJO",
+        })
 
     punto = marcacion.punto
     distancia = distancia_metros(lat, lng, float(punto.latitud), float(punto.longitud))
@@ -834,10 +872,16 @@ def api_gps_conductor(request):
             sesion.save(update_fields=["salida"])
 
     marcacion.marcar(hora=ahora)
+    es_ultimo_punto = salida.siguiente_marcacion() is None
 
     return JsonResponse({
         "accion": "audio" if marcacion.audio_flag else "visual",
         "audio": marcacion.audio_flag,
+        "finalizada": es_ultimo_punto,
+        "audio_texto": _construir_audio_texto_marcacion(
+            marcacion,
+            finalizada=es_ultimo_punto,
+        ),
         "omitidos": [
             {
                 "codigo": item.punto.codigo,

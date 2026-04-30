@@ -32,6 +32,37 @@ from django.db import transaction
 
 import qrcode
 
+
+def _label_audio_punto(punto):
+    if punto.nombre:
+        return punto.nombre.strip().upper()
+    return (punto.codigo or "PUNTO").strip().upper()
+
+
+def _formatear_diferencia_audio(diferencia_minutos):
+    if diferencia_minutos in (None, 0):
+        return None
+    return str(int(diferencia_minutos))
+
+
+def _construir_audio_texto_marcacion(marcacion, *, finalizada=False):
+    partes = [_label_audio_punto(marcacion.punto)]
+
+    if marcacion.hora_marcada:
+        partes.append(timezone.localtime(marcacion.hora_marcada).strftime("%H:%M"))
+
+    if not finalizada and marcacion.estado in {"tarde", "adelantado"}:
+        partes.append(marcacion.estado)
+
+    diferencia_audio = _formatear_diferencia_audio(marcacion.diferencia_minutos)
+    if diferencia_audio:
+        partes.append(diferencia_audio)
+
+    texto = " ".join(partes)
+    if finalizada:
+        return f"{texto}, RUTA FINALIZADA. BUEN TRABAJO"
+    return texto
+
 # ================= MODELS =================
 from .models import (
     MensajeGlobal,
@@ -588,7 +619,9 @@ def api_gps_conductor(request):
 
         return JsonResponse({
             "accion": "audio",
-            "audio": "ruta_completada"
+            "audio": "ruta_completada",
+            "finalizada": True,
+            "audio_texto": "RUTA FINALIZADA. BUEN TRABAJO",
         })
 
     punto = marcacion.punto
@@ -635,6 +668,7 @@ def api_gps_conductor(request):
     # ✅ MARCAR PUNTO
     # =================================================
     marcacion.marcar(hora=ahora)
+    es_ultimo_punto = salida.siguiente_marcacion() is None
 
     # =================================================
     # 🔊 RESPUESTA FINAL
@@ -642,6 +676,11 @@ def api_gps_conductor(request):
     return JsonResponse({
         "accion": "audio" if marcacion.audio_flag else "visual",
         "audio": marcacion.audio_flag,
+        "finalizada": es_ultimo_punto,
+        "audio_texto": _construir_audio_texto_marcacion(
+            marcacion,
+            finalizada=es_ultimo_punto,
+        ),
         "visual": {
             "codigo": punto.codigo,
             "punto": punto.nombre,
