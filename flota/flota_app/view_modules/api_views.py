@@ -2,6 +2,7 @@ from datetime import date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 import json
+import math
 from urllib.parse import parse_qs, urlparse
 
 from django.contrib.auth import authenticate
@@ -1312,6 +1313,59 @@ def _serializar_geometria_ruta(ruta):
     return coords_validas
 
 
+def _coords_geometria_para_progreso(ruta):
+    geometria = _serializar_geometria_ruta(ruta)
+    if geometria:
+        return geometria
+
+    puntos = _serializar_puntos_ruta(ruta)
+    return [[punto["lat"], punto["lng"]] for punto in puntos]
+
+
+def _project_route_progress(lat, lng, geometria):
+    if len(geometria) < 2:
+        return None
+
+    ref_lat = math.radians(sum(coord[0] for coord in geometria) / len(geometria))
+    scale_x = math.cos(ref_lat)
+
+    def to_xy(coord_lat, coord_lng):
+        return (coord_lng * scale_x, coord_lat)
+
+    objetivo_x, objetivo_y = to_xy(lat, lng)
+    recorrido = 0.0
+    mejor_recorrido = None
+    mejor_distancia = None
+
+    for index in range(len(geometria) - 1):
+        start_lat, start_lng = geometria[index]
+        end_lat, end_lng = geometria[index + 1]
+        start_x, start_y = to_xy(start_lat, start_lng)
+        end_x, end_y = to_xy(end_lat, end_lng)
+        seg_x = end_x - start_x
+        seg_y = end_y - start_y
+        seg_len_sq = (seg_x * seg_x) + (seg_y * seg_y)
+        if seg_len_sq <= 0:
+            continue
+
+        rel_x = objetivo_x - start_x
+        rel_y = objetivo_y - start_y
+        t = max(0.0, min(1.0, ((rel_x * seg_x) + (rel_y * seg_y)) / seg_len_sq))
+        proj_x = start_x + (seg_x * t)
+        proj_y = start_y + (seg_y * t)
+        distancia_sq = ((objetivo_x - proj_x) ** 2) + ((objetivo_y - proj_y) ** 2)
+        seg_len = math.sqrt(seg_len_sq)
+        progreso = recorrido + (seg_len * t)
+
+        if mejor_distancia is None or distancia_sq < mejor_distancia:
+            mejor_distancia = distancia_sq
+            mejor_recorrido = progreso
+
+        recorrido += seg_len
+
+    return mejor_recorrido
+
+
 def _serializar_puntos_ruta(ruta):
     if not ruta:
         return []
@@ -2044,13 +2098,9 @@ def api_app_cola_contexto(request):
         .order_by("hora_salida")
     )
 
-    index_actual = cola.index(salida_actual)
-
-    adelante = cola[:index_actual][-2:]
-    atras = cola[index_actual + 1:index_actual + 3]
-
     gps_max_delay = timedelta(seconds=60)
     velocidad_promedio = 25
+    geometria_progreso = _coords_geometria_para_progreso(salida_actual.ruta)
 
     try:
         ub_actual = UbicacionVehiculo.objects.get(vehiculo=salida_actual.vehiculo)
@@ -2062,6 +2112,7 @@ def api_app_cola_contexto(request):
         for ubicacion in UbicacionVehiculo.objects.filter(vehiculo__in=[salida.vehiculo for salida in cola])
     }
     ultimo_punto_map = {}
+    ultimo_punto_orden_map = {}
     for marcacion in (
         MarcacionPunto.objects.filter(
             registro_salida__in=cola,
@@ -2071,6 +2122,43 @@ def api_app_cola_contexto(request):
         .order_by("registro_salida_id", "punto__orden")
     ):
         ultimo_punto_map[marcacion.registro_salida_id] = marcacion.punto.codigo
+        ultimo_punto_orden_map[marcacion.registro_salida_id] = marcacion.punto.orden
+
+    def calcular_avance_real(salida):
+        ubicacion = ubicaciones_map.get(salida.vehiculo.id)
+        if (
+            ubicacion
+            and geometria_progreso
+            and ahora - ubicacion.updated_at <= gps_max_delay
+        ):
+            progreso = _project_route_progress(
+                ubicacion.latitud,
+                ubicacion.longitud,
+                geometria_progreso,
+            )
+            if progreso is not None:
+                return (2, progreso)
+
+        ultimo_orden = ultimo_punto_orden_map.get(salida.id)
+        if ultimo_orden is not None:
+            return (1, float(ultimo_orden))
+
+        hora = salida.hora_real_salida or salida.hora_salida or salida.hora_llegada
+        return (0, hora.timestamp() if hora else 0.0)
+
+    cola_ordenada = sorted(
+        cola,
+        key=lambda salida: (
+            calcular_avance_real(salida)[0],
+            calcular_avance_real(salida)[1],
+        ),
+        reverse=True,
+    )
+
+    index_actual = cola_ordenada.index(salida_actual)
+
+    adelante = cola_ordenada[:index_actual][-2:]
+    atras = cola_ordenada[index_actual + 1:index_actual + 3]
 
     def calcular_minutos(salida):
         if not ub_actual:

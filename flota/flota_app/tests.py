@@ -2,6 +2,7 @@ import json
 from io import StringIO
 from datetime import timedelta
 from unittest.mock import patch
+from decimal import Decimal
 
 from django.core import signing
 from django.core.management import call_command
@@ -441,6 +442,81 @@ class ApiSecurityAndIsolationTests(BaseFlotaTestCase):
         self.assertEqual(data["audio"], "ruta_completada")
         self.assertTrue(data["finalizada"])
         self.assertEqual(data["audio_texto"], "RUTA FINALIZADA. BUEN TRABAJO")
+
+    def test_api_cola_contexto_prioriza_avance_real_si_hay_sobrepaso(self):
+        self.ruta_a.geometria = [
+            [-16.4000, -71.5000],
+            [-16.3900, -71.5000],
+            [-16.3800, -71.5000],
+        ]
+        self.ruta_a.save(update_fields=["geometria"])
+
+        salida_adelante = RegistroSalida.objects.create(
+            vehiculo=self.vehiculo_1,
+            ruta=self.ruta_a,
+            fecha=timezone.localdate(),
+            hora_salida=timezone.now().replace(hour=10, minute=0, second=0, microsecond=0),
+            activo=True,
+            en_cola=False,
+        )
+        salida_actual = RegistroSalida.objects.create(
+            vehiculo=self.vehiculo_2,
+            ruta=self.ruta_a,
+            fecha=timezone.localdate(),
+            hora_salida=timezone.now().replace(hour=10, minute=5, second=0, microsecond=0),
+            activo=True,
+            en_cola=False,
+        )
+        salida_atras = RegistroSalida.objects.create(
+            vehiculo=self.vehiculo_3,
+            ruta=self.ruta_a,
+            fecha=timezone.localdate(),
+            hora_salida=timezone.now().replace(hour=10, minute=10, second=0, microsecond=0),
+            activo=True,
+            en_cola=False,
+        )
+
+        UbicacionVehiculo.objects.create(
+            vehiculo=self.vehiculo_1,
+            latitud=Decimal("-16.3920"),
+            longitud=Decimal("-71.5000"),
+            velocidad=20,
+            precision=10,
+        )
+        UbicacionVehiculo.objects.create(
+            vehiculo=self.vehiculo_2,
+            latitud=Decimal("-16.3850"),
+            longitud=Decimal("-71.5000"),
+            velocidad=20,
+            precision=10,
+        )
+        UbicacionVehiculo.objects.create(
+            vehiculo=self.vehiculo_3,
+            latitud=Decimal("-16.3970"),
+            longitud=Decimal("-71.5000"),
+            velocidad=20,
+            precision=10,
+        )
+
+        sesion_actual = SesionUnidad.objects.create(
+            vehiculo=self.vehiculo_2,
+            activa=True,
+            last_heartbeat=timezone.now(),
+            salida=salida_actual,
+        )
+
+        response = self.client.get(
+            reverse("api_app_cola_contexto"),
+            HTTP_AUTHORIZATION=f"Bearer {sesion_actual.token}",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data["ok"])
+        self.assertEqual(data["actual"]["unidad"], self.vehiculo_2.codigo)
+        self.assertEqual(data["adelante"], [])
+        self.assertEqual(data["atras"][0]["unidad"], self.vehiculo_1.codigo)
+        self.assertEqual(data["atras"][1]["unidad"], self.vehiculo_3.codigo)
 
 
 class LoginSistemaViewTests(BaseFlotaTestCase):
