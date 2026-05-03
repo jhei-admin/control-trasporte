@@ -393,12 +393,12 @@ class ApiSecurityAndIsolationTests(BaseFlotaTestCase):
         self.assertEqual(response.status_code, 200)
         data = response.json()
         self.assertEqual(data["accion"], "audio")
-        self.assertEqual(data["audio"], "audio_tarde")
+        self.assertEqual(data["audio"], "ruta_completada")
         self.assertTrue(data["finalizada"])
         hora_audio = timezone.localtime(ahora).strftime("%H:%M")
         self.assertEqual(
             data["audio_texto"],
-            f"RETORNO {hora_audio} 7, RUTA FINALIZADA. BUEN TRABAJO",
+            f"RETORNO, {hora_audio} TARDE MAS 7. RUTA FINALIZADA. BUEN TRABAJO",
         )
         self.assertEqual(data["visual"]["estado"], "TARDE")
         self.assertEqual(data["visual"]["diferencia_min"], 7)

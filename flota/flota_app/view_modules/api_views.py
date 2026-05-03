@@ -115,18 +115,25 @@ def _construir_audio_texto_marcacion(marcacion, *, finalizada=False):
     if marcacion.hora_marcada:
         partes.append(_format_hora(marcacion.hora_marcada))
 
-    # En el cierre de ruta evitamos repetir tarde/adelantado para que
-    # el audio final suene mas limpio.
-    if not finalizada and marcacion.estado in {"tarde", "adelantado"}:
-        partes.append(marcacion.estado)
+    diferencia = abs(int(marcacion.diferencia_minutos or 0))
+    if marcacion.estado == "a_tiempo":
+        partes.append("EN HORA")
+    elif marcacion.estado == "adelantado":
+        partes.append("ADELANTADO")
+        if diferencia:
+            partes.extend(["MENOS", str(diferencia)])
+    elif marcacion.estado == "tarde":
+        partes.append("TARDE")
+        if diferencia:
+            partes.extend(["MAS", str(diferencia)])
+    else:
+        diferencia_audio = _formatear_diferencia_audio(marcacion.diferencia_minutos)
+        if diferencia_audio:
+            partes.append(diferencia_audio)
 
-    diferencia_audio = _formatear_diferencia_audio(marcacion.diferencia_minutos)
-    if diferencia_audio:
-        partes.append(diferencia_audio)
-
-    texto = " ".join(partes)
+    texto = ", ".join([partes[0], " ".join(partes[1:])]) if len(partes) > 1 else partes[0]
     if finalizada:
-        return f"{texto}, RUTA FINALIZADA. BUEN TRABAJO"
+        return f"{texto}. RUTA FINALIZADA. BUEN TRABAJO"
     return texto
 
 
@@ -876,8 +883,8 @@ def api_gps_conductor(request):
     es_ultimo_punto = salida.siguiente_marcacion() is None
 
     return JsonResponse({
-        "accion": "audio" if marcacion.audio_flag else "visual",
-        "audio": marcacion.audio_flag,
+        "accion": "audio" if (marcacion.audio_flag or es_ultimo_punto) else "visual",
+        "audio": "ruta_completada" if es_ultimo_punto else marcacion.audio_flag,
         "finalizada": es_ultimo_punto,
         "audio_texto": _construir_audio_texto_marcacion(
             marcacion,
