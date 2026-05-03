@@ -217,24 +217,32 @@ class Command(BaseCommand):
             gps = referencia["gps"]
             referencia_orden = referencia["orden"] or 0
             distancia_siguiente = referencia["distancia_siguiente"]
+            hora_base = salida.hora_real_salida or salida.hora_salida or salida.hora_llegada
+            hora_key = -float(hora_base.timestamp()) if hora_base else 0.0
 
             if gps and geometria and (not puntos_marcacion or referencia_orden == 0):
                 progreso = _project_route_progress(gps.lat, gps.lng, geometria)
                 if progreso is not None:
-                    return (3, float(progreso), 0.0)
+                    return (3, float(progreso), hora_key, 0.0)
+
+            if not salida.hora_real_salida and referencia_orden == 0:
+                return (-1, 0.0, hora_key, 0.0)
 
             if gps:
                 return (
                     2,
                     float(referencia_orden),
+                    hora_key,
                     -float(distancia_siguiente) if distancia_siguiente is not None else -999999.0,
                 )
 
             if referencia_orden:
-                return (1, float(referencia_orden), -999999.0)
+                return (1, float(referencia_orden), hora_key, -999999.0)
 
-            hora = salida.hora_real_salida or salida.hora_salida or salida.hora_llegada
-            return (0, 0.0, -(hora.timestamp() if hora else 0.0))
+            if not salida.hora_real_salida:
+                return (-1, 0.0, hora_key, 0.0)
+
+            return (0, 0.0, hora_key, 0.0)
 
         def minutos_entre(origen, destino, instante):
             ref_origen = referencia_actual(origen, instante)
@@ -272,7 +280,8 @@ class Command(BaseCommand):
         def texto_relativo(unidad_codigo, label, minutos):
             if not unidad_codigo or minutos is None:
                 return None
-            return f"Unidad {unidad_codigo} {label} a {minutos} minutos."
+            sufijo = "minuto" if minutos == 1 else "minutos"
+            return f"Unidad {unidad_codigo} {label} a {minutos} {sufijo}."
 
         for evento in eventos:
             instante = evento.hora_marcada
