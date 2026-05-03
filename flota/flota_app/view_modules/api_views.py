@@ -2148,6 +2148,7 @@ def api_app_cola_contexto(request):
         referencia_orden = ultimo_orden
         audio_referencia_codigo = ultimo_codigo
         distancia_siguiente = None
+        distancia_siguiente_marcacion = None
 
         if ubicacion:
             candidatos = []
@@ -2186,11 +2187,22 @@ def api_app_cola_contexto(request):
                     siguiente["lng"],
                 )
 
+            siguiente_marcacion = _obtener_punto_siguiente(puntos_marcacion, ultimo_orden)
+            if siguiente_marcacion:
+                distancia_siguiente_marcacion = distancia_metros(
+                    ubicacion.latitud,
+                    ubicacion.longitud,
+                    siguiente_marcacion["lat"],
+                    siguiente_marcacion["lng"],
+                )
+
         return {
             "codigo": referencia_codigo,
             "audio_codigo": audio_referencia_codigo,
             "orden": referencia_orden,
             "distancia_siguiente": distancia_siguiente,
+            "orden_marcacion": ultimo_orden,
+            "distancia_siguiente_marcacion": distancia_siguiente_marcacion,
         }
 
     referencias_map = {
@@ -2200,8 +2212,8 @@ def api_app_cola_contexto(request):
 
     def calcular_avance_real(salida):
         referencia = referencias_map.get(salida.id, {})
-        referencia_orden = referencia.get("orden") or 0
-        distancia_siguiente = referencia.get("distancia_siguiente")
+        referencia_orden = referencia.get("orden_marcacion") or 0
+        distancia_siguiente = referencia.get("distancia_siguiente_marcacion")
         ubicacion = ubicacion_fresca(salida)
         hora_base = salida.hora_real_salida or salida.hora_salida or salida.hora_llegada
         hora_key = -float(hora_base.timestamp()) if hora_base else 0.0
@@ -2212,7 +2224,7 @@ def api_app_cola_contexto(request):
             return (-1, 0.0, programada_key, 0.0)
 
         if ubicacion:
-            if geometria_progreso and (not puntos_marcacion or referencia_orden == 0):
+            if geometria_progreso and referencia_orden == 0:
                 progreso = _project_route_progress(
                     ubicacion.latitud,
                     ubicacion.longitud,

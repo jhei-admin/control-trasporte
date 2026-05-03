@@ -173,6 +173,7 @@ class Command(BaseCommand):
             referencia_orden = ultimo_orden
             audio_referencia_codigo = ultimo_codigo
             distancia_siguiente = None
+            distancia_siguiente_marcacion = None
 
             if gps:
                 candidatos = []
@@ -208,11 +209,22 @@ class Command(BaseCommand):
                         siguiente["lng"],
                     )
 
+                siguiente_marcacion = _obtener_punto_siguiente(puntos_marcacion, ultimo_orden)
+                if siguiente_marcacion:
+                    distancia_siguiente_marcacion = distancia_metros(
+                        gps.lat,
+                        gps.lng,
+                        siguiente_marcacion["lat"],
+                        siguiente_marcacion["lng"],
+                    )
+
             return {
                 "codigo": referencia_codigo,
                 "audio_codigo": audio_referencia_codigo,
                 "orden": referencia_orden,
                 "distancia_siguiente": distancia_siguiente,
+                "orden_marcacion": ultimo_orden,
+                "distancia_siguiente_marcacion": distancia_siguiente_marcacion,
                 "gps": gps,
                 "ultimo_codigo": ultimo_codigo,
                 "ultimo_orden": ultimo_orden,
@@ -221,8 +233,8 @@ class Command(BaseCommand):
         def progreso_clave(salida, instante):
             referencia = referencia_actual(salida, instante)
             gps = referencia["gps"]
-            referencia_orden = referencia["orden"] or 0
-            distancia_siguiente = referencia["distancia_siguiente"]
+            referencia_orden = referencia["orden_marcacion"] or 0
+            distancia_siguiente = referencia["distancia_siguiente_marcacion"]
             hora_base = salida.hora_real_salida or salida.hora_salida or salida.hora_llegada
             hora_key = -float(hora_base.timestamp()) if hora_base else 0.0
             if not salida.hora_real_salida or salida.hora_real_salida > instante:
@@ -230,7 +242,7 @@ class Command(BaseCommand):
                 programada_key = -float(hora_programada.timestamp()) if hora_programada else 0.0
                 return (-1, 0.0, programada_key, 0.0)
 
-            if gps and geometria and (not puntos_marcacion or referencia_orden == 0):
+            if gps and geometria and referencia_orden == 0:
                 progreso = _project_route_progress(gps.lat, gps.lng, geometria)
                 if progreso is not None:
                     return (3, float(progreso), hora_key, 0.0)
