@@ -359,11 +359,11 @@ class Command(BaseCommand):
                     f"Unidad {salida_actual.vehiculo.codigo} marca {evento['marcacion'].punto.codigo}"
                 )
             else:
+                partes = [f"{label_punto(evento['codigo'])}."]
                 titulo = (
                     f"[{timezone.localtime(instante).strftime('%H:%M:%S')}] "
                     f"Unidad {salida_actual.vehiculo.codigo} toca radio bloqueado {evento['codigo']}"
                 )
-                partes = []
             if adelante:
                 partes.append(
                     texto_relativo(
@@ -382,10 +382,7 @@ class Command(BaseCommand):
                 )
 
             self.stdout.write(titulo)
-            if partes:
-                self.stdout.write(f"  {salida_actual.vehiculo.codigo} oye: {' '.join([p for p in partes if p])}")
-            else:
-                self.stdout.write(f"  {salida_actual.vehiculo.codigo} oye: sin audio principal de punto.")
+            self.stdout.write(f"  {salida_actual.vehiculo.codigo} oye: {' '.join([p for p in partes if p])}")
 
             if adelante:
                 self.stdout.write(
