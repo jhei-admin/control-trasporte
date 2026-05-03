@@ -456,6 +456,7 @@ class ApiSecurityAndIsolationTests(BaseFlotaTestCase):
             ruta=self.ruta_a,
             fecha=timezone.localdate(),
             hora_salida=timezone.now().replace(hour=10, minute=0, second=0, microsecond=0),
+            hora_real_salida=timezone.now().replace(hour=10, minute=0, second=0, microsecond=0),
             activo=True,
             en_cola=False,
         )
@@ -464,6 +465,7 @@ class ApiSecurityAndIsolationTests(BaseFlotaTestCase):
             ruta=self.ruta_a,
             fecha=timezone.localdate(),
             hora_salida=timezone.now().replace(hour=10, minute=5, second=0, microsecond=0),
+            hora_real_salida=timezone.now().replace(hour=10, minute=5, second=0, microsecond=0),
             activo=True,
             en_cola=False,
         )
@@ -472,6 +474,7 @@ class ApiSecurityAndIsolationTests(BaseFlotaTestCase):
             ruta=self.ruta_a,
             fecha=timezone.localdate(),
             hora_salida=timezone.now().replace(hour=10, minute=10, second=0, microsecond=0),
+            hora_real_salida=timezone.now().replace(hour=10, minute=10, second=0, microsecond=0),
             activo=True,
             en_cola=False,
         )

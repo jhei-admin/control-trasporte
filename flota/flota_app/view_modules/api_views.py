@@ -2198,6 +2198,11 @@ def api_app_cola_contexto(request):
         hora_base = salida.hora_real_salida or salida.hora_salida or salida.hora_llegada
         hora_key = -float(hora_base.timestamp()) if hora_base else 0.0
 
+        if not salida.hora_real_salida:
+            hora_programada = salida.hora_salida or salida.hora_llegada
+            programada_key = -float(hora_programada.timestamp()) if hora_programada else 0.0
+            return (-1, 0.0, programada_key, 0.0)
+
         if ubicacion:
             if geometria_progreso and (not puntos_marcacion or referencia_orden == 0):
                 progreso = _project_route_progress(
@@ -2208,9 +2213,6 @@ def api_app_cola_contexto(request):
                 if progreso is not None:
                     return (3, float(progreso), hora_key, 0.0)
 
-            if not salida.hora_real_salida and referencia_orden == 0:
-                return (-1, 0.0, hora_key, 0.0)
-
             return (
                 2,
                 float(referencia_orden),
@@ -2220,9 +2222,6 @@ def api_app_cola_contexto(request):
 
         if referencia_orden:
             return (1, float(referencia_orden), hora_key, -999999.0)
-
-        if not salida.hora_real_salida:
-            return (-1, 0.0, hora_key, 0.0)
 
         return (0, 0.0, hora_key, 0.0)
 
