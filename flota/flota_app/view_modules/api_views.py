@@ -1366,6 +1366,13 @@ def _project_route_progress(lat, lng, geometria):
     return mejor_recorrido
 
 
+def _obtener_punto_siguiente(puntos, orden_actual):
+    for punto in puntos:
+        if punto["orden"] > orden_actual:
+            return punto
+    return None
+
+
 def _serializar_puntos_ruta(ruta):
     if not ruta:
         return []
@@ -2101,6 +2108,8 @@ def api_app_cola_contexto(request):
     gps_max_delay = timedelta(seconds=60)
     velocidad_promedio = 25
     geometria_progreso = _coords_geometria_para_progreso(salida_actual.ruta)
+    puntos_ruta = _serializar_puntos_ruta(salida_actual.ruta)
+    puntos_marcacion = [punto for punto in puntos_ruta if punto["requiere_marcacion"]]
 
     try:
         ub_actual = UbicacionVehiculo.objects.get(vehiculo=salida_actual.vehiculo)
@@ -2124,27 +2133,90 @@ def api_app_cola_contexto(request):
         ultimo_punto_map[marcacion.registro_salida_id] = marcacion.punto.codigo
         ultimo_punto_orden_map[marcacion.registro_salida_id] = marcacion.punto.orden
 
-    def calcular_avance_real(salida):
+    def ubicacion_fresca(salida):
         ubicacion = ubicaciones_map.get(salida.vehiculo.id)
-        if (
-            ubicacion
-            and geometria_progreso
-            and ahora - ubicacion.updated_at <= gps_max_delay
-        ):
-            progreso = _project_route_progress(
-                ubicacion.latitud,
-                ubicacion.longitud,
-                geometria_progreso,
-            )
-            if progreso is not None:
-                return (2, progreso)
+        if not ubicacion or ahora - ubicacion.updated_at > gps_max_delay:
+            return None
+        return ubicacion
 
-        ultimo_orden = ultimo_punto_orden_map.get(salida.id)
-        if ultimo_orden is not None:
-            return (1, float(ultimo_orden))
+    def calcular_referencia_actual(salida):
+        ultimo_codigo = ultimo_punto_map.get(salida.id)
+        ultimo_orden = ultimo_punto_orden_map.get(salida.id) or 0
+        ubicacion = ubicacion_fresca(salida)
+
+        referencia_codigo = ultimo_codigo
+        referencia_orden = ultimo_orden
+        distancia_siguiente = None
+
+        if ubicacion:
+            candidatos = []
+            for punto in puntos_ruta:
+                if punto["orden"] < max(ultimo_orden, 1):
+                    continue
+                distancia = distancia_metros(
+                    ubicacion.latitud,
+                    ubicacion.longitud,
+                    punto["lat"],
+                    punto["lng"],
+                )
+                if distancia <= punto["radio"]:
+                    candidatos.append((punto["orden"], distancia, punto["codigo"]))
+
+            if candidatos:
+                orden_candidato, _, codigo_candidato = max(
+                    candidatos,
+                    key=lambda item: (item[0], -item[1]),
+                )
+                referencia_orden = max(referencia_orden, orden_candidato)
+                referencia_codigo = codigo_candidato
+
+            siguiente = _obtener_punto_siguiente(puntos_marcacion, referencia_orden)
+            if siguiente:
+                distancia_siguiente = distancia_metros(
+                    ubicacion.latitud,
+                    ubicacion.longitud,
+                    siguiente["lat"],
+                    siguiente["lng"],
+                )
+
+        return {
+            "codigo": referencia_codigo,
+            "orden": referencia_orden,
+            "distancia_siguiente": distancia_siguiente,
+        }
+
+    referencias_map = {
+        salida.id: calcular_referencia_actual(salida)
+        for salida in cola
+    }
+
+    def calcular_avance_real(salida):
+        referencia = referencias_map.get(salida.id, {})
+        referencia_orden = referencia.get("orden") or 0
+        distancia_siguiente = referencia.get("distancia_siguiente")
+        ubicacion = ubicacion_fresca(salida)
+
+        if ubicacion:
+            if geometria_progreso and (not puntos_marcacion or referencia_orden == 0):
+                progreso = _project_route_progress(
+                    ubicacion.latitud,
+                    ubicacion.longitud,
+                    geometria_progreso,
+                )
+                if progreso is not None:
+                    return (3, float(progreso), 0.0)
+
+            return (
+                2,
+                float(referencia_orden),
+                -float(distancia_siguiente) if distancia_siguiente is not None else -999999.0,
+            )
+
+        if referencia_orden:
+            return (1, float(referencia_orden), -999999.0)
 
         hora = salida.hora_real_salida or salida.hora_salida or salida.hora_llegada
-        return (0, hora.timestamp() if hora else 0.0)
+        return (0, 0.0, -(hora.timestamp() if hora else 0.0))
 
     cola_ordenada = sorted(
         cola,
@@ -2179,10 +2251,12 @@ def api_app_cola_contexto(request):
         return max(int(round(distancia / metros_min)), 0)
 
     def serializar(salida):
+        referencia = referencias_map.get(salida.id, {})
         return {
             "unidad": salida.vehiculo.codigo,
             "minutos": calcular_minutos(salida),
             "punto_actual_codigo": ultimo_punto_map.get(salida.id),
+            "punto_referencia_codigo": referencia.get("codigo"),
         }
 
     return JsonResponse({
@@ -2191,6 +2265,7 @@ def api_app_cola_contexto(request):
             "unidad": salida_actual.vehiculo.codigo,
             "minutos": 0,
             "punto_actual_codigo": ultimo_punto_map.get(salida_actual.id),
+            "punto_referencia_codigo": referencias_map.get(salida_actual.id, {}).get("codigo"),
         },
         "adelante": [serializar(salida) for salida in adelante],
         "atras": [serializar(salida) for salida in atras],

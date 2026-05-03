@@ -518,6 +518,55 @@ class ApiSecurityAndIsolationTests(BaseFlotaTestCase):
         self.assertEqual(data["atras"][0]["unidad"], self.vehiculo_1.codigo)
         self.assertEqual(data["atras"][1]["unidad"], self.vehiculo_3.codigo)
 
+    def test_api_cola_contexto_expone_referencia_por_radio_sin_marcar(self):
+        hora_base = timezone.now() - timedelta(minutes=10)
+        salida = RegistroSalida.objects.create(
+            vehiculo=self.vehiculo_1,
+            ruta=self.ruta_a,
+            fecha=timezone.localdate(),
+            hora_salida=hora_base,
+            activo=True,
+            en_cola=False,
+        )
+        self.sesion.salida = salida
+        self.sesion.save(update_fields=["salida"])
+
+        MarcacionPunto.objects.create(
+            registro_salida=salida,
+            punto=self.punto_salida,
+            hora_marcada=hora_base,
+            hora_programada=hora_base,
+        )
+        MarcacionPunto.objects.create(
+            registro_salida=salida,
+            punto=self.punto_control,
+            hora_programada=hora_base + timedelta(minutes=5),
+        )
+        MarcacionPunto.objects.create(
+            registro_salida=salida,
+            punto=self.punto_retorno,
+            hora_programada=hora_base + timedelta(minutes=10),
+        )
+
+        UbicacionVehiculo.objects.create(
+            vehiculo=self.vehiculo_1,
+            latitud=Decimal(str(self.punto_retorno.latitud)),
+            longitud=Decimal(str(self.punto_retorno.longitud)),
+            velocidad=15,
+            precision=10,
+        )
+
+        response = self.client.get(
+            reverse("api_app_cola_contexto"),
+            HTTP_AUTHORIZATION=f"Bearer {self.sesion.token}",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data["ok"])
+        self.assertEqual(data["actual"]["punto_actual_codigo"], self.punto_salida.codigo)
+        self.assertEqual(data["actual"]["punto_referencia_codigo"], self.punto_retorno.codigo)
+
 
 class LoginSistemaViewTests(BaseFlotaTestCase):
     def setUp(self):
