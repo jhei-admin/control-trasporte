@@ -7,6 +7,7 @@ from django.utils import timezone
 from flota_app.models import GPSRegistro, MarcacionPunto, RegistroSalida, Ruta, SesionUnidad
 from flota_app.utils import distancia_metros
 from flota_app.view_modules.api_views import (
+    _construir_audio_texto_marcacion,
     _coords_geometria_para_progreso,
     _obtener_punto_siguiente,
     _project_route_progress,
@@ -301,11 +302,16 @@ class Command(BaseCommand):
 
         eventos_normalizados = []
         for evento in eventos:
+            finalizada = _obtener_punto_siguiente(
+                puntos_marcacion,
+                evento.punto.orden,
+            ) is None
             eventos_normalizados.append({
                 "tipo": "marcacion",
                 "instante": evento.hora_marcada,
                 "salida": evento.registro_salida,
                 "marcacion": evento,
+                "finalizada": finalizada,
             })
 
         ultimo_audio_ref_por_salida = {}
@@ -365,7 +371,15 @@ class Command(BaseCommand):
             atras = ordenadas[indice + 1] if indice + 1 < len(ordenadas) else None
 
             if evento["tipo"] == "marcacion":
-                partes = [texto_estado(evento["marcacion"])]
+                if evento.get("finalizada"):
+                    partes = [
+                        _construir_audio_texto_marcacion(
+                            evento["marcacion"],
+                            finalizada=True,
+                        ).replace(". RUTA FINALIZADA. BUEN TRABAJO", ". Ruta finalizada. Buen trabajo.")
+                    ]
+                else:
+                    partes = [texto_estado(evento["marcacion"])]
                 titulo = (
                     f"[{timezone.localtime(instante).strftime('%H:%M:%S')}] "
                     f"Unidad {salida_actual.vehiculo.codigo} marca {evento['marcacion'].punto.codigo}"
@@ -376,7 +390,7 @@ class Command(BaseCommand):
                     f"[{timezone.localtime(instante).strftime('%H:%M:%S')}] "
                     f"Unidad {salida_actual.vehiculo.codigo} toca radio bloqueado {evento['codigo']}"
                 )
-            if adelante:
+            if adelante and not evento.get("finalizada"):
                 partes.append(
                     texto_relativo(
                         adelante.vehiculo.codigo,
@@ -384,7 +398,7 @@ class Command(BaseCommand):
                         minutos_entre(salida_actual, adelante, instante),
                     )
                 )
-            if atras:
+            if atras and not evento.get("finalizada"):
                 partes.append(
                     texto_relativo(
                         atras.vehiculo.codigo,
@@ -396,13 +410,13 @@ class Command(BaseCommand):
             self.stdout.write(titulo)
             self.stdout.write(f"  {salida_actual.vehiculo.codigo} oye: {' '.join([p for p in partes if p])}")
 
-            if adelante:
+            if adelante and not evento.get("finalizada"):
                 self.stdout.write(
                     "  "
                     f"{adelante.vehiculo.codigo} oye: "
                     f"{texto_relativo(salida_actual.vehiculo.codigo, 'atras', minutos_entre(adelante, salida_actual, instante))}"
                 )
-            if atras:
+            if atras and not evento.get("finalizada"):
                 self.stdout.write(
                     "  "
                     f"{atras.vehiculo.codigo} oye: "
