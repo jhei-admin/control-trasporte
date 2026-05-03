@@ -2146,6 +2146,7 @@ def api_app_cola_contexto(request):
 
         referencia_codigo = ultimo_codigo
         referencia_orden = ultimo_orden
+        audio_referencia_codigo = ultimo_codigo
         distancia_siguiente = None
 
         if ubicacion:
@@ -2169,6 +2170,12 @@ def api_app_cola_contexto(request):
                 )
                 referencia_orden = max(referencia_orden, orden_candidato)
                 referencia_codigo = codigo_candidato
+                punto_candidato = next(
+                    (punto for punto in puntos_ruta if punto["codigo"] == codigo_candidato and punto["orden"] == orden_candidato),
+                    None,
+                )
+                if punto_candidato and punto_candidato["requiere_marcacion"]:
+                    audio_referencia_codigo = codigo_candidato
 
             siguiente = _obtener_punto_siguiente(puntos_marcacion, referencia_orden)
             if siguiente:
@@ -2181,6 +2188,7 @@ def api_app_cola_contexto(request):
 
         return {
             "codigo": referencia_codigo,
+            "audio_codigo": audio_referencia_codigo,
             "orden": referencia_orden,
             "distancia_siguiente": distancia_siguiente,
         }
@@ -2264,6 +2272,7 @@ def api_app_cola_contexto(request):
             "minutos": calcular_minutos(salida),
             "punto_actual_codigo": ultimo_punto_map.get(salida.id),
             "punto_referencia_codigo": referencia.get("codigo"),
+            "punto_audio_referencia_codigo": referencia.get("audio_codigo"),
         }
 
     return JsonResponse({
@@ -2273,6 +2282,7 @@ def api_app_cola_contexto(request):
             "minutos": 0,
             "punto_actual_codigo": ultimo_punto_map.get(salida_actual.id),
             "punto_referencia_codigo": referencias_map.get(salida_actual.id, {}).get("codigo"),
+            "punto_audio_referencia_codigo": referencias_map.get(salida_actual.id, {}).get("audio_codigo"),
         },
         "adelante": [serializar(salida) for salida in adelante],
         "atras": [serializar(salida) for salida in atras],

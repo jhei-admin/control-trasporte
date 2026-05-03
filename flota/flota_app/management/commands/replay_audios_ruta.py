@@ -171,6 +171,7 @@ class Command(BaseCommand):
 
             referencia_codigo = ultimo_codigo
             referencia_orden = ultimo_orden
+            audio_referencia_codigo = ultimo_codigo
             distancia_siguiente = None
 
             if gps:
@@ -194,6 +195,9 @@ class Command(BaseCommand):
                     )
                     referencia_orden = max(referencia_orden, orden_candidato)
                     referencia_codigo = codigo_candidato
+                    punto_candidato = puntos_por_codigo.get(codigo_candidato)
+                    if punto_candidato and punto_candidato["requiere_marcacion"]:
+                        audio_referencia_codigo = codigo_candidato
 
                 siguiente = _obtener_punto_siguiente(puntos_marcacion, referencia_orden)
                 if siguiente:
@@ -206,6 +210,7 @@ class Command(BaseCommand):
 
             return {
                 "codigo": referencia_codigo,
+                "audio_codigo": audio_referencia_codigo,
                 "orden": referencia_orden,
                 "distancia_siguiente": distancia_siguiente,
                 "gps": gps,
@@ -291,7 +296,7 @@ class Command(BaseCommand):
                 "marcacion": evento,
             })
 
-        ultimo_ref_por_salida = {}
+        ultimo_audio_ref_por_salida = {}
         for salida in salidas:
             sesion = sesiones_map.get(salida.vehiculo_id)
             if not sesion:
@@ -303,12 +308,12 @@ class Command(BaseCommand):
                     continue
 
                 referencia = referencia_actual(salida, instante)
-                codigo_actual = referencia["codigo"]
+                codigo_actual = referencia["audio_codigo"]
                 if not codigo_actual:
                     continue
 
-                codigo_previo = ultimo_ref_por_salida.get(salida.id)
-                ultimo_ref_por_salida[salida.id] = codigo_actual
+                codigo_previo = ultimo_audio_ref_por_salida.get(salida.id)
+                ultimo_audio_ref_por_salida[salida.id] = codigo_actual
                 if codigo_previo == codigo_actual:
                     continue
 
