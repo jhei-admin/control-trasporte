@@ -129,6 +129,7 @@ class Command(BaseCommand):
 
         puntos_ruta = _serializar_puntos_ruta(ruta)
         puntos_marcacion = [punto for punto in puntos_ruta if punto["requiere_marcacion"]]
+        puntos_por_codigo = {punto["codigo"]: punto for punto in puntos_ruta}
         geometria = _coords_geometria_para_progreso(ruta)
         gps_max_delay = timedelta(seconds=60)
         velocidad_promedio = 25
@@ -281,15 +282,83 @@ class Command(BaseCommand):
             sufijo = "minuto" if minutos == 1 else "minutos"
             return f"Unidad {unidad_codigo} {label} a {minutos} {sufijo}."
 
+        eventos_normalizados = []
         for evento in eventos:
-            instante = evento.hora_marcada
-            salida_actual = evento.registro_salida
+            eventos_normalizados.append({
+                "tipo": "marcacion",
+                "instante": evento.hora_marcada,
+                "salida": evento.registro_salida,
+                "marcacion": evento,
+            })
+
+        ultimo_ref_por_salida = {}
+        for salida in salidas:
+            sesion = sesiones_map.get(salida.vehiculo_id)
+            if not sesion:
+                continue
+            registros = gps_por_sesion.get(sesion.id, [])
+            for registro in registros:
+                instante = registro.timestamp
+                if not salida.hora_real_salida or salida.hora_real_salida > instante:
+                    continue
+
+                referencia = referencia_actual(salida, instante)
+                codigo_actual = referencia["codigo"]
+                if not codigo_actual:
+                    continue
+
+                codigo_previo = ultimo_ref_por_salida.get(salida.id)
+                ultimo_ref_por_salida[salida.id] = codigo_actual
+                if codigo_previo == codigo_actual:
+                    continue
+
+                ultimo_marcado = ultimo_marcado_hasta(salida, instante)
+                ultimo_codigo = ultimo_marcado.punto.codigo if ultimo_marcado else None
+                ultimo_orden = ultimo_marcado.punto.orden if ultimo_marcado else 0
+                siguiente_pendiente = _obtener_punto_siguiente(puntos_marcacion, ultimo_orden)
+                orden_actual = puntos_por_codigo.get(codigo_actual, {}).get("orden", 0)
+                orden_esperado = siguiente_pendiente["orden"] if siguiente_pendiente else math.inf
+
+                if codigo_actual == ultimo_codigo:
+                    continue
+                if orden_actual <= orden_esperado:
+                    continue
+
+                eventos_normalizados.append({
+                    "tipo": "bloqueado",
+                    "instante": instante,
+                    "salida": salida,
+                    "codigo": codigo_actual,
+                })
+
+        eventos_normalizados.sort(
+            key=lambda item: (
+                item["instante"],
+                0 if item["tipo"] == "marcacion" else 1,
+                item["salida"].vehiculo.codigo,
+            )
+        )
+
+        for evento in eventos_normalizados:
+            instante = evento["instante"]
+            salida_actual = evento["salida"]
             ordenadas = sorted(salidas, key=lambda salida: progreso_clave(salida, instante), reverse=True)
             indice = ordenadas.index(salida_actual)
             adelante = ordenadas[:indice][-1] if indice > 0 else None
             atras = ordenadas[indice + 1] if indice + 1 < len(ordenadas) else None
 
-            partes = [texto_estado(evento)]
+            if evento["tipo"] == "marcacion":
+                partes = [texto_estado(evento["marcacion"])]
+                titulo = (
+                    f"[{timezone.localtime(instante).strftime('%H:%M:%S')}] "
+                    f"Unidad {salida_actual.vehiculo.codigo} marca {evento['marcacion'].punto.codigo}"
+                )
+            else:
+                titulo = (
+                    f"[{timezone.localtime(instante).strftime('%H:%M:%S')}] "
+                    f"Unidad {salida_actual.vehiculo.codigo} toca radio bloqueado {evento['codigo']}"
+                )
+                partes = []
             if adelante:
                 partes.append(
                     texto_relativo(
@@ -307,11 +376,11 @@ class Command(BaseCommand):
                     )
                 )
 
-            self.stdout.write(
-                f"[{timezone.localtime(instante).strftime('%H:%M:%S')}] "
-                f"Unidad {salida_actual.vehiculo.codigo} marca {evento.punto.codigo}"
-            )
-            self.stdout.write(f"  {salida_actual.vehiculo.codigo} oye: {' '.join([p for p in partes if p])}")
+            self.stdout.write(titulo)
+            if partes:
+                self.stdout.write(f"  {salida_actual.vehiculo.codigo} oye: {' '.join([p for p in partes if p])}")
+            else:
+                self.stdout.write(f"  {salida_actual.vehiculo.codigo} oye: sin audio principal de punto.")
 
             if adelante:
                 self.stdout.write(
