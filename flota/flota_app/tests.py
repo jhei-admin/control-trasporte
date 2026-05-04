@@ -594,6 +594,103 @@ class ApiSecurityAndIsolationTests(BaseFlotaTestCase):
         self.assertEqual(data["adelante"], [])
         self.assertEqual(data["atras"], [])
 
+    def test_api_cola_contexto_considera_operativa_una_unidad_con_sali_marcado_aunque_falte_hora_real(self):
+        hora_base = timezone.now().replace(hour=15, minute=27, second=0, microsecond=0)
+        salida_adelante = RegistroSalida.objects.create(
+            vehiculo=self.vehiculo_1,
+            ruta=self.ruta_a,
+            fecha=timezone.localdate(),
+            hora_salida=hora_base,
+            hora_real_salida=None,
+            activo=True,
+            en_cola=False,
+        )
+        salida_actual = RegistroSalida.objects.create(
+            vehiculo=self.vehiculo_2,
+            ruta=self.ruta_a,
+            fecha=timezone.localdate(),
+            hora_salida=hora_base + timedelta(minutes=4),
+            hora_real_salida=hora_base + timedelta(minutes=4),
+            activo=True,
+            en_cola=False,
+        )
+        salida_atras = RegistroSalida.objects.create(
+            vehiculo=self.vehiculo_3,
+            ruta=self.ruta_a,
+            fecha=timezone.localdate(),
+            hora_salida=hora_base + timedelta(minutes=8),
+            hora_real_salida=None,
+            activo=True,
+            en_cola=False,
+        )
+
+        punto_cole = self.punto_control
+        punto_cole.codigo = "COLE"
+        punto_cole.nombre = "Colegio"
+        punto_cole.orden = 2
+        punto_cole.offset_minutos = 4
+        punto_cole.save(update_fields=["codigo", "nombre", "orden", "offset_minutos"])
+
+        for salida, minutos in (
+            (salida_adelante, 0),
+            (salida_actual, 4),
+            (salida_atras, 8),
+        ):
+            MarcacionPunto.objects.create(
+                registro_salida=salida,
+                punto=self.punto_salida,
+                hora_marcada=hora_base + timedelta(minutes=minutos),
+                hora_programada=hora_base + timedelta(minutes=minutos),
+            )
+
+        MarcacionPunto.objects.create(
+            registro_salida=salida_adelante,
+            punto=punto_cole,
+            hora_marcada=hora_base + timedelta(minutes=2),
+            hora_programada=hora_base + timedelta(minutes=4),
+        )
+
+        UbicacionVehiculo.objects.create(
+            vehiculo=self.vehiculo_1,
+            latitud=Decimal("-16.4020"),
+            longitud=Decimal("-71.5020"),
+            velocidad=20,
+            precision=10,
+        )
+        UbicacionVehiculo.objects.create(
+            vehiculo=self.vehiculo_2,
+            latitud=Decimal("-16.4010"),
+            longitud=Decimal("-71.5010"),
+            velocidad=20,
+            precision=10,
+        )
+        UbicacionVehiculo.objects.create(
+            vehiculo=self.vehiculo_3,
+            latitud=Decimal("-16.4000"),
+            longitud=Decimal("-71.5000"),
+            velocidad=20,
+            precision=10,
+        )
+
+        sesion_actual = SesionUnidad.objects.create(
+            vehiculo=self.vehiculo_2,
+            activa=True,
+            last_heartbeat=timezone.now(),
+            salida=salida_actual,
+        )
+
+        response = self.client.get(
+            reverse("api_app_cola_contexto"),
+            HTTP_AUTHORIZATION=f"Bearer {sesion_actual.token}",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data["ok"])
+        self.assertEqual(data["adelante"][0]["unidad"], self.vehiculo_1.codigo)
+        self.assertEqual(data["adelante"][0]["punto_referencia_codigo"], punto_cole.codigo)
+        self.assertEqual(data["atras"][0]["unidad"], self.vehiculo_3.codigo)
+
     def test_api_cola_contexto_reordena_cuando_vecino_confirma_punto_bloqueado(self):
         punto_apip = self.punto_control
         punto_apip.codigo = "APIP"

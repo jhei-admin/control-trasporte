@@ -1699,7 +1699,7 @@ def _construir_cola_contexto_payload(sesion, ahora=None):
         hora_base = salida.hora_real_salida or salida.hora_salida or salida.hora_llegada
         hora_key = -float(hora_base.timestamp()) if hora_base else 0.0
 
-        if not salida.hora_real_salida:
+        if not salida_tiene_inicio_confirmado(salida):
             hora_programada = salida.hora_salida or salida.hora_llegada
             programada_key = -float(hora_programada.timestamp()) if hora_programada else 0.0
             return (-1, 0.0, programada_key)
