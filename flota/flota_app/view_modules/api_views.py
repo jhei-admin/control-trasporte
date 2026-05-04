@@ -89,6 +89,8 @@ GPS_SAVE_INTERVAL = timedelta(
 )
 GPS_MAX_PRECISION = getattr(settings, "GPS_MAX_PRECISION", 100.0)
 STAFF_SESSION_HOURS = 12
+PUNTOS_BLOQUEADOS_AUDIO_CODES = {"MUNI", "LLAM", "PLAZ", "PESQ"}
+PUNTOS_CONTEXTO_VUELTA_CODES = {"ZAMA_VTA"}
 
 
 def _format_hora(dt):
@@ -141,6 +143,30 @@ def _decimal_to_float(value):
     if value is None:
         return 0.0
     return float(value)
+
+
+def _codigo_punto_normalizado(punto):
+    if isinstance(punto, dict):
+        return str(punto.get("codigo") or "").strip().upper()
+    return str(getattr(punto, "codigo", "") or "").strip().upper()
+
+
+def _es_punto_evento_confirmado(punto):
+    if isinstance(punto, dict):
+        requiere_marcacion = bool(punto.get("requiere_marcacion"))
+    else:
+        requiere_marcacion = bool(getattr(punto, "requiere_marcacion", False))
+    return requiere_marcacion or _codigo_punto_normalizado(punto) in PUNTOS_BLOQUEADOS_AUDIO_CODES
+
+
+def _es_punto_contexto_interno(punto):
+    if isinstance(punto, dict):
+        return bool(punto.get("es_contexto_interno"))
+    return bool(getattr(punto, "es_contexto_interno", False))
+
+
+def _es_punto_contexto_vuelta(punto):
+    return _es_punto_contexto_interno(punto) and _codigo_punto_normalizado(punto) in PUNTOS_CONTEXTO_VUELTA_CODES
 
 
 def _resolve_app_update_url(request):
@@ -643,6 +669,74 @@ def guardar_ubicacion_actual(sesion, ahora, lat, lng, velocidad=None, precision=
         UbicacionVehiculo.objects.filter(vehiculo=sesion.vehiculo).update(**defaults)
 
 
+def _get_ubicacion_actual(vehiculo):
+    try:
+        return UbicacionVehiculo.objects.get(vehiculo=vehiculo)
+    except UbicacionVehiculo.DoesNotExist:
+        return None
+
+
+def registrar_punto_evento_confirmado(sesion, punto, ahora):
+    if not sesion or not punto or not _es_punto_evento_confirmado(punto):
+        return
+
+    codigo = _codigo_punto_normalizado(punto)
+    orden = punto["orden"] if isinstance(punto, dict) else punto.orden
+    UbicacionVehiculo.objects.filter(vehiculo=sesion.vehiculo).update(
+        ultimo_punto_evento_codigo=codigo,
+        ultimo_punto_evento_orden=orden,
+        ultimo_punto_evento_at=ahora,
+    )
+
+
+def _ruta_tiene_contexto_vuelta(ruta):
+    if not ruta:
+        return False
+    return PuntoControl.objects.filter(
+        ruta=ruta,
+        activo=True,
+        es_contexto_interno=True,
+        codigo__in=PUNTOS_CONTEXTO_VUELTA_CODES,
+    ).exists()
+
+
+def _sincronizar_fase_retorno(salida, sesion, lat, lng):
+    if not salida or not salida.ruta:
+        return False
+
+    ubicacion = _get_ubicacion_actual(sesion.vehiculo)
+    if not ubicacion:
+        return False
+
+    siguiente = salida.siguiente_marcacion()
+    if not siguiente or siguiente.punto.orden <= 4:
+        if ubicacion.en_retorno:
+            UbicacionVehiculo.objects.filter(pk=ubicacion.pk).update(en_retorno=False)
+            ubicacion.en_retorno = False
+        return False
+
+    if ubicacion.en_retorno:
+        return True
+
+    if not _ruta_tiene_contexto_vuelta(salida.ruta):
+        return True
+
+    puntos_contexto = PuntoControl.objects.filter(
+        ruta=salida.ruta,
+        activo=True,
+        es_contexto_interno=True,
+        codigo__in=PUNTOS_CONTEXTO_VUELTA_CODES,
+    )
+    for punto in puntos_contexto:
+        distancia = distancia_metros(lat, lng, float(punto.latitud), float(punto.longitud))
+        if distancia <= punto.radio_metros:
+            UbicacionVehiculo.objects.filter(pk=ubicacion.pk).update(en_retorno=True)
+            ubicacion.en_retorno = True
+            return True
+
+    return False
+
+
 def registrar_gps_historico_si_corresponde(
     sesion,
     ahora,
@@ -690,7 +784,7 @@ def _asegurar_marcaciones_salida(salida):
         MarcacionPunto.objects.get_or_create(registro_salida=salida, punto=punto)
 
 
-def _resolver_marcacion_por_ubicacion(salida, lat, lng, ahora):
+def _resolver_marcacion_por_ubicacion(salida, lat, lng, ahora, *, en_retorno=False):
     pendientes = list(salida.marcaciones_pendientes())
     if not pendientes:
         return None, [], None
@@ -713,6 +807,15 @@ def _resolver_marcacion_por_ubicacion(salida, lat, lng, ahora):
     ]
 
     punto_esperado = pendientes[0]
+
+    # En rutas con un punto de contexto de retorno, los controles 5+ no deben
+    # marcarse hasta que el sistema confirme que la unidad ya esta de vuelta.
+    if (
+        not en_retorno
+        and _ruta_tiene_contexto_vuelta(salida.ruta)
+        and punto_esperado.punto.orden >= 5
+    ):
+        return punto_esperado, [], coincidencia
 
     # En el tramo inicial la señal puede fallar y permitimos recuperar un solo
     # punto perdido. Desde ZAMA en adelante la ruta comparte radios entre
@@ -826,13 +929,16 @@ def api_gps_conductor(request):
             "motivo": "inactividad_punto",
         })
 
+    en_retorno = _sincronizar_fase_retorno(salida, sesion, lat, lng)
     marcacion, omitidas, punto_bloqueado = _resolver_marcacion_por_ubicacion(
         salida=salida,
         lat=lat,
         lng=lng,
         ahora=ahora,
+        en_retorno=en_retorno,
     )
     if punto_bloqueado is not None:
+        registrar_punto_evento_confirmado(sesion, punto_bloqueado.punto, ahora)
         return JsonResponse({
             "accion": "beep",
             "motivo": "punto_bloqueado",
@@ -844,6 +950,7 @@ def api_gps_conductor(request):
                 "codigo": punto_bloqueado.punto.codigo,
                 "nombre": punto_bloqueado.punto.nombre,
             },
+            "cola_contexto": _construir_cola_contexto_payload(sesion, ahora=ahora),
         })
 
     if not marcacion:
@@ -880,6 +987,7 @@ def api_gps_conductor(request):
             sesion.save(update_fields=["salida"])
 
     marcacion.marcar(hora=ahora)
+    registrar_punto_evento_confirmado(sesion, punto, ahora)
     es_ultimo_punto = salida.siguiente_marcacion() is None
 
     return JsonResponse({
@@ -908,6 +1016,7 @@ def api_gps_conductor(request):
                 if marcacion.hora_marcada else None
             ),
         },
+        "cola_contexto": _construir_cola_contexto_payload(sesion, ahora=ahora),
     })
 
 
@@ -1167,6 +1276,7 @@ def api_puntos_control(request):
     puntos = (
         PuntoControl.objects.for_empresa(empresa)
         .filter(activo=True)
+        .exclude(es_contexto_interno=True)
         .select_related("ruta")
         .order_by("ruta_id", "orden")
     )
@@ -1380,15 +1490,14 @@ def _obtener_punto_siguiente(puntos, orden_actual):
     return None
 
 
-def _serializar_puntos_ruta(ruta):
+def _serializar_puntos_ruta(ruta, *, incluir_contexto_interno=False):
     if not ruta:
         return []
 
-    puntos = (
-        PuntoControl.objects
-        .filter(ruta=ruta, activo=True)
-        .order_by("orden")
-    )
+    puntos = PuntoControl.objects.filter(ruta=ruta, activo=True)
+    if not incluir_contexto_interno:
+        puntos = puntos.exclude(es_contexto_interno=True)
+    puntos = puntos.order_by("orden")
 
     data = []
     for punto in puntos:
@@ -1403,8 +1512,199 @@ def _serializar_puntos_ruta(ruta):
             "lng": float(punto.longitud),
             "radio": punto.radio_metros,
             "requiere_marcacion": punto.requiere_marcacion,
+            "es_contexto_interno": punto.es_contexto_interno,
         })
     return data
+
+
+def _resolver_punto_evento_actual(ubicacion, puntos_ruta, orden_minimo):
+    if not ubicacion:
+        return None
+
+    candidatos = []
+    for punto in puntos_ruta:
+        if punto["orden"] < max(orden_minimo, 1):
+            continue
+        if not _es_punto_evento_confirmado(punto):
+            continue
+        distancia = distancia_metros(
+            ubicacion.latitud,
+            ubicacion.longitud,
+            punto["lat"],
+            punto["lng"],
+        )
+        if distancia <= punto["radio"]:
+            candidatos.append((punto["orden"], distancia, punto))
+
+    if not candidatos:
+        return None
+
+    _, _, punto_evento = max(candidatos, key=lambda item: (item[0], -item[1]))
+    return punto_evento
+
+
+def _construir_cola_contexto_payload(sesion, ahora=None):
+    ahora = ahora or timezone.now()
+    hoy = timezone.localdate()
+    salida_actual = (
+        RegistroSalida.objects.for_empresa(sesion.vehiculo.empresa)
+        .select_related("vehiculo", "ruta")
+        .filter(
+            vehiculo=sesion.vehiculo,
+            fecha=hoy,
+            activo=True,
+            hora_salida__isnull=False,
+        )
+        .order_by("hora_salida")
+        .first()
+    )
+    if not salida_actual:
+        return {"ok": False}
+
+    if salida_actual.finalizar_por_inactividad(ahora=ahora):
+        return {"ok": False}
+
+    cola = list(
+        RegistroSalida.objects.for_empresa(sesion.vehiculo.empresa)
+        .select_related("vehiculo")
+        .filter(
+            fecha=hoy,
+            activo=True,
+            ruta=salida_actual.ruta,
+            vehiculo__empresa=sesion.vehiculo.empresa,
+            hora_salida__isnull=False,
+        )
+        .order_by("hora_salida")
+    )
+
+    gps_max_delay = timedelta(seconds=60)
+    velocidad_promedio = 25
+    puntos_ruta = _serializar_puntos_ruta(salida_actual.ruta)
+
+    try:
+        ub_actual = UbicacionVehiculo.objects.get(vehiculo=salida_actual.vehiculo)
+    except UbicacionVehiculo.DoesNotExist:
+        ub_actual = None
+
+    ubicaciones_map = {
+        ubicacion.vehiculo_id: ubicacion
+        for ubicacion in UbicacionVehiculo.objects.filter(
+            vehiculo__in=[salida.vehiculo for salida in cola]
+        )
+    }
+    ultimo_punto_map = {}
+    ultimo_punto_orden_map = {}
+    for marcacion in (
+        MarcacionPunto.objects.filter(
+            registro_salida__in=cola,
+            hora_marcada__isnull=False,
+        )
+        .select_related("punto")
+        .order_by("registro_salida_id", "punto__orden")
+    ):
+        ultimo_punto_map[marcacion.registro_salida_id] = marcacion.punto.codigo
+        ultimo_punto_orden_map[marcacion.registro_salida_id] = marcacion.punto.orden
+
+    def ubicacion_fresca(salida):
+        ubicacion = ubicaciones_map.get(salida.vehiculo.id)
+        if not ubicacion or ahora - ubicacion.updated_at > gps_max_delay:
+            return None
+        return ubicacion
+
+    def calcular_referencia_confirmada(salida):
+        ultimo_codigo = ultimo_punto_map.get(salida.id)
+        ultimo_orden = ultimo_punto_orden_map.get(salida.id) or 0
+        ubicacion = ubicacion_fresca(salida)
+
+        referencia_codigo = ultimo_codigo
+        referencia_orden = ultimo_orden
+
+        if ubicacion:
+            orden_evento = ubicacion.ultimo_punto_evento_orden or 0
+            codigo_evento = (ubicacion.ultimo_punto_evento_codigo or "").strip().upper() or None
+            if orden_evento > referencia_orden and codigo_evento:
+                referencia_orden = orden_evento
+                referencia_codigo = codigo_evento
+
+            punto_evento_actual = _resolver_punto_evento_actual(
+                ubicacion,
+                puntos_ruta,
+                ultimo_orden,
+            )
+            if punto_evento_actual and punto_evento_actual["orden"] > referencia_orden:
+                referencia_orden = punto_evento_actual["orden"]
+                referencia_codigo = punto_evento_actual["codigo"]
+
+        return {
+            "codigo": referencia_codigo,
+            "audio_codigo": referencia_codigo,
+            "orden_confirmado": referencia_orden,
+        }
+
+    referencias_map = {
+        salida.id: calcular_referencia_confirmada(salida)
+        for salida in cola
+    }
+
+    def calcular_avance_confirmado(salida):
+        referencia = referencias_map.get(salida.id, {})
+        referencia_orden = referencia.get("orden_confirmado") or 0
+        hora_base = salida.hora_real_salida or salida.hora_salida or salida.hora_llegada
+        hora_key = -float(hora_base.timestamp()) if hora_base else 0.0
+
+        if not salida.hora_real_salida:
+            hora_programada = salida.hora_salida or salida.hora_llegada
+            programada_key = -float(hora_programada.timestamp()) if hora_programada else 0.0
+            return (-1, 0.0, programada_key)
+
+        return (1, float(referencia_orden), hora_key)
+
+    cola_ordenada = sorted(cola, key=calcular_avance_confirmado, reverse=True)
+    index_actual = cola_ordenada.index(salida_actual)
+
+    adelante = cola_ordenada[:index_actual][-2:]
+    atras = cola_ordenada[index_actual + 1:index_actual + 3]
+
+    def calcular_minutos(salida):
+        if not ub_actual:
+            return None
+        ubicacion = ubicaciones_map.get(salida.vehiculo.id)
+        if not ubicacion or ahora - ubicacion.updated_at > gps_max_delay:
+            return None
+        distancia = distancia_metros(
+            ub_actual.latitud,
+            ub_actual.longitud,
+            ubicacion.latitud,
+            ubicacion.longitud,
+        )
+        velocidad = ubicacion.velocidad or velocidad_promedio
+        metros_min = (velocidad * 1000) / 60
+        if metros_min <= 0:
+            return None
+        return max(int(round(distancia / metros_min)), 0)
+
+    def serializar(salida):
+        referencia = referencias_map.get(salida.id, {})
+        return {
+            "unidad": salida.vehiculo.codigo,
+            "minutos": calcular_minutos(salida),
+            "punto_actual_codigo": ultimo_punto_map.get(salida.id),
+            "punto_referencia_codigo": referencia.get("codigo"),
+            "punto_audio_referencia_codigo": referencia.get("audio_codigo"),
+        }
+
+    return {
+        "ok": True,
+        "actual": {
+            "unidad": salida_actual.vehiculo.codigo,
+            "minutos": 0,
+            "punto_actual_codigo": ultimo_punto_map.get(salida_actual.id),
+            "punto_referencia_codigo": referencias_map.get(salida_actual.id, {}).get("codigo"),
+            "punto_audio_referencia_codigo": referencias_map.get(salida_actual.id, {}).get("audio_codigo"),
+        },
+        "adelante": [serializar(salida) for salida in adelante],
+        "atras": [serializar(salida) for salida in atras],
+    }
 
 
 @csrf_exempt
@@ -2078,234 +2378,7 @@ def api_app_cola_contexto(request):
     sesion = validar_sesion(token)
     if not sesion:
         return JsonResponse({"ok": False}, status=403)
-
-    ahora = timezone.now()
-    hoy = timezone.localdate()
-    salida_actual = (
-        RegistroSalida.objects.for_empresa(sesion.vehiculo.empresa)
-        .select_related("vehiculo", "ruta")
-        .filter(
-            vehiculo=sesion.vehiculo,
-            fecha=hoy,
-            activo=True,
-            hora_salida__isnull=False,
-        )
-        .order_by("hora_salida")
-        .first()
-    )
-    if not salida_actual:
-        return JsonResponse({"ok": False})
-
-    if salida_actual.finalizar_por_inactividad(ahora=ahora):
-        return JsonResponse({"ok": False})
-
-    cola = list(
-        RegistroSalida.objects.for_empresa(sesion.vehiculo.empresa)
-        .select_related("vehiculo")
-        .filter(
-            fecha=hoy,
-            activo=True,
-            ruta=salida_actual.ruta,
-            vehiculo__empresa=sesion.vehiculo.empresa,
-            hora_salida__isnull=False,
-        )
-        .order_by("hora_salida")
-    )
-
-    gps_max_delay = timedelta(seconds=60)
-    velocidad_promedio = 25
-    geometria_progreso = _coords_geometria_para_progreso(salida_actual.ruta)
-    puntos_ruta = _serializar_puntos_ruta(salida_actual.ruta)
-    puntos_marcacion = [punto for punto in puntos_ruta if punto["requiere_marcacion"]]
-
-    try:
-        ub_actual = UbicacionVehiculo.objects.get(vehiculo=salida_actual.vehiculo)
-    except UbicacionVehiculo.DoesNotExist:
-        ub_actual = None
-
-    ubicaciones_map = {
-        ubicacion.vehiculo_id: ubicacion
-        for ubicacion in UbicacionVehiculo.objects.filter(vehiculo__in=[salida.vehiculo for salida in cola])
-    }
-    ultimo_punto_map = {}
-    ultimo_punto_orden_map = {}
-    for marcacion in (
-        MarcacionPunto.objects.filter(
-            registro_salida__in=cola,
-            hora_marcada__isnull=False,
-        )
-        .select_related("punto")
-        .order_by("registro_salida_id", "punto__orden")
-    ):
-        ultimo_punto_map[marcacion.registro_salida_id] = marcacion.punto.codigo
-        ultimo_punto_orden_map[marcacion.registro_salida_id] = marcacion.punto.orden
-
-    def ubicacion_fresca(salida):
-        ubicacion = ubicaciones_map.get(salida.vehiculo.id)
-        if not ubicacion or ahora - ubicacion.updated_at > gps_max_delay:
-            return None
-        return ubicacion
-
-    def calcular_referencia_actual(salida):
-        ultimo_codigo = ultimo_punto_map.get(salida.id)
-        ultimo_orden = ultimo_punto_orden_map.get(salida.id) or 0
-        ubicacion = ubicacion_fresca(salida)
-
-        referencia_codigo = ultimo_codigo
-        referencia_orden = ultimo_orden
-        audio_referencia_codigo = ultimo_codigo
-        distancia_siguiente = None
-        distancia_siguiente_marcacion = None
-
-        if ubicacion:
-            candidatos = []
-            for punto in puntos_ruta:
-                if punto["orden"] < max(ultimo_orden, 1):
-                    continue
-                distancia = distancia_metros(
-                    ubicacion.latitud,
-                    ubicacion.longitud,
-                    punto["lat"],
-                    punto["lng"],
-                )
-                if distancia <= punto["radio"]:
-                    candidatos.append((punto["orden"], distancia, punto["codigo"]))
-
-            if candidatos:
-                orden_candidato, _, codigo_candidato = max(
-                    candidatos,
-                    key=lambda item: (item[0], -item[1]),
-                )
-                referencia_orden = max(referencia_orden, orden_candidato)
-                referencia_codigo = codigo_candidato
-                punto_candidato = next(
-                    (punto for punto in puntos_ruta if punto["codigo"] == codigo_candidato and punto["orden"] == orden_candidato),
-                    None,
-                )
-                if punto_candidato and punto_candidato["requiere_marcacion"]:
-                    audio_referencia_codigo = codigo_candidato
-
-            siguiente = _obtener_punto_siguiente(puntos_marcacion, referencia_orden)
-            if siguiente:
-                distancia_siguiente = distancia_metros(
-                    ubicacion.latitud,
-                    ubicacion.longitud,
-                    siguiente["lat"],
-                    siguiente["lng"],
-                )
-
-            siguiente_marcacion = _obtener_punto_siguiente(puntos_marcacion, ultimo_orden)
-            if siguiente_marcacion:
-                distancia_siguiente_marcacion = distancia_metros(
-                    ubicacion.latitud,
-                    ubicacion.longitud,
-                    siguiente_marcacion["lat"],
-                    siguiente_marcacion["lng"],
-                )
-
-        return {
-            "codigo": referencia_codigo,
-            "audio_codigo": audio_referencia_codigo,
-            "orden": referencia_orden,
-            "distancia_siguiente": distancia_siguiente,
-            "orden_marcacion": ultimo_orden,
-            "distancia_siguiente_marcacion": distancia_siguiente_marcacion,
-        }
-
-    referencias_map = {
-        salida.id: calcular_referencia_actual(salida)
-        for salida in cola
-    }
-
-    def calcular_avance_real(salida):
-        referencia = referencias_map.get(salida.id, {})
-        referencia_orden = referencia.get("orden_marcacion") or 0
-        distancia_siguiente = referencia.get("distancia_siguiente_marcacion")
-        ubicacion = ubicacion_fresca(salida)
-        hora_base = salida.hora_real_salida or salida.hora_salida or salida.hora_llegada
-        hora_key = -float(hora_base.timestamp()) if hora_base else 0.0
-
-        if not salida.hora_real_salida:
-            hora_programada = salida.hora_salida or salida.hora_llegada
-            programada_key = -float(hora_programada.timestamp()) if hora_programada else 0.0
-            return (-1, 0.0, programada_key, 0.0)
-
-        if ubicacion:
-            if geometria_progreso and referencia_orden == 0:
-                progreso = _project_route_progress(
-                    ubicacion.latitud,
-                    ubicacion.longitud,
-                    geometria_progreso,
-                )
-                if progreso is not None:
-                    return (3, float(progreso), hora_key, 0.0)
-
-            return (
-                2,
-                float(referencia_orden),
-                hora_key,
-                -float(distancia_siguiente) if distancia_siguiente is not None else -999999.0,
-            )
-
-        if referencia_orden:
-            return (1, float(referencia_orden), hora_key, -999999.0)
-
-        return (0, 0.0, hora_key, 0.0)
-
-    cola_ordenada = sorted(
-        cola,
-        key=lambda salida: (
-            calcular_avance_real(salida)[0],
-            calcular_avance_real(salida)[1],
-        ),
-        reverse=True,
-    )
-
-    index_actual = cola_ordenada.index(salida_actual)
-
-    adelante = cola_ordenada[:index_actual][-2:]
-    atras = cola_ordenada[index_actual + 1:index_actual + 3]
-
-    def calcular_minutos(salida):
-        if not ub_actual:
-            return None
-        ubicacion = ubicaciones_map.get(salida.vehiculo.id)
-        if not ubicacion or ahora - ubicacion.updated_at > gps_max_delay:
-            return None
-        distancia = distancia_metros(
-            ub_actual.latitud,
-            ub_actual.longitud,
-            ubicacion.latitud,
-            ubicacion.longitud,
-        )
-        velocidad = ubicacion.velocidad or velocidad_promedio
-        metros_min = (velocidad * 1000) / 60
-        if metros_min <= 0:
-            return None
-        return max(int(round(distancia / metros_min)), 0)
-
-    def serializar(salida):
-        referencia = referencias_map.get(salida.id, {})
-        return {
-            "unidad": salida.vehiculo.codigo,
-            "minutos": calcular_minutos(salida),
-            "punto_actual_codigo": ultimo_punto_map.get(salida.id),
-            "punto_referencia_codigo": referencia.get("codigo"),
-            "punto_audio_referencia_codigo": referencia.get("audio_codigo"),
-        }
-
-    return JsonResponse({
-        "ok": True,
-        "actual": {
-            "unidad": salida_actual.vehiculo.codigo,
-            "minutos": 0,
-            "punto_actual_codigo": ultimo_punto_map.get(salida_actual.id),
-            "punto_referencia_codigo": referencias_map.get(salida_actual.id, {}).get("codigo"),
-            "punto_audio_referencia_codigo": referencias_map.get(salida_actual.id, {}).get("audio_codigo"),
-        },
-        "adelante": [serializar(salida) for salida in adelante],
-        "atras": [serializar(salida) for salida in atras],
-    })
+    return JsonResponse(_construir_cola_contexto_payload(sesion))
 
 
 @require_GET

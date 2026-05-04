@@ -333,6 +333,19 @@ class ApiSecurityAndIsolationTests(BaseFlotaTestCase):
             requiere_marcacion=False,
             activo=True,
         )
+        PuntoControl.objects.create(
+            ruta=self.ruta_a,
+            codigo="ZAMA_VTA",
+            nombre="Zamacola vuelta interno",
+            latitud=-16.405,
+            longitud=-71.505,
+            radio_metros=50,
+            orden=40,
+            offset_minutos=0,
+            requiere_marcacion=False,
+            es_contexto_interno=True,
+            activo=True,
+        )
 
         user = User.objects.create_user(username="desp_puntos", password="x")
         user.perfil.empresa = self.empresa
@@ -345,6 +358,7 @@ class ApiSecurityAndIsolationTests(BaseFlotaTestCase):
         data = response.json()
         self.assertEqual(len(data), 4)
         self.assertTrue(any(p["requiere_marcacion"] is False for p in data))
+        self.assertFalse(any(p["codigo"] == "ZAMA_VTA" for p in data))
 
     def test_api_gps_conductor_identifica_ultimo_punto_y_prepara_audio_profesional(self):
         ahora = timezone.now().replace(hour=17, minute=40, second=0, microsecond=0)
@@ -443,14 +457,7 @@ class ApiSecurityAndIsolationTests(BaseFlotaTestCase):
         self.assertTrue(data["finalizada"])
         self.assertEqual(data["audio_texto"], "RUTA FINALIZADA. BUEN TRABAJO")
 
-    def test_api_cola_contexto_prioriza_avance_real_si_hay_sobrepaso(self):
-        self.ruta_a.geometria = [
-            [-16.4000, -71.5000],
-            [-16.3900, -71.5000],
-            [-16.3800, -71.5000],
-        ]
-        self.ruta_a.save(update_fields=["geometria"])
-
+    def test_api_cola_contexto_no_reordena_solo_por_sobrepaso_gps(self):
         salida_adelante = RegistroSalida.objects.create(
             vehiculo=self.vehiculo_1,
             ruta=self.ruta_a,
@@ -517,9 +524,87 @@ class ApiSecurityAndIsolationTests(BaseFlotaTestCase):
         data = response.json()
         self.assertTrue(data["ok"])
         self.assertEqual(data["actual"]["unidad"], self.vehiculo_2.codigo)
-        self.assertEqual(data["adelante"], [])
-        self.assertEqual(data["atras"][0]["unidad"], self.vehiculo_1.codigo)
-        self.assertEqual(data["atras"][1]["unidad"], self.vehiculo_3.codigo)
+        self.assertEqual(data["adelante"][0]["unidad"], self.vehiculo_1.codigo)
+        self.assertEqual(data["atras"][0]["unidad"], self.vehiculo_3.codigo)
+
+    def test_api_cola_contexto_reordena_cuando_vecino_confirma_punto_bloqueado(self):
+        punto_apip = self.punto_control
+        punto_apip.codigo = "APIP"
+        punto_apip.nombre = "Entrada Apipa"
+        punto_apip.save(update_fields=["codigo", "nombre"])
+        punto_muni = self.punto_retorno
+        punto_muni.codigo = "MUNI"
+        punto_muni.nombre = "Entrada Municipal"
+        punto_muni.requiere_marcacion = False
+        punto_muni.save(update_fields=["codigo", "nombre", "requiere_marcacion"])
+
+        hora_base = timezone.now() - timedelta(minutes=10)
+        salida_actual = RegistroSalida.objects.create(
+            vehiculo=self.vehiculo_1,
+            ruta=self.ruta_a,
+            fecha=timezone.localdate(),
+            hora_salida=hora_base,
+            hora_real_salida=hora_base,
+            activo=True,
+            en_cola=False,
+        )
+        salida_vecino = RegistroSalida.objects.create(
+            vehiculo=self.vehiculo_2,
+            ruta=self.ruta_a,
+            fecha=timezone.localdate(),
+            hora_salida=hora_base + timedelta(minutes=5),
+            hora_real_salida=hora_base + timedelta(minutes=5),
+            activo=True,
+            en_cola=False,
+        )
+
+        for salida in [salida_actual, salida_vecino]:
+            MarcacionPunto.objects.create(
+                registro_salida=salida,
+                punto=self.punto_salida,
+                hora_marcada=salida.hora_salida,
+                hora_programada=salida.hora_salida,
+            )
+            MarcacionPunto.objects.create(
+                registro_salida=salida,
+                punto=punto_apip,
+                hora_marcada=salida.hora_salida + timedelta(minutes=5),
+                hora_programada=salida.hora_salida + timedelta(minutes=5),
+            )
+
+        UbicacionVehiculo.objects.create(
+            vehiculo=self.vehiculo_1,
+            latitud=Decimal("-16.404100"),
+            longitud=Decimal("-71.504100"),
+            velocidad=20,
+            precision=10,
+        )
+        UbicacionVehiculo.objects.create(
+            vehiculo=self.vehiculo_2,
+            latitud=Decimal("-16.405000"),
+            longitud=Decimal("-71.505000"),
+            velocidad=20,
+            precision=10,
+            ultimo_punto_evento_codigo=punto_muni.codigo,
+            ultimo_punto_evento_orden=punto_muni.orden,
+            ultimo_punto_evento_at=timezone.now(),
+        )
+
+        sesion_actual = self.sesion
+        sesion_actual.salida = salida_actual
+        sesion_actual.save(update_fields=["salida"])
+
+        response = self.client.get(
+            reverse("api_app_cola_contexto"),
+            HTTP_AUTHORIZATION=f"Bearer {sesion_actual.token}",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data["ok"])
+        self.assertEqual(data["actual"]["punto_referencia_codigo"], punto_apip.codigo)
+        self.assertEqual(data["adelante"][0]["unidad"], self.vehiculo_2.codigo)
+        self.assertEqual(data["adelante"][0]["punto_referencia_codigo"], punto_muni.codigo)
 
     def test_api_cola_contexto_expone_referencia_por_radio_sin_marcar(self):
         hora_base = timezone.now() - timedelta(minutes=10)
@@ -1098,6 +1183,7 @@ class MarcacionGpsRecoveryTests(BaseFlotaTestCase):
         self.assertEqual(response.json()["accion"], "beep")
         self.assertEqual(response.json()["esperado"]["codigo"], "CTRL")
         self.assertEqual(response.json()["bloqueado"]["codigo"], "FIN")
+        self.assertTrue(response.json()["cola_contexto"]["ok"])
 
         self.assertIsNone(
             MarcacionPunto.objects.get(
@@ -1246,6 +1332,132 @@ class MarcacionGpsRecoveryTests(BaseFlotaTestCase):
             ).hora_marcada
         )
         self.assertIsNone(
+            MarcacionPunto.objects.get(
+                registro_salida=self.salida,
+                punto=self.punto_final,
+            ).hora_marcada
+        )
+
+    def test_gps_habilita_marcacion_de_retorno_tras_punto_contexto_oculto(self):
+        hora_salida = timezone.now() - timedelta(minutes=20)
+        self.salida.hora_salida = hora_salida
+        self.salida.save(update_fields=["hora_salida"])
+
+        self.punto_control.codigo = "ZAMA"
+        self.punto_control.nombre = "Zamacola"
+        self.punto_control.orden = 4
+        self.punto_control.offset_minutos = 28
+        self.punto_control.save(update_fields=["codigo", "nombre", "orden", "offset_minutos"])
+
+        self.punto_final.codigo = "PESQ"
+        self.punto_final.nombre = "Pesquero"
+        self.punto_final.orden = 5
+        self.punto_final.offset_minutos = 35
+        self.punto_final.save(update_fields=["codigo", "nombre", "orden", "offset_minutos"])
+
+        punto_apip = PuntoControl.objects.create(
+            ruta=self.ruta_a,
+            codigo="APIP",
+            nombre="Entrada apipa",
+            latitud=-16.401500,
+            longitud=-71.501500,
+            radio_metros=60,
+            orden=3,
+            offset_minutos=12,
+            requiere_marcacion=True,
+            activo=True,
+        )
+        punto_contexto = PuntoControl.objects.create(
+            ruta=self.ruta_a,
+            codigo="ZAMA_VTA",
+            nombre="Zamacola vuelta interno",
+            latitud=-16.402000,
+            longitud=-71.502000,
+            radio_metros=60,
+            orden=40,
+            offset_minutos=0,
+            requiere_marcacion=False,
+            es_contexto_interno=True,
+            activo=True,
+        )
+
+        MarcacionPunto.objects.create(
+            registro_salida=self.salida,
+            punto=self.punto_salida,
+            hora_marcada=hora_salida,
+            hora_programada=hora_salida,
+        )
+        MarcacionPunto.objects.create(
+            registro_salida=self.salida,
+            punto=punto_apip,
+            hora_marcada=hora_salida + timedelta(minutes=12),
+            hora_programada=hora_salida + timedelta(minutes=12),
+        )
+        MarcacionPunto.objects.create(
+            registro_salida=self.salida,
+            punto=self.punto_control,
+            hora_marcada=hora_salida + timedelta(minutes=28),
+            hora_programada=hora_salida + timedelta(minutes=28),
+        )
+        MarcacionPunto.objects.create(
+            registro_salida=self.salida,
+            punto=self.punto_final,
+            hora_programada=hora_salida + timedelta(minutes=35),
+        )
+
+        response_bloqueado = self.client.post(
+            reverse("api_gps_conductor"),
+            data=json.dumps(
+                {
+                    "lat": float(self.punto_final.latitud),
+                    "lng": float(self.punto_final.longitud),
+                    "precision": 10,
+                }
+            ),
+            content_type="application/json",
+            HTTP_AUTHORIZATION=f"Bearer {self.sesion.token}",
+        )
+
+        self.assertEqual(response_bloqueado.status_code, 200)
+        self.assertEqual(response_bloqueado.json()["accion"], "beep")
+        self.assertEqual(response_bloqueado.json()["bloqueado"]["codigo"], "PESQ")
+
+        response_contexto = self.client.post(
+            reverse("api_gps_conductor"),
+            data=json.dumps(
+                {
+                    "lat": float(punto_contexto.latitud),
+                    "lng": float(punto_contexto.longitud),
+                    "precision": 10,
+                }
+            ),
+            content_type="application/json",
+            HTTP_AUTHORIZATION=f"Bearer {self.sesion.token}",
+        )
+
+        self.assertEqual(response_contexto.status_code, 200)
+        self.assertEqual(response_contexto.json()["accion"], "ninguna")
+
+        response_marcacion = self.client.post(
+            reverse("api_gps_conductor"),
+            data=json.dumps(
+                {
+                    "lat": float(self.punto_final.latitud),
+                    "lng": float(self.punto_final.longitud),
+                    "precision": 10,
+                }
+            ),
+            content_type="application/json",
+            HTTP_AUTHORIZATION=f"Bearer {self.sesion.token}",
+        )
+
+        self.assertEqual(response_marcacion.status_code, 200)
+        self.assertIn(response_marcacion.json()["accion"], ["audio", "visual"])
+        self.assertEqual(response_marcacion.json()["visual"]["codigo"], "PESQ")
+        self.assertTrue(
+            UbicacionVehiculo.objects.get(vehiculo=self.vehiculo_1).en_retorno
+        )
+        self.assertIsNotNone(
             MarcacionPunto.objects.get(
                 registro_salida=self.salida,
                 punto=self.punto_final,

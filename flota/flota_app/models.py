@@ -476,6 +476,10 @@ class PuntoControl(models.Model):
         default=True,
         help_text="Desactive para usar este punto solo como referencia visual en el mapa.",
     )
+    es_contexto_interno = models.BooleanField(
+        default=False,
+        help_text="Oculta este punto de la UI y lo usa solo para logica interna.",
+    )
     activo = models.BooleanField(default=True)
 
     class Meta:
@@ -892,6 +896,10 @@ class UbicacionVehiculo(models.Model):
 
     velocidad = models.FloatField(null=True, blank=True)
     precision = models.FloatField(null=True, blank=True)
+    en_retorno = models.BooleanField(default=False)
+    ultimo_punto_evento_codigo = models.CharField(max_length=10, null=True, blank=True)
+    ultimo_punto_evento_orden = models.PositiveIntegerField(null=True, blank=True)
+    ultimo_punto_evento_at = models.DateTimeField(null=True, blank=True)
 
     updated_at = models.DateTimeField(auto_now=True)
 

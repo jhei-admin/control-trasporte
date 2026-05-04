@@ -124,6 +124,7 @@ class PuntoControlAdmin(admin.ModelAdmin):
         "orden",
         "nombre",
         "requiere_marcacion",
+        "es_contexto_interno",
         "offset_minutos",
         "radio_metros",
         "activo",
@@ -134,12 +135,13 @@ class PuntoControlAdmin(admin.ModelAdmin):
     list_editable = (
         "orden",
         "requiere_marcacion",
+        "es_contexto_interno",
         "offset_minutos",
         "radio_metros",
         "activo",
     )
 
-    list_filter = ("ruta", "activo")
+    list_filter = ("ruta", "activo", "es_contexto_interno")
     search_fields = ("codigo", "nombre")
     ordering = ("ruta", "orden")
 

@@ -8,9 +8,8 @@ from flota_app.models import GPSRegistro, MarcacionPunto, RegistroSalida, Ruta, 
 from flota_app.utils import distancia_metros
 from flota_app.view_modules.api_views import (
     _construir_audio_texto_marcacion,
-    _coords_geometria_para_progreso,
+    _es_punto_evento_confirmado,
     _obtener_punto_siguiente,
-    _project_route_progress,
     _serializar_puntos_ruta,
 )
 
@@ -130,8 +129,8 @@ class Command(BaseCommand):
 
         puntos_ruta = _serializar_puntos_ruta(ruta)
         puntos_marcacion = [punto for punto in puntos_ruta if punto["requiere_marcacion"]]
-        puntos_por_codigo = {punto["codigo"]: punto for punto in puntos_ruta}
-        geometria = _coords_geometria_para_progreso(ruta)
+        puntos_evento = [punto for punto in puntos_ruta if _es_punto_evento_confirmado(punto)]
+        puntos_por_codigo = {punto["codigo"]: punto for punto in puntos_evento}
         gps_max_delay = timedelta(seconds=60)
         velocidad_promedio = 25
 
@@ -164,7 +163,30 @@ class Command(BaseCommand):
                     break
             return ultimo
 
-        def referencia_actual(salida, instante):
+        def punto_evento_en_gps(gps, orden_minimo):
+            if not gps:
+                return None
+
+            candidatos = []
+            for punto in puntos_evento:
+                if punto["orden"] < max(orden_minimo, 1):
+                    continue
+                distancia = distancia_metros(
+                    gps.lat,
+                    gps.lng,
+                    punto["lat"],
+                    punto["lng"],
+                )
+                if distancia <= punto["radio"]:
+                    candidatos.append((punto["orden"], distancia, punto))
+
+            if not candidatos:
+                return None
+
+            _, _, punto = max(candidatos, key=lambda item: (item[0], -item[1]))
+            return punto
+
+        def referencia_actual(salida, instante, estado_eventos):
             ultimo = ultimo_marcado_hasta(salida, instante)
             ultimo_codigo = ultimo.punto.codigo if ultimo else None
             ultimo_orden = ultimo.punto.orden if ultimo else 0
@@ -172,98 +194,35 @@ class Command(BaseCommand):
 
             referencia_codigo = ultimo_codigo
             referencia_orden = ultimo_orden
-            audio_referencia_codigo = ultimo_codigo
-            distancia_siguiente = None
-            distancia_siguiente_marcacion = None
-
-            if gps:
-                candidatos = []
-                for punto in puntos_ruta:
-                    if punto["orden"] < max(ultimo_orden, 1):
-                        continue
-                    distancia = distancia_metros(
-                        gps.lat,
-                        gps.lng,
-                        punto["lat"],
-                        punto["lng"],
-                    )
-                    if distancia <= punto["radio"]:
-                        candidatos.append((punto["orden"], distancia, punto["codigo"]))
-
-                if candidatos:
-                    orden_candidato, _, codigo_candidato = max(
-                        candidatos,
-                        key=lambda item: (item[0], -item[1]),
-                    )
-                    referencia_orden = max(referencia_orden, orden_candidato)
-                    referencia_codigo = codigo_candidato
-                    punto_candidato = puntos_por_codigo.get(codigo_candidato)
-                    if punto_candidato and punto_candidato["requiere_marcacion"]:
-                        audio_referencia_codigo = codigo_candidato
-
-                siguiente = _obtener_punto_siguiente(puntos_marcacion, referencia_orden)
-                if siguiente:
-                    distancia_siguiente = distancia_metros(
-                        gps.lat,
-                        gps.lng,
-                        siguiente["lat"],
-                        siguiente["lng"],
-                    )
-
-                siguiente_marcacion = _obtener_punto_siguiente(puntos_marcacion, ultimo_orden)
-                if siguiente_marcacion:
-                    distancia_siguiente_marcacion = distancia_metros(
-                        gps.lat,
-                        gps.lng,
-                        siguiente_marcacion["lat"],
-                        siguiente_marcacion["lng"],
-                    )
+            evento_confirmado = estado_eventos.get(salida.id, {})
+            if (evento_confirmado.get("orden") or 0) > referencia_orden:
+                referencia_orden = evento_confirmado["orden"]
+                referencia_codigo = evento_confirmado.get("codigo")
 
             return {
                 "codigo": referencia_codigo,
-                "audio_codigo": audio_referencia_codigo,
-                "orden": referencia_orden,
-                "distancia_siguiente": distancia_siguiente,
-                "orden_marcacion": ultimo_orden,
-                "distancia_siguiente_marcacion": distancia_siguiente_marcacion,
+                "audio_codigo": referencia_codigo,
+                "orden_confirmado": referencia_orden,
                 "gps": gps,
                 "ultimo_codigo": ultimo_codigo,
                 "ultimo_orden": ultimo_orden,
             }
 
-        def progreso_clave(salida, instante):
-            referencia = referencia_actual(salida, instante)
-            gps = referencia["gps"]
-            referencia_orden = referencia["orden_marcacion"] or 0
-            distancia_siguiente = referencia["distancia_siguiente_marcacion"]
+        def progreso_clave(salida, instante, estado_eventos):
+            referencia = referencia_actual(salida, instante, estado_eventos)
+            referencia_orden = referencia["orden_confirmado"] or 0
             hora_base = salida.hora_real_salida or salida.hora_salida or salida.hora_llegada
             hora_key = -float(hora_base.timestamp()) if hora_base else 0.0
             if not salida.hora_real_salida or salida.hora_real_salida > instante:
                 hora_programada = salida.hora_salida or salida.hora_llegada
                 programada_key = -float(hora_programada.timestamp()) if hora_programada else 0.0
-                return (-1, 0.0, programada_key, 0.0)
+                return (-1, 0.0, programada_key)
 
-            if gps and geometria and referencia_orden == 0:
-                progreso = _project_route_progress(gps.lat, gps.lng, geometria)
-                if progreso is not None:
-                    return (3, float(progreso), hora_key, 0.0)
+            return (1, float(referencia_orden), hora_key)
 
-            if gps:
-                return (
-                    2,
-                    float(referencia_orden),
-                    hora_key,
-                    -float(distancia_siguiente) if distancia_siguiente is not None else -999999.0,
-                )
-
-            if referencia_orden:
-                return (1, float(referencia_orden), hora_key, -999999.0)
-
-            return (0, 0.0, hora_key, 0.0)
-
-        def minutos_entre(origen, destino, instante):
-            ref_origen = referencia_actual(origen, instante)
-            ref_destino = referencia_actual(destino, instante)
+        def minutos_entre(origen, destino, instante, estado_eventos):
+            ref_origen = referencia_actual(origen, instante, estado_eventos)
+            ref_destino = referencia_actual(destino, instante, estado_eventos)
             gps_origen = ref_origen["gps"]
             gps_destino = ref_destino["gps"]
             if not gps_origen or not gps_destino:
@@ -314,7 +273,10 @@ class Command(BaseCommand):
                 "finalizada": finalizada,
             })
 
-        ultimo_audio_ref_por_salida = {}
+        estado_eventos_detectados = {
+            salida.id: {"codigo": None, "orden": 0}
+            for salida in salidas
+        }
         for salida in salidas:
             sesion = sesiones_map.get(salida.vehiculo_id)
             if not sesion:
@@ -325,25 +287,30 @@ class Command(BaseCommand):
                 if not salida.hora_real_salida or salida.hora_real_salida > instante:
                     continue
 
-                referencia = referencia_actual(salida, instante)
-                codigo_actual = referencia["audio_codigo"]
-                if not codigo_actual:
-                    continue
-
-                codigo_previo = ultimo_audio_ref_por_salida.get(salida.id)
-                ultimo_audio_ref_por_salida[salida.id] = codigo_actual
-                if codigo_previo == codigo_actual:
-                    continue
-
                 ultimo_marcado = ultimo_marcado_hasta(salida, instante)
                 ultimo_codigo = ultimo_marcado.punto.codigo if ultimo_marcado else None
                 ultimo_orden = ultimo_marcado.punto.orden if ultimo_marcado else 0
+                punto_evento = punto_evento_en_gps(registro, ultimo_orden)
+                if not punto_evento:
+                    continue
+
+                codigo_actual = punto_evento["codigo"]
+                orden_actual = punto_evento["orden"]
+                estado_previo = estado_eventos_detectados[salida.id]
+                if orden_actual <= max(ultimo_orden, estado_previo["orden"]):
+                    continue
+
+                estado_eventos_detectados[salida.id] = {
+                    "codigo": codigo_actual,
+                    "orden": orden_actual,
+                }
+
+                if punto_evento["requiere_marcacion"] or codigo_actual == ultimo_codigo:
+                    continue
+
                 siguiente_pendiente = _obtener_punto_siguiente(puntos_marcacion, ultimo_orden)
-                orden_actual = puntos_por_codigo.get(codigo_actual, {}).get("orden", 0)
                 orden_esperado = siguiente_pendiente["orden"] if siguiente_pendiente else math.inf
 
-                if codigo_actual == ultimo_codigo:
-                    continue
                 if orden_actual <= orden_esperado:
                     continue
 
@@ -352,6 +319,7 @@ class Command(BaseCommand):
                     "instante": instante,
                     "salida": salida,
                     "codigo": codigo_actual,
+                    "orden": orden_actual,
                 })
 
         eventos_normalizados.sort(
@@ -362,10 +330,29 @@ class Command(BaseCommand):
             )
         )
 
+        estado_eventos_confirmados = {
+            salida.id: {"codigo": None, "orden": 0}
+            for salida in salidas
+        }
         for evento in eventos_normalizados:
             instante = evento["instante"]
             salida_actual = evento["salida"]
-            ordenadas = sorted(salidas, key=lambda salida: progreso_clave(salida, instante), reverse=True)
+            if evento["tipo"] == "marcacion":
+                estado_eventos_confirmados[salida_actual.id] = {
+                    "codigo": evento["marcacion"].punto.codigo,
+                    "orden": evento["marcacion"].punto.orden,
+                }
+            else:
+                estado_eventos_confirmados[salida_actual.id] = {
+                    "codigo": evento["codigo"],
+                    "orden": evento["orden"],
+                }
+
+            ordenadas = sorted(
+                salidas,
+                key=lambda salida: progreso_clave(salida, instante, estado_eventos_confirmados),
+                reverse=True,
+            )
             indice = ordenadas.index(salida_actual)
             adelante = ordenadas[:indice][-1] if indice > 0 else None
             atras = ordenadas[indice + 1] if indice + 1 < len(ordenadas) else None
@@ -395,7 +382,7 @@ class Command(BaseCommand):
                     texto_relativo(
                         adelante.vehiculo.codigo,
                         "adelante",
-                        minutos_entre(salida_actual, adelante, instante),
+                        minutos_entre(salida_actual, adelante, instante, estado_eventos_confirmados),
                     )
                 )
             if atras and not evento.get("finalizada"):
@@ -403,7 +390,7 @@ class Command(BaseCommand):
                     texto_relativo(
                         atras.vehiculo.codigo,
                         "atras",
-                        minutos_entre(salida_actual, atras, instante),
+                        minutos_entre(salida_actual, atras, instante, estado_eventos_confirmados),
                     )
                 )
 
@@ -414,12 +401,12 @@ class Command(BaseCommand):
                 self.stdout.write(
                     "  "
                     f"{adelante.vehiculo.codigo} oye: "
-                    f"{texto_relativo(salida_actual.vehiculo.codigo, 'atras', minutos_entre(adelante, salida_actual, instante))}"
+                    f"{texto_relativo(salida_actual.vehiculo.codigo, 'atras', minutos_entre(adelante, salida_actual, instante, estado_eventos_confirmados))}"
                 )
             if atras and not evento.get("finalizada"):
                 self.stdout.write(
                     "  "
                     f"{atras.vehiculo.codigo} oye: "
-                    f"{texto_relativo(salida_actual.vehiculo.codigo, 'adelante', minutos_entre(atras, salida_actual, instante))}"
+                    f"{texto_relativo(salida_actual.vehiculo.codigo, 'adelante', minutos_entre(atras, salida_actual, instante, estado_eventos_confirmados))}"
                 )
             self.stdout.write("")
