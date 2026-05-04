@@ -527,6 +527,73 @@ class ApiSecurityAndIsolationTests(BaseFlotaTestCase):
         self.assertEqual(data["adelante"][0]["unidad"], self.vehiculo_1.codigo)
         self.assertEqual(data["atras"][0]["unidad"], self.vehiculo_3.codigo)
 
+    def test_api_cola_contexto_oculta_vecinos_hasta_marcar_sali(self):
+        hora_base = timezone.now().replace(hour=10, minute=0, second=0, microsecond=0)
+        salida_adelante = RegistroSalida.objects.create(
+            vehiculo=self.vehiculo_1,
+            ruta=self.ruta_a,
+            fecha=timezone.localdate(),
+            hora_salida=hora_base,
+            hora_real_salida=hora_base,
+            activo=True,
+            en_cola=False,
+        )
+        salida_actual = RegistroSalida.objects.create(
+            vehiculo=self.vehiculo_2,
+            ruta=self.ruta_a,
+            fecha=timezone.localdate(),
+            hora_salida=hora_base + timedelta(minutes=5),
+            activo=True,
+            en_cola=False,
+        )
+
+        MarcacionPunto.objects.create(
+            registro_salida=salida_adelante,
+            punto=self.punto_salida,
+            hora_marcada=hora_base,
+            hora_programada=hora_base,
+        )
+        MarcacionPunto.objects.create(
+            registro_salida=salida_adelante,
+            punto=self.punto_control,
+            hora_marcada=hora_base + timedelta(minutes=5),
+            hora_programada=hora_base + timedelta(minutes=5),
+        )
+
+        UbicacionVehiculo.objects.create(
+            vehiculo=self.vehiculo_1,
+            latitud=Decimal("-16.4020"),
+            longitud=Decimal("-71.5020"),
+            velocidad=20,
+            precision=10,
+        )
+        UbicacionVehiculo.objects.create(
+            vehiculo=self.vehiculo_2,
+            latitud=Decimal("-16.4010"),
+            longitud=Decimal("-71.5010"),
+            velocidad=0,
+            precision=10,
+        )
+
+        sesion_actual = SesionUnidad.objects.create(
+            vehiculo=self.vehiculo_2,
+            activa=True,
+            last_heartbeat=timezone.now(),
+            salida=salida_actual,
+        )
+
+        response = self.client.get(
+            reverse("api_app_cola_contexto"),
+            HTTP_AUTHORIZATION=f"Bearer {sesion_actual.token}",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data["ok"])
+        self.assertEqual(data["actual"]["unidad"], self.vehiculo_2.codigo)
+        self.assertEqual(data["adelante"], [])
+        self.assertEqual(data["atras"], [])
+
     def test_api_cola_contexto_reordena_cuando_vecino_confirma_punto_bloqueado(self):
         punto_apip = self.punto_control
         punto_apip.codigo = "APIP"
@@ -605,6 +672,132 @@ class ApiSecurityAndIsolationTests(BaseFlotaTestCase):
         self.assertEqual(data["actual"]["punto_referencia_codigo"], punto_apip.codigo)
         self.assertEqual(data["adelante"][0]["unidad"], self.vehiculo_2.codigo)
         self.assertEqual(data["adelante"][0]["punto_referencia_codigo"], punto_muni.codigo)
+
+    def test_api_cola_contexto_reordena_en_bloqueado_de_bajada_si_ya_marco_sali(self):
+        punto_zama = self.punto_retorno
+        punto_zama.codigo = "ZAMA"
+        punto_zama.nombre = "Zamacola"
+        punto_zama.orden = 4
+        punto_zama.offset_minutos = 28
+        punto_zama.save(update_fields=["codigo", "nombre", "orden", "offset_minutos"])
+
+        punto_apip = PuntoControl.objects.create(
+            ruta=self.ruta_a,
+            codigo="APIP",
+            nombre="Entrada Apipa",
+            latitud=-16.401500,
+            longitud=-71.501500,
+            radio_metros=60,
+            orden=3,
+            offset_minutos=12,
+            requiere_marcacion=True,
+            activo=True,
+        )
+
+        punto_pesq = PuntoControl.objects.create(
+            ruta=self.ruta_a,
+            codigo="PESQ",
+            nombre="Pesquero",
+            latitud=-16.406000,
+            longitud=-71.506000,
+            radio_metros=60,
+            orden=5,
+            offset_minutos=35,
+            requiere_marcacion=True,
+            activo=True,
+        )
+        PuntoControl.objects.create(
+            ruta=self.ruta_a,
+            codigo="ZAMA_VTA",
+            nombre="Zamacola vuelta interno",
+            latitud=-16.403000,
+            longitud=-71.503000,
+            radio_metros=60,
+            orden=40,
+            offset_minutos=0,
+            requiere_marcacion=False,
+            es_contexto_interno=True,
+            activo=True,
+        )
+
+        hora_base = timezone.now() - timedelta(minutes=20)
+        salida_actual = RegistroSalida.objects.create(
+            vehiculo=self.vehiculo_1,
+            ruta=self.ruta_a,
+            fecha=timezone.localdate(),
+            hora_salida=hora_base,
+            hora_real_salida=hora_base,
+            activo=True,
+            en_cola=False,
+        )
+        salida_vecino = RegistroSalida.objects.create(
+            vehiculo=self.vehiculo_2,
+            ruta=self.ruta_a,
+            fecha=timezone.localdate(),
+            hora_salida=hora_base + timedelta(minutes=5),
+            hora_real_salida=hora_base + timedelta(minutes=5),
+            activo=True,
+            en_cola=False,
+        )
+
+        for salida in [salida_actual, salida_vecino]:
+            MarcacionPunto.objects.create(
+                registro_salida=salida,
+                punto=self.punto_salida,
+                hora_marcada=salida.hora_salida,
+                hora_programada=salida.hora_salida,
+            )
+            MarcacionPunto.objects.create(
+                registro_salida=salida,
+                punto=punto_apip,
+                hora_marcada=salida.hora_salida + timedelta(minutes=12),
+                hora_programada=salida.hora_salida + timedelta(minutes=12),
+            )
+            MarcacionPunto.objects.create(
+                registro_salida=salida,
+                punto=punto_zama,
+                hora_programada=salida.hora_salida + timedelta(minutes=28),
+            )
+            MarcacionPunto.objects.create(
+                registro_salida=salida,
+                punto=punto_pesq,
+                hora_programada=salida.hora_salida + timedelta(minutes=35),
+            )
+
+        UbicacionVehiculo.objects.create(
+            vehiculo=self.vehiculo_1,
+            latitud=Decimal("-16.401500"),
+            longitud=Decimal("-71.501500"),
+            velocidad=20,
+            precision=10,
+        )
+        UbicacionVehiculo.objects.create(
+            vehiculo=self.vehiculo_2,
+            latitud=Decimal("-16.406000"),
+            longitud=Decimal("-71.506000"),
+            velocidad=20,
+            precision=10,
+            ultimo_punto_evento_codigo="PESQ",
+            ultimo_punto_evento_orden=5,
+            ultimo_punto_evento_at=timezone.now(),
+            en_retorno=False,
+        )
+
+        sesion_actual = self.sesion
+        sesion_actual.salida = salida_actual
+        sesion_actual.save(update_fields=["salida"])
+
+        response = self.client.get(
+            reverse("api_app_cola_contexto"),
+            HTTP_AUTHORIZATION=f"Bearer {sesion_actual.token}",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data["ok"])
+        self.assertEqual(data["actual"]["punto_referencia_codigo"], punto_apip.codigo)
+        self.assertEqual(data["adelante"][0]["unidad"], self.vehiculo_2.codigo)
+        self.assertEqual(data["adelante"][0]["punto_referencia_codigo"], punto_pesq.codigo)
 
     def test_api_cola_contexto_expone_referencia_por_radio_sin_marcar(self):
         hora_base = timezone.now() - timedelta(minutes=10)

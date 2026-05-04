@@ -1631,6 +1631,9 @@ def _construir_cola_contexto_payload(sesion, ahora=None):
         ultimo_punto_map[marcacion.registro_salida_id] = marcacion.punto.codigo
         ultimo_punto_orden_map[marcacion.registro_salida_id] = marcacion.punto.orden
 
+    def salida_tiene_inicio_confirmado(salida):
+        return (ultimo_punto_orden_map.get(salida.id) or 0) >= 1
+
     def ubicacion_fresca(salida):
         ubicacion = ubicaciones_map.get(salida.vehiculo.id)
         if not ubicacion or ahora - ubicacion.updated_at > gps_max_delay:
@@ -1641,7 +1644,6 @@ def _construir_cola_contexto_payload(sesion, ahora=None):
         ultimo_codigo = ultimo_punto_map.get(salida.id)
         ultimo_orden = ultimo_punto_orden_map.get(salida.id) or 0
         ubicacion = ubicacion_fresca(salida)
-
         referencia_codigo = ultimo_codigo
         referencia_orden = ultimo_orden
 
@@ -1671,6 +1673,25 @@ def _construir_cola_contexto_payload(sesion, ahora=None):
         salida.id: calcular_referencia_confirmada(salida)
         for salida in cola
     }
+
+    if not salida_tiene_inicio_confirmado(salida_actual):
+        return {
+            "ok": True,
+            "actual": {
+                "unidad": salida_actual.vehiculo.codigo,
+                "minutos": 0,
+                "punto_actual_codigo": ultimo_punto_map.get(salida_actual.id),
+                "punto_referencia_codigo": referencias_map.get(salida_actual.id, {}).get("codigo"),
+                "punto_audio_referencia_codigo": referencias_map.get(salida_actual.id, {}).get("audio_codigo"),
+            },
+            "adelante": [],
+            "atras": [],
+        }
+
+    cola = [
+        salida for salida in cola
+        if salida.id == salida_actual.id or salida_tiene_inicio_confirmado(salida)
+    ]
 
     def calcular_avance_confirmado(salida):
         referencia = referencias_map.get(salida.id, {})
