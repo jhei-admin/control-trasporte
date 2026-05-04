@@ -169,6 +169,20 @@ def _es_punto_contexto_vuelta(punto):
     return _es_punto_contexto_interno(punto) and _codigo_punto_normalizado(punto) in PUNTOS_CONTEXTO_VUELTA_CODES
 
 
+def _codigo_audio_punto(punto):
+    codigo = _codigo_punto_normalizado(punto)
+    if codigo in PUNTOS_CONTEXTO_VUELTA_CODES:
+        return "ZAMA"
+    return codigo
+
+
+def _nombre_audio_punto(punto):
+    nombre = str(getattr(punto, "nombre", "") or "").strip()
+    if _codigo_punto_normalizado(punto) in PUNTOS_CONTEXTO_VUELTA_CODES:
+        return "Zamacola"
+    return nombre
+
+
 def _resolve_app_update_url(request):
     external_url = getattr(settings, "APP_UPDATE_APK_URL", "").strip()
     if external_url:
@@ -680,7 +694,7 @@ def registrar_punto_evento_confirmado(sesion, punto, ahora):
     if not sesion or not punto or not _es_punto_evento_confirmado(punto):
         return
 
-    codigo = _codigo_punto_normalizado(punto)
+    codigo = _codigo_audio_punto(punto)
     orden = punto["orden"] if isinstance(punto, dict) else punto.orden
     UbicacionVehiculo.objects.filter(vehiculo=sesion.vehiculo).update(
         ultimo_punto_evento_codigo=codigo,
@@ -702,24 +716,24 @@ def _ruta_tiene_contexto_vuelta(ruta):
 
 def _sincronizar_fase_retorno(salida, sesion, lat, lng):
     if not salida or not salida.ruta:
-        return False
+        return False, None
 
     ubicacion = _get_ubicacion_actual(sesion.vehiculo)
     if not ubicacion:
-        return False
+        return False, None
 
     siguiente = salida.siguiente_marcacion()
     if not siguiente or siguiente.punto.orden <= 4:
         if ubicacion.en_retorno:
             UbicacionVehiculo.objects.filter(pk=ubicacion.pk).update(en_retorno=False)
             ubicacion.en_retorno = False
-        return False
+        return False, None
 
     if ubicacion.en_retorno:
-        return True
+        return True, None
 
     if not _ruta_tiene_contexto_vuelta(salida.ruta):
-        return True
+        return True, None
 
     puntos_contexto = PuntoControl.objects.filter(
         ruta=salida.ruta,
@@ -732,9 +746,9 @@ def _sincronizar_fase_retorno(salida, sesion, lat, lng):
         if distancia <= punto.radio_metros:
             UbicacionVehiculo.objects.filter(pk=ubicacion.pk).update(en_retorno=True)
             ubicacion.en_retorno = True
-            return True
+            return True, punto
 
-    return False
+    return False, None
 
 
 def registrar_gps_historico_si_corresponde(
@@ -929,7 +943,19 @@ def api_gps_conductor(request):
             "motivo": "inactividad_punto",
         })
 
-    en_retorno = _sincronizar_fase_retorno(salida, sesion, lat, lng)
+    en_retorno, punto_contexto_vuelta = _sincronizar_fase_retorno(salida, sesion, lat, lng)
+    if punto_contexto_vuelta is not None:
+        registrar_punto_evento_confirmado(sesion, punto_contexto_vuelta, ahora)
+        return JsonResponse({
+            "accion": "beep",
+            "motivo": "punto_contexto_vuelta",
+            "bloqueado": {
+                "codigo": _codigo_audio_punto(punto_contexto_vuelta),
+                "nombre": _nombre_audio_punto(punto_contexto_vuelta),
+            },
+            "cola_contexto": _construir_cola_contexto_payload(sesion, ahora=ahora),
+        })
+
     marcacion, omitidas, punto_bloqueado = _resolver_marcacion_por_ubicacion(
         salida=salida,
         lat=lat,
