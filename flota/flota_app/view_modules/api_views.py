@@ -843,12 +843,13 @@ def _resolver_marcacion_por_ubicacion(salida, lat, lng, ahora, *, en_retorno=Fal
 
     punto_esperado = pendientes[0]
 
-    # En rutas con un punto de contexto de retorno, los controles 5+ no deben
-    # marcarse hasta que el sistema confirme que la unidad ya esta de vuelta.
+    # En rutas con contexto de retorno solo deben bloquearse los puntos
+    # realmente pertenecientes a la fase RET. Los puntos de ida pueden
+    # coexistir con ordenes altos y no deben frenarse por compartir corredor.
     if (
         not en_retorno
         and _ruta_tiene_contexto_vuelta(salida.ruta)
-        and punto_esperado.punto.orden >= 5
+        and getattr(punto_esperado.punto, "fase", PuntoControl.FASE_IDA) == PuntoControl.FASE_RETORNO
     ):
         return punto_esperado, [], coincidencia
 

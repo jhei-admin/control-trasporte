@@ -889,6 +889,106 @@ class ApiSecurityAndIsolationTests(BaseFlotaTestCase):
         self.assertEqual(data["actual"]["punto_referencia_codigo"], "APIP")
         self.assertEqual(data["adelante"][0]["unidad"], self.vehiculo_1.codigo)
 
+    def test_api_gps_conductor_permite_marcar_apip_de_ida_antes_del_contexto_retorno(self):
+        hora_base = timezone.now() - timedelta(minutes=10)
+        salida = RegistroSalida.objects.create(
+            vehiculo=self.vehiculo_1,
+            ruta=self.ruta_a,
+            fecha=timezone.localdate(),
+            hora_salida=hora_base,
+            hora_real_salida=hora_base,
+            activo=True,
+            en_cola=False,
+        )
+        self.sesion.salida = salida
+        self.sesion.save(update_fields=["salida"])
+
+        punto_cole = self.punto_control
+        punto_cole.codigo = "COLE"
+        punto_cole.nombre = "Colegio"
+        punto_cole.offset_minutos = 4
+        punto_cole.fase = PuntoControl.FASE_IDA
+        punto_cole.save(update_fields=["codigo", "nombre", "offset_minutos", "fase"])
+
+        punto_apip_ida = self.punto_retorno
+        punto_apip_ida.codigo = "APIP"
+        punto_apip_ida.nombre = "Entrada Apipa"
+        punto_apip_ida.orden = 5
+        punto_apip_ida.offset_minutos = 12
+        punto_apip_ida.fase = PuntoControl.FASE_IDA
+        punto_apip_ida.save(update_fields=["codigo", "nombre", "orden", "offset_minutos", "fase"])
+
+        PuntoControl.objects.create(
+            ruta=self.ruta_a,
+            codigo="ZAMA_VTA",
+            nombre="Zamacola",
+            latitud=-16.402000,
+            longitud=-71.502000,
+            radio_metros=60,
+            orden=12,
+            offset_minutos=0,
+            requiere_marcacion=False,
+            es_contexto_interno=True,
+            fase=PuntoControl.FASE_CONTEXTO,
+            activo=True,
+        )
+        PuntoControl.objects.create(
+            ruta=self.ruta_a,
+            codigo="APIP",
+            nombre="Entrada Apipa",
+            latitud=float(punto_apip_ida.latitud),
+            longitud=float(punto_apip_ida.longitud),
+            radio_metros=60,
+            orden=17,
+            offset_minutos=52,
+            requiere_marcacion=True,
+            fase=PuntoControl.FASE_RETORNO,
+            activo=True,
+        )
+
+        MarcacionPunto.objects.create(
+            registro_salida=salida,
+            punto=self.punto_salida,
+            hora_marcada=hora_base,
+            hora_programada=hora_base,
+        )
+        MarcacionPunto.objects.create(
+            registro_salida=salida,
+            punto=punto_cole,
+            hora_marcada=hora_base + timedelta(minutes=4),
+            hora_programada=hora_base + timedelta(minutes=4),
+        )
+        MarcacionPunto.objects.create(
+            registro_salida=salida,
+            punto=punto_apip_ida,
+            hora_programada=hora_base + timedelta(minutes=12),
+        )
+
+        response = self.client.post(
+            reverse("api_gps_conductor"),
+            data=json.dumps(
+                {
+                    "lat": float(punto_apip_ida.latitud),
+                    "lng": float(punto_apip_ida.longitud),
+                    "precision": 10,
+                }
+            ),
+            content_type="application/json",
+            HTTP_AUTHORIZATION=f"Bearer {self.sesion.token}",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertIn(data["accion"], ["audio", "visual"])
+        self.assertEqual(data["visual"]["codigo"], "APIP")
+        self.assertEqual(
+            MarcacionPunto.objects.get(
+                registro_salida=salida,
+                punto=punto_apip_ida,
+            ).hora_marcada is not None,
+            True,
+        )
+
     def test_api_cola_contexto_mantiene_adelante_a_unidad_que_ya_marco_cole(self):
         hora_base = timezone.now().replace(hour=19, minute=23, second=0, microsecond=0)
         salida_adelante = RegistroSalida.objects.create(
