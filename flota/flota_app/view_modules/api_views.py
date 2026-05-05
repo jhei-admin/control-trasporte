@@ -822,7 +822,12 @@ def _asegurar_marcaciones_salida(salida):
 
 
 def _resolver_marcacion_por_ubicacion(salida, lat, lng, ahora, *, en_retorno=False):
-    pendientes = list(salida.marcaciones_pendientes())
+    fase_objetivo = PuntoControl.FASE_RETORNO if en_retorno else PuntoControl.FASE_IDA
+    pendientes = [
+        marcacion
+        for marcacion in salida.marcaciones_pendientes()
+        if getattr(marcacion.punto, "fase", PuntoControl.FASE_IDA) == fase_objetivo
+    ]
     if not pendientes:
         return None, [], None
 
