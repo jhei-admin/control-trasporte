@@ -1702,6 +1702,7 @@ def _construir_cola_contexto_payload(sesion, ahora=None):
         return {
             "codigo": referencia_codigo,
             "audio_codigo": referencia_codigo,
+            "orden_marcado": ultimo_orden,
             "orden_confirmado": orden_confirmado,
             "orden_referencia": referencia_orden,
         }
@@ -1732,7 +1733,8 @@ def _construir_cola_contexto_payload(sesion, ahora=None):
 
     def calcular_avance_confirmado(salida):
         referencia = referencias_map.get(salida.id, {})
-        referencia_orden = referencia.get("orden_confirmado") or 0
+        orden_marcado = referencia.get("orden_marcado") or 0
+        orden_confirmado = referencia.get("orden_confirmado") or 0
         hora_base = salida.hora_real_salida or salida.hora_salida or salida.hora_llegada
         hora_key = float(hora_base.timestamp()) if hora_base else 0.0
 
@@ -1741,7 +1743,11 @@ def _construir_cola_contexto_payload(sesion, ahora=None):
             programada_key = float(hora_programada.timestamp()) if hora_programada else 0.0
             return (1, 0.0, programada_key)
 
-        return (0, -float(referencia_orden), hora_key)
+        # La jerarquia operativa debe respetar primero la ultima marcacion real
+        # confirmada. Referencias/eventos internos ayudan a desempatar dentro de
+        # la misma fase, pero no deben hacer que una unidad con solo SALI
+        # adelantada por contexto opaque a otra que ya confirmo COLE/APIP/etc.
+        return (0, -float(orden_marcado), -float(orden_confirmado), hora_key)
 
     cola_ordenada = sorted(cola, key=calcular_avance_confirmado)
     index_actual = cola_ordenada.index(salida_actual)
