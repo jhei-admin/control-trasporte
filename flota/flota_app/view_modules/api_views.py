@@ -703,6 +703,15 @@ def registrar_punto_evento_confirmado(sesion, punto, ahora):
     )
 
 
+def resetear_contexto_inicio_ruta(sesion):
+    UbicacionVehiculo.objects.filter(vehiculo=sesion.vehiculo).update(
+        en_retorno=False,
+        ultimo_punto_evento_codigo=None,
+        ultimo_punto_evento_orden=None,
+        ultimo_punto_evento_at=None,
+    )
+
+
 def _ruta_tiene_contexto_vuelta(ruta):
     if not ruta:
         return False
@@ -1003,6 +1012,7 @@ def api_gps_conductor(request):
             return JsonResponse({"accion": "ninguna"})
 
     if not salida.hora_real_salida:
+        resetear_contexto_inicio_ruta(sesion)
         salida.hora_real_salida = ahora
         salida.en_cola = False
         salida.activo = True

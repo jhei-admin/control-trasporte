@@ -26,6 +26,7 @@ from .models import (
 )
 from .management.commands.auditar_preproduccion import Command
 from .services import recalcular_cola
+from .view_modules.api_views import resetear_contexto_inicio_ruta
 
 
 class BaseFlotaTestCase(TestCase):
@@ -1076,6 +1077,28 @@ class ApiSecurityAndIsolationTests(BaseFlotaTestCase):
         self.assertTrue(data_adelante["ok"])
         self.assertEqual(data_adelante["adelante"], [])
         self.assertEqual(data_adelante["atras"][0]["unidad"], self.vehiculo_1.codigo)
+
+    def test_resetear_contexto_inicio_ruta_limpia_estado_previsto(self):
+        hora_base = timezone.now().replace(hour=19, minute=23, second=0, microsecond=0)
+        UbicacionVehiculo.objects.create(
+            vehiculo=self.vehiculo_1,
+            latitud=Decimal(str(self.punto_salida.latitud)),
+            longitud=Decimal(str(self.punto_salida.longitud)),
+            velocidad=0,
+            precision=10,
+            en_retorno=True,
+            ultimo_punto_evento_codigo="PESQ",
+            ultimo_punto_evento_orden=5,
+            ultimo_punto_evento_at=hora_base - timedelta(minutes=10),
+        )
+
+        resetear_contexto_inicio_ruta(self.sesion)
+
+        ubicacion = UbicacionVehiculo.objects.get(vehiculo=self.vehiculo_1)
+        self.assertFalse(ubicacion.en_retorno)
+        self.assertIsNone(ubicacion.ultimo_punto_evento_codigo)
+        self.assertIsNone(ubicacion.ultimo_punto_evento_orden)
+        self.assertIsNone(ubicacion.ultimo_punto_evento_at)
 
     def test_api_cola_contexto_reordena_cuando_vecino_confirma_punto_bloqueado(self):
         punto_apip = self.punto_control
