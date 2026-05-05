@@ -455,6 +455,14 @@ class PuntoControlManager(models.Manager.from_queryset(PuntoControlQuerySet)):
 # PUNTO DE CONTROL
 # =========================
 class PuntoControl(models.Model):
+    FASE_IDA = "IDA"
+    FASE_RETORNO = "RET"
+    FASE_CONTEXTO = "CTX"
+    FASE_CHOICES = (
+        (FASE_IDA, "Ida"),
+        (FASE_RETORNO, "Retorno"),
+        (FASE_CONTEXTO, "Contexto"),
+    )
 
     ruta = models.ForeignKey(
         Ruta,
@@ -470,6 +478,12 @@ class PuntoControl(models.Model):
 
     radio_metros = models.PositiveIntegerField(default=50)
     orden = models.PositiveIntegerField()
+    fase = models.CharField(
+        max_length=3,
+        choices=FASE_CHOICES,
+        default=FASE_IDA,
+        help_text="Clasifica el punto dentro de la ruta sin cambiar como se muestra en pantalla.",
+    )
 
     offset_minutos = models.PositiveIntegerField(default=0)
     requiere_marcacion = models.BooleanField(

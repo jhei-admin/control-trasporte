@@ -26,7 +26,7 @@ from .models import (
 )
 from .management.commands.auditar_preproduccion import Command
 from .services import recalcular_cola
-from .view_modules.api_views import resetear_contexto_inicio_ruta
+from .view_modules.api_views import _ruta_tiene_contexto_vuelta, resetear_contexto_inicio_ruta
 
 
 class BaseFlotaTestCase(TestCase):
@@ -1099,6 +1099,23 @@ class ApiSecurityAndIsolationTests(BaseFlotaTestCase):
         self.assertIsNone(ubicacion.ultimo_punto_evento_codigo)
         self.assertIsNone(ubicacion.ultimo_punto_evento_orden)
         self.assertIsNone(ubicacion.ultimo_punto_evento_at)
+
+    def test_ruta_tiene_contexto_vuelta_reconoce_fase_ctx_sin_depender_del_codigo(self):
+        PuntoControl.objects.create(
+            ruta=self.ruta_a,
+            codigo="ZAMA",
+            nombre="Zamacola",
+            latitud=Decimal("-16.402500"),
+            longitud=Decimal("-71.502500"),
+            radio_metros=50,
+            orden=12,
+            fase=PuntoControl.FASE_CONTEXTO,
+            requiere_marcacion=False,
+            es_contexto_interno=False,
+            activo=True,
+        )
+
+        self.assertTrue(_ruta_tiene_contexto_vuelta(self.ruta_a))
 
     def test_api_cola_contexto_reordena_cuando_vecino_confirma_punto_bloqueado(self):
         punto_apip = self.punto_control

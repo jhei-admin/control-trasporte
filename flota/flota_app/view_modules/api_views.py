@@ -151,6 +151,14 @@ def _codigo_punto_normalizado(punto):
     return str(getattr(punto, "codigo", "") or "").strip().upper()
 
 
+def _fase_punto_normalizada(punto):
+    if isinstance(punto, dict):
+        fase = punto.get("fase")
+    else:
+        fase = getattr(punto, "fase", None)
+    return str(fase or PuntoControl.FASE_IDA).strip().upper()
+
+
 def _es_punto_evento_confirmado(punto):
     if isinstance(punto, dict):
         requiere_marcacion = bool(punto.get("requiere_marcacion"))
@@ -166,6 +174,8 @@ def _es_punto_contexto_interno(punto):
 
 
 def _es_punto_contexto_vuelta(punto):
+    if _fase_punto_normalizada(punto) == PuntoControl.FASE_CONTEXTO:
+        return True
     return _es_punto_contexto_interno(punto) and _codigo_punto_normalizado(punto) in PUNTOS_CONTEXTO_VUELTA_CODES
 
 
@@ -718,8 +728,9 @@ def _ruta_tiene_contexto_vuelta(ruta):
     return PuntoControl.objects.filter(
         ruta=ruta,
         activo=True,
-        es_contexto_interno=True,
-        codigo__in=PUNTOS_CONTEXTO_VUELTA_CODES,
+    ).filter(
+        Q(fase=PuntoControl.FASE_CONTEXTO)
+        | Q(es_contexto_interno=True, codigo__in=PUNTOS_CONTEXTO_VUELTA_CODES)
     ).exists()
 
 
@@ -747,8 +758,9 @@ def _sincronizar_fase_retorno(salida, sesion, lat, lng):
     puntos_contexto = PuntoControl.objects.filter(
         ruta=salida.ruta,
         activo=True,
-        es_contexto_interno=True,
-        codigo__in=PUNTOS_CONTEXTO_VUELTA_CODES,
+    ).filter(
+        Q(fase=PuntoControl.FASE_CONTEXTO)
+        | Q(es_contexto_interno=True, codigo__in=PUNTOS_CONTEXTO_VUELTA_CODES)
     )
     for punto in puntos_contexto:
         distancia = distancia_metros(lat, lng, float(punto.latitud), float(punto.longitud))
@@ -1546,6 +1558,7 @@ def _serializar_puntos_ruta(ruta, *, incluir_contexto_interno=False):
             "lat": float(punto.latitud),
             "lng": float(punto.longitud),
             "radio": punto.radio_metros,
+            "fase": punto.fase,
             "requiere_marcacion": punto.requiere_marcacion,
             "es_contexto_interno": punto.es_contexto_interno,
         })
