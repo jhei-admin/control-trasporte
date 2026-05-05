@@ -160,11 +160,13 @@ def _fase_punto_normalizada(punto):
 
 
 def _es_punto_evento_confirmado(punto):
+    if _es_punto_contexto_vuelta(punto):
+        return True
     if isinstance(punto, dict):
-        requiere_marcacion = bool(punto.get("requiere_marcacion"))
+        confirma_avance = bool(punto.get("confirma_avance"))
     else:
-        requiere_marcacion = bool(getattr(punto, "requiere_marcacion", False))
-    return requiere_marcacion or _codigo_punto_normalizado(punto) in PUNTOS_BLOQUEADOS_AUDIO_CODES
+        confirma_avance = bool(getattr(punto, "confirma_avance", False))
+    return confirma_avance or _codigo_punto_normalizado(punto) in PUNTOS_BLOQUEADOS_AUDIO_CODES
 
 
 def _es_punto_contexto_interno(punto):
@@ -1561,6 +1563,7 @@ def _serializar_puntos_ruta(ruta, *, incluir_contexto_interno=False):
             "radio": punto.radio_metros,
             "fase": punto.fase,
             "requiere_marcacion": punto.requiere_marcacion,
+            "confirma_avance": punto.confirma_avance,
             "es_contexto_interno": punto.es_contexto_interno,
         })
     return data

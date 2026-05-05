@@ -125,6 +125,7 @@ class PuntoControlAdmin(admin.ModelAdmin):
         "fase",
         "nombre",
         "requiere_marcacion",
+        "confirma_avance",
         "es_contexto_interno",
         "offset_minutos",
         "radio_metros",
@@ -137,13 +138,14 @@ class PuntoControlAdmin(admin.ModelAdmin):
         "orden",
         "fase",
         "requiere_marcacion",
+        "confirma_avance",
         "es_contexto_interno",
         "offset_minutos",
         "radio_metros",
         "activo",
     )
 
-    list_filter = ("ruta", "fase", "activo", "es_contexto_interno")
+    list_filter = ("ruta", "fase", "requiere_marcacion", "confirma_avance", "activo", "es_contexto_interno")
     search_fields = ("codigo", "nombre")
     ordering = ("ruta", "orden")
 

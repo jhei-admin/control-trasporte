@@ -1217,6 +1217,19 @@ class ApiSecurityAndIsolationTests(BaseFlotaTestCase):
 
         self.assertTrue(_ruta_tiene_contexto_vuelta(self.ruta_a))
 
+    def test_punto_sin_marcacion_puede_confirmar_avance_para_vecinos(self):
+        punto_referencia = self.punto_control
+        punto_referencia.codigo = "MUNI"
+        punto_referencia.nombre = "Entrada Municipal"
+        punto_referencia.requiere_marcacion = False
+        punto_referencia.confirma_avance = True
+        punto_referencia.save(
+            update_fields=["codigo", "nombre", "requiere_marcacion", "confirma_avance"]
+        )
+
+        self.assertFalse(punto_referencia.requiere_marcacion)
+        self.assertTrue(punto_referencia.confirma_avance)
+
     def test_api_cola_contexto_reordena_cuando_vecino_confirma_punto_bloqueado(self):
         punto_apip = self.punto_control
         punto_apip.codigo = "APIP"

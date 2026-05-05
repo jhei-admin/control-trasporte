@@ -490,6 +490,10 @@ class PuntoControl(models.Model):
         default=True,
         help_text="Desactive para usar este punto solo como referencia visual en el mapa.",
     )
+    confirma_avance = models.BooleanField(
+        default=True,
+        help_text="Permite usar este punto para confirmar avance real y reordenar unidades adelante/atras sin volverlo control de puntualidad.",
+    )
     es_contexto_interno = models.BooleanField(
         default=False,
         help_text="Oculta este punto de la UI y lo usa solo para logica interna.",
