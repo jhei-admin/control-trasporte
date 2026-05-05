@@ -1565,7 +1565,10 @@ def _resolver_punto_evento_actual(ubicacion, puntos_ruta, orden_minimo):
     if not candidatos:
         return None
 
-    _, _, punto_evento = max(candidatos, key=lambda item: (item[0], -item[1]))
+    # En radios compartidos (por ejemplo SALI 1/10 o APIP 3/9) no debemos
+    # saltar al orden mas alto solo por cercania GPS. La referencia correcta
+    # es el siguiente orden valido desde la fase actual de la unidad.
+    _, _, punto_evento = min(candidatos, key=lambda item: (item[0], item[1]))
     return punto_evento
 
 
