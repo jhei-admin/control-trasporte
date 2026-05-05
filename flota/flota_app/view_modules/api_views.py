@@ -925,11 +925,10 @@ def api_gps_conductor(request):
     )
     actualizar_heartbeat(sesion, ahora)
 
-    salida = (
-        RegistroSalida.objects.for_empresa(sesion.vehiculo.empresa)
-        .filter(vehiculo=sesion.vehiculo, fecha=hoy, activo=True)
-        .order_by("-id")
-        .first()
+    salida = _obtener_salida_operativa_sesion(
+        sesion,
+        hoy=hoy,
+        require_hour=False,
     )
     if not salida:
         return JsonResponse({"accion": "ninguna"})
@@ -1572,20 +1571,41 @@ def _resolver_punto_evento_actual(ubicacion, puntos_ruta, orden_minimo):
     return punto_evento
 
 
-def _construir_cola_contexto_payload(sesion, ahora=None):
-    ahora = ahora or timezone.now()
-    hoy = timezone.localdate()
-    salida_actual = (
-        RegistroSalida.objects.for_empresa(sesion.vehiculo.empresa)
-        .select_related("vehiculo", "ruta")
-        .filter(
+def _obtener_salida_operativa_sesion(sesion, *, hoy=None, require_hour=False):
+    hoy = hoy or timezone.localdate()
+    salidas_qs = RegistroSalida.objects.for_empresa(sesion.vehiculo.empresa).select_related(
+        "vehiculo",
+        "ruta",
+    )
+
+    if sesion.salida_id:
+        salida_sesion = salidas_qs.filter(
+            id=sesion.salida_id,
             vehiculo=sesion.vehiculo,
             fecha=hoy,
             activo=True,
-            hora_salida__isnull=False,
-        )
-        .order_by("hora_salida")
-        .first()
+        ).first()
+        if salida_sesion and (not require_hour or salida_sesion.hora_salida):
+            return salida_sesion
+
+    fallback_qs = salidas_qs.filter(
+        vehiculo=sesion.vehiculo,
+        fecha=hoy,
+        activo=True,
+    )
+    if require_hour:
+        fallback_qs = fallback_qs.filter(hora_salida__isnull=False)
+
+    return fallback_qs.order_by("-id").first()
+
+
+def _construir_cola_contexto_payload(sesion, ahora=None):
+    ahora = ahora or timezone.now()
+    hoy = timezone.localdate()
+    salida_actual = _obtener_salida_operativa_sesion(
+        sesion,
+        hoy=hoy,
+        require_hour=True,
     )
     if not salida_actual:
         return {"ok": False}
@@ -1649,10 +1669,13 @@ def _construir_cola_contexto_payload(sesion, ahora=None):
         ubicacion = ubicacion_fresca(salida)
         referencia_codigo = ultimo_codigo
         referencia_orden = ultimo_orden
+        orden_confirmado = ultimo_orden
 
         if ubicacion:
             orden_evento = ubicacion.ultimo_punto_evento_orden or 0
             codigo_evento = (ubicacion.ultimo_punto_evento_codigo or "").strip().upper() or None
+            if orden_evento > orden_confirmado and codigo_evento:
+                orden_confirmado = orden_evento
             if orden_evento > referencia_orden and codigo_evento:
                 referencia_orden = orden_evento
                 referencia_codigo = codigo_evento
@@ -1669,7 +1692,8 @@ def _construir_cola_contexto_payload(sesion, ahora=None):
         return {
             "codigo": referencia_codigo,
             "audio_codigo": referencia_codigo,
-            "orden_confirmado": referencia_orden,
+            "orden_confirmado": orden_confirmado,
+            "orden_referencia": referencia_orden,
         }
 
     referencias_map = {
@@ -1700,16 +1724,16 @@ def _construir_cola_contexto_payload(sesion, ahora=None):
         referencia = referencias_map.get(salida.id, {})
         referencia_orden = referencia.get("orden_confirmado") or 0
         hora_base = salida.hora_real_salida or salida.hora_salida or salida.hora_llegada
-        hora_key = -float(hora_base.timestamp()) if hora_base else 0.0
+        hora_key = float(hora_base.timestamp()) if hora_base else 0.0
 
         if not salida_tiene_inicio_confirmado(salida):
             hora_programada = salida.hora_salida or salida.hora_llegada
-            programada_key = -float(hora_programada.timestamp()) if hora_programada else 0.0
-            return (-1, 0.0, programada_key)
+            programada_key = float(hora_programada.timestamp()) if hora_programada else 0.0
+            return (1, 0.0, programada_key)
 
-        return (1, float(referencia_orden), hora_key)
+        return (0, -float(referencia_orden), hora_key)
 
-    cola_ordenada = sorted(cola, key=calcular_avance_confirmado, reverse=True)
+    cola_ordenada = sorted(cola, key=calcular_avance_confirmado)
     index_actual = cola_ordenada.index(salida_actual)
 
     adelante = cola_ordenada[:index_actual][-2:]
