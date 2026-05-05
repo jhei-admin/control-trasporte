@@ -1096,6 +1096,102 @@ class ApiSecurityAndIsolationTests(BaseFlotaTestCase):
             ).hora_marcada
         )
 
+    def test_api_gps_conductor_prioriza_marcacion_zama_antes_de_contexto_vuelta_superpuesto(self):
+        hora_base = timezone.now() - timedelta(minutes=30)
+        salida = RegistroSalida.objects.create(
+            vehiculo=self.vehiculo_1,
+            ruta=self.ruta_a,
+            fecha=timezone.localdate(),
+            hora_salida=hora_base,
+            hora_real_salida=hora_base,
+            activo=True,
+            en_cola=False,
+        )
+        self.sesion.salida = salida
+        self.sesion.save(update_fields=["salida"])
+
+        punto_cole = self.punto_control
+        punto_cole.codigo = "COLE"
+        punto_cole.nombre = "Colegio"
+        punto_cole.offset_minutos = 4
+        punto_cole.fase = PuntoControl.FASE_IDA
+        punto_cole.save(update_fields=["codigo", "nombre", "offset_minutos", "fase"])
+
+        punto_apip = self.punto_retorno
+        punto_apip.codigo = "APIP"
+        punto_apip.nombre = "Entrada Apipa"
+        punto_apip.orden = 5
+        punto_apip.offset_minutos = 12
+        punto_apip.fase = PuntoControl.FASE_IDA
+        punto_apip.save(update_fields=["codigo", "nombre", "orden", "offset_minutos", "fase"])
+
+        punto_zama = PuntoControl.objects.create(
+            ruta=self.ruta_a,
+            codigo="ZAMA",
+            nombre="Zamacola",
+            latitud=-16.402000,
+            longitud=-71.502000,
+            radio_metros=60,
+            orden=11,
+            offset_minutos=28,
+            requiere_marcacion=True,
+            confirma_avance=True,
+            fase=PuntoControl.FASE_IDA,
+            activo=True,
+        )
+        PuntoControl.objects.create(
+            ruta=self.ruta_a,
+            codigo="ZAMA_VTA",
+            nombre="Zamacola",
+            latitud=-16.402000,
+            longitud=-71.502000,
+            radio_metros=60,
+            orden=12,
+            offset_minutos=0,
+            requiere_marcacion=False,
+            confirma_avance=False,
+            es_contexto_interno=True,
+            fase=PuntoControl.FASE_CONTEXTO,
+            activo=True,
+        )
+
+        for punto, minutos in (
+            (self.punto_salida, 0),
+            (punto_cole, 4),
+            (punto_apip, 12),
+            (punto_zama, 28),
+        ):
+            MarcacionPunto.objects.create(
+                registro_salida=salida,
+                punto=punto,
+                hora_programada=hora_base + timedelta(minutes=minutos),
+                hora_marcada=None if punto == punto_zama else hora_base + timedelta(minutes=minutos),
+            )
+
+        response = self.client.post(
+            reverse("api_gps_conductor"),
+            data=json.dumps(
+                {
+                    "lat": float(punto_zama.latitud),
+                    "lng": float(punto_zama.longitud),
+                    "precision": 10,
+                }
+            ),
+            content_type="application/json",
+            HTTP_AUTHORIZATION=f"Bearer {self.sesion.token}",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertIn(data["accion"], ["audio", "visual"])
+        self.assertEqual(data["visual"]["codigo"], "ZAMA")
+        self.assertIsNotNone(
+            MarcacionPunto.objects.get(
+                registro_salida=salida,
+                punto=punto_zama,
+            ).hora_marcada
+        )
+
     def test_api_cola_contexto_mantiene_adelante_a_unidad_que_ya_marco_cole(self):
         hora_base = timezone.now().replace(hour=19, minute=23, second=0, microsecond=0)
         salida_adelante = RegistroSalida.objects.create(

@@ -971,26 +971,44 @@ def api_gps_conductor(request):
             "motivo": "inactividad_punto",
         })
 
-    en_retorno, punto_contexto_vuelta = _sincronizar_fase_retorno(salida, sesion, lat, lng)
-    if punto_contexto_vuelta is not None:
-        registrar_punto_evento_confirmado(sesion, punto_contexto_vuelta, ahora)
-        return JsonResponse({
-            "accion": "beep",
-            "motivo": "punto_contexto_vuelta",
-            "bloqueado": {
-                "codigo": _codigo_audio_punto(punto_contexto_vuelta),
-                "nombre": _nombre_audio_punto(punto_contexto_vuelta),
-            },
-            "cola_contexto": _construir_cola_contexto_payload(sesion, ahora=ahora),
-        })
+    ubicacion_actual = _get_ubicacion_actual(sesion.vehiculo)
+    en_retorno_actual = bool(ubicacion_actual.en_retorno) if ubicacion_actual else False
 
     marcacion, omitidas, punto_bloqueado = _resolver_marcacion_por_ubicacion(
         salida=salida,
         lat=lat,
         lng=lng,
         ahora=ahora,
-        en_retorno=en_retorno,
+        en_retorno=en_retorno_actual,
     )
+
+    punto = marcacion.punto if marcacion else None
+    distancia_marcacion = (
+        distancia_metros(lat, lng, float(punto.latitud), float(punto.longitud))
+        if punto is not None else None
+    )
+    esta_sobre_marcacion = (
+        punto is not None
+        and distancia_marcacion is not None
+        and distancia_marcacion <= punto.radio_metros
+    )
+
+    if not esta_sobre_marcacion:
+        en_retorno, punto_contexto_vuelta = _sincronizar_fase_retorno(salida, sesion, lat, lng)
+        if punto_contexto_vuelta is not None:
+            registrar_punto_evento_confirmado(sesion, punto_contexto_vuelta, ahora)
+            return JsonResponse({
+                "accion": "beep",
+                "motivo": "punto_contexto_vuelta",
+                "bloqueado": {
+                    "codigo": _codigo_audio_punto(punto_contexto_vuelta),
+                    "nombre": _nombre_audio_punto(punto_contexto_vuelta),
+                },
+                "cola_contexto": _construir_cola_contexto_payload(sesion, ahora=ahora),
+            })
+    else:
+        en_retorno = en_retorno_actual
+
     if punto_bloqueado is not None:
         registrar_punto_evento_confirmado(sesion, punto_bloqueado.punto, ahora)
         return JsonResponse({
@@ -1022,7 +1040,9 @@ def api_gps_conductor(request):
         })
 
     punto = marcacion.punto
-    distancia = distancia_metros(lat, lng, float(punto.latitud), float(punto.longitud))
+    distancia = distancia_marcacion if distancia_marcacion is not None else distancia_metros(
+        lat, lng, float(punto.latitud), float(punto.longitud)
+    )
     if distancia > punto.radio_metros:
         return JsonResponse({"accion": "ninguna"})
 
