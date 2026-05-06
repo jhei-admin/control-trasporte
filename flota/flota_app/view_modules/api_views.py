@@ -1608,13 +1608,15 @@ def _serializar_puntos_ruta(ruta, *, incluir_contexto_interno=False):
     return data
 
 
-def _resolver_punto_evento_actual(ubicacion, puntos_ruta, orden_minimo):
+def _resolver_punto_evento_actual(ubicacion, puntos_ruta, orden_minimo, *, fase_objetivo=None):
     if not ubicacion:
         return None
 
     candidatos = []
     for punto in puntos_ruta:
         if punto["orden"] < max(orden_minimo, 1):
+            continue
+        if fase_objetivo and str(punto.get("fase") or PuntoControl.FASE_IDA).strip().upper() != str(fase_objetivo).strip().upper():
             continue
         if not _es_punto_evento_confirmado(punto):
             continue
@@ -1630,10 +1632,10 @@ def _resolver_punto_evento_actual(ubicacion, puntos_ruta, orden_minimo):
     if not candidatos:
         return None
 
-    # En radios compartidos (por ejemplo SALI 1/10 o APIP 3/9) no debemos
-    # saltar al orden mas alto solo por cercania GPS. La referencia correcta
-    # es el siguiente orden valido desde la fase actual de la unidad.
-    _, _, punto_evento = min(candidatos, key=lambda item: (item[0], item[1]))
+    # Dentro de la fase actual la referencia viva debe avanzar al punto mas
+    # alto alcanzado por GPS. Con la fase ya filtrada, esto evita que la
+    # unidad se quede pegada en MUNI cuando ya esta entrando a LLAM.
+    _, _, punto_evento = max(candidatos, key=lambda item: (item[0], -item[1]))
     return punto_evento
 
 
@@ -1744,6 +1746,7 @@ def _construir_cola_contexto_payload(sesion, ahora=None):
         if ubicacion:
             orden_evento = ubicacion.ultimo_punto_evento_orden or 0
             codigo_evento = (ubicacion.ultimo_punto_evento_codigo or "").strip().upper() or None
+            fase_objetivo = PuntoControl.FASE_RETORNO if bool(getattr(ubicacion, "en_retorno", False)) else PuntoControl.FASE_IDA
             if orden_evento > orden_confirmado and codigo_evento:
                 orden_confirmado = orden_evento
                 instante_progreso = ubicacion.ultimo_punto_evento_at or instante_progreso
@@ -1755,7 +1758,8 @@ def _construir_cola_contexto_payload(sesion, ahora=None):
             punto_evento_actual = _resolver_punto_evento_actual(
                 ubicacion,
                 puntos_ruta,
-                ultimo_orden,
+                max(ultimo_orden, orden_evento),
+                fase_objetivo=fase_objetivo,
             )
             if punto_evento_actual and punto_evento_actual["orden"] > referencia_orden:
                 referencia_orden = punto_evento_actual["orden"]
