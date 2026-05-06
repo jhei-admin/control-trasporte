@@ -1695,6 +1695,7 @@ def _construir_cola_contexto_payload(sesion, ahora=None):
     }
     ultimo_punto_map = {}
     ultimo_punto_orden_map = {}
+    ultimo_punto_hora_map = {}
     for marcacion in (
         MarcacionPunto.objects.filter(
             registro_salida__in=cola,
@@ -1705,6 +1706,7 @@ def _construir_cola_contexto_payload(sesion, ahora=None):
     ):
         ultimo_punto_map[marcacion.registro_salida_id] = marcacion.punto.codigo
         ultimo_punto_orden_map[marcacion.registro_salida_id] = marcacion.punto.orden
+        ultimo_punto_hora_map[marcacion.registro_salida_id] = marcacion.hora_marcada
 
     def salida_tiene_inicio_confirmado(salida):
         return (ultimo_punto_orden_map.get(salida.id) or 0) >= 1
@@ -1718,19 +1720,23 @@ def _construir_cola_contexto_payload(sesion, ahora=None):
     def calcular_referencia_confirmada(salida):
         ultimo_codigo = ultimo_punto_map.get(salida.id)
         ultimo_orden = ultimo_punto_orden_map.get(salida.id) or 0
+        ultimo_hora = ultimo_punto_hora_map.get(salida.id)
         ubicacion = ubicacion_fresca(salida)
         referencia_codigo = ultimo_codigo
         referencia_orden = ultimo_orden
         orden_confirmado = ultimo_orden
+        instante_progreso = ultimo_hora
 
         if ubicacion:
             orden_evento = ubicacion.ultimo_punto_evento_orden or 0
             codigo_evento = (ubicacion.ultimo_punto_evento_codigo or "").strip().upper() or None
             if orden_evento > orden_confirmado and codigo_evento:
                 orden_confirmado = orden_evento
+                instante_progreso = ubicacion.ultimo_punto_evento_at or instante_progreso
             if orden_evento > referencia_orden and codigo_evento:
                 referencia_orden = orden_evento
                 referencia_codigo = codigo_evento
+                instante_progreso = ubicacion.ultimo_punto_evento_at or instante_progreso
 
             punto_evento_actual = _resolver_punto_evento_actual(
                 ubicacion,
@@ -1740,6 +1746,7 @@ def _construir_cola_contexto_payload(sesion, ahora=None):
             if punto_evento_actual and punto_evento_actual["orden"] > referencia_orden:
                 referencia_orden = punto_evento_actual["orden"]
                 referencia_codigo = punto_evento_actual["codigo"]
+                instante_progreso = ubicacion.updated_at or instante_progreso
 
         return {
             "codigo": referencia_codigo,
@@ -1747,6 +1754,7 @@ def _construir_cola_contexto_payload(sesion, ahora=None):
             "orden_marcado": ultimo_orden,
             "orden_confirmado": orden_confirmado,
             "orden_referencia": referencia_orden,
+            "instante_progreso": instante_progreso,
         }
 
     referencias_map = {
@@ -1778,8 +1786,10 @@ def _construir_cola_contexto_payload(sesion, ahora=None):
         orden_marcado = referencia.get("orden_marcado") or 0
         orden_confirmado = referencia.get("orden_confirmado") or 0
         orden_referencia = referencia.get("orden_referencia") or 0
+        instante_progreso = referencia.get("instante_progreso")
         hora_base = salida.hora_real_salida or salida.hora_salida or salida.hora_llegada
         hora_key = float(hora_base.timestamp()) if hora_base else 0.0
+        progreso_key = float(instante_progreso.timestamp()) if instante_progreso else hora_key
 
         if not salida_tiene_inicio_confirmado(salida):
             hora_programada = salida.hora_salida or salida.hora_llegada
@@ -1798,6 +1808,7 @@ def _construir_cola_contexto_payload(sesion, ahora=None):
             -float(orden_marcado),
             -float(orden_confirmado),
             -float(orden_referencia),
+            progreso_key,
             hora_key,
         )
 
