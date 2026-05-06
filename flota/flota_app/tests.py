@@ -1381,6 +1381,205 @@ class ApiSecurityAndIsolationTests(BaseFlotaTestCase):
         self.assertEqual(data_adelante["adelante"], [])
         self.assertEqual(data_adelante["atras"][0]["unidad"], self.vehiculo_1.codigo)
 
+    def test_api_cola_contexto_mantiene_sobrepaso_si_vecino_ya_avanza_mas_en_misma_marcacion(self):
+        hora_base = timezone.now() - timedelta(minutes=20)
+        salida_actual = RegistroSalida.objects.create(
+            vehiculo=self.vehiculo_1,
+            ruta=self.ruta_a,
+            fecha=timezone.localdate(),
+            hora_salida=hora_base,
+            hora_real_salida=hora_base,
+            activo=True,
+            en_cola=False,
+        )
+        salida_vecino = RegistroSalida.objects.create(
+            vehiculo=self.vehiculo_2,
+            ruta=self.ruta_a,
+            fecha=timezone.localdate(),
+            hora_salida=hora_base + timedelta(minutes=3),
+            hora_real_salida=hora_base + timedelta(minutes=3),
+            activo=True,
+            en_cola=False,
+        )
+
+        punto_cole = self.punto_control
+        punto_cole.codigo = "COLE"
+        punto_cole.nombre = "Colegio"
+        punto_cole.orden = 2
+        punto_cole.offset_minutos = 4
+        punto_cole.confirma_avance = True
+        punto_cole.fase = PuntoControl.FASE_IDA
+        punto_cole.save(update_fields=["codigo", "nombre", "orden", "offset_minutos", "confirma_avance", "fase"])
+
+        punto_apip = self.punto_retorno
+        punto_apip.codigo = "APIP"
+        punto_apip.nombre = "Entrada Apipa"
+        punto_apip.orden = 3
+        punto_apip.offset_minutos = 12
+        punto_apip.requiere_marcacion = True
+        punto_apip.confirma_avance = True
+        punto_apip.fase = PuntoControl.FASE_IDA
+        punto_apip.save(update_fields=["codigo", "nombre", "orden", "offset_minutos", "requiere_marcacion", "confirma_avance", "fase"])
+
+        for salida, minutos in ((salida_actual, 0), (salida_vecino, 3)):
+            MarcacionPunto.objects.create(
+                registro_salida=salida,
+                punto=self.punto_salida,
+                hora_marcada=hora_base + timedelta(minutes=minutos),
+                hora_programada=hora_base + timedelta(minutes=minutos),
+            )
+            MarcacionPunto.objects.create(
+                registro_salida=salida,
+                punto=punto_cole,
+                hora_programada=hora_base + timedelta(minutes=minutos + 4),
+            )
+            MarcacionPunto.objects.create(
+                registro_salida=salida,
+                punto=punto_apip,
+                hora_programada=hora_base + timedelta(minutes=minutos + 12),
+            )
+
+        MarcacionPunto.objects.filter(registro_salida=salida_vecino, punto=punto_cole).update(
+            hora_marcada=hora_base + timedelta(minutes=7),
+        )
+        MarcacionPunto.objects.filter(registro_salida=salida_actual, punto=punto_cole).update(
+            hora_marcada=hora_base + timedelta(minutes=9),
+        )
+
+        UbicacionVehiculo.objects.create(
+            vehiculo=self.vehiculo_1,
+            latitud=Decimal(str(punto_cole.latitud)),
+            longitud=Decimal(str(punto_cole.longitud)),
+            velocidad=8,
+            precision=10,
+        )
+        UbicacionVehiculo.objects.create(
+            vehiculo=self.vehiculo_2,
+            latitud=Decimal(str(punto_apip.latitud)),
+            longitud=Decimal(str(punto_apip.longitud)),
+            velocidad=8,
+            precision=10,
+            ultimo_punto_evento_codigo=punto_apip.codigo,
+            ultimo_punto_evento_orden=punto_apip.orden,
+            ultimo_punto_evento_at=timezone.now(),
+        )
+
+        self.sesion.salida = salida_actual
+        self.sesion.save(update_fields=["salida"])
+        sesion_vecino = SesionUnidad.objects.create(
+            vehiculo=self.vehiculo_2,
+            activa=True,
+            last_heartbeat=timezone.now(),
+            salida=salida_vecino,
+        )
+
+        response_actual = self.client.get(
+            reverse("api_app_cola_contexto"),
+            HTTP_AUTHORIZATION=f"Bearer {self.sesion.token}",
+        )
+        self.assertEqual(response_actual.status_code, 200)
+        data_actual = response_actual.json()
+        self.assertTrue(data_actual["ok"])
+        self.assertEqual(data_actual["actual"]["punto_referencia_codigo"], punto_cole.codigo)
+        self.assertEqual(data_actual["adelante"][0]["unidad"], self.vehiculo_2.codigo)
+        self.assertEqual(data_actual["adelante"][0]["punto_referencia_codigo"], punto_apip.codigo)
+
+        response_vecino = self.client.get(
+            reverse("api_app_cola_contexto"),
+            HTTP_AUTHORIZATION=f"Bearer {sesion_vecino.token}",
+        )
+        self.assertEqual(response_vecino.status_code, 200)
+        data_vecino = response_vecino.json()
+        self.assertTrue(data_vecino["ok"])
+        self.assertEqual(data_vecino["atras"][0]["unidad"], self.vehiculo_1.codigo)
+        self.assertEqual(data_vecino["atras"][0]["punto_referencia_codigo"], punto_cole.codigo)
+
+    def test_api_cola_contexto_reordena_sobrepaso_en_puntos_de_paso_de_ida(self):
+        hora_base = timezone.now().replace(hour=9, minute=20, second=0, microsecond=0)
+        salida_actual = RegistroSalida.objects.create(
+            vehiculo=self.vehiculo_1,
+            ruta=self.ruta_a,
+            fecha=timezone.localdate(),
+            hora_salida=hora_base,
+            hora_real_salida=hora_base,
+            activo=True,
+            en_cola=False,
+        )
+        salida_vecino = RegistroSalida.objects.create(
+            vehiculo=self.vehiculo_2,
+            ruta=self.ruta_a,
+            fecha=timezone.localdate(),
+            hora_salida=hora_base + timedelta(minutes=3),
+            hora_real_salida=hora_base + timedelta(minutes=3),
+            activo=True,
+            en_cola=False,
+        )
+
+        punto_apip = self.punto_control
+        punto_apip.codigo = "APIP"
+        punto_apip.nombre = "Entrada Apipa"
+        punto_apip.orden = 5
+        punto_apip.offset_minutos = 12
+        punto_apip.requiere_marcacion = True
+        punto_apip.confirma_avance = True
+        punto_apip.fase = PuntoControl.FASE_IDA
+        punto_apip.save(update_fields=["codigo", "nombre", "orden", "offset_minutos", "requiere_marcacion", "confirma_avance", "fase"])
+
+        punto_llam = self.punto_retorno
+        punto_llam.codigo = "LLAM"
+        punto_llam.nombre = "Llamagas"
+        punto_llam.orden = 7
+        punto_llam.requiere_marcacion = False
+        punto_llam.confirma_avance = True
+        punto_llam.fase = PuntoControl.FASE_IDA
+        punto_llam.save(update_fields=["codigo", "nombre", "orden", "requiere_marcacion", "confirma_avance", "fase"])
+
+        for salida, minutos in ((salida_actual, 0), (salida_vecino, 3)):
+            MarcacionPunto.objects.create(
+                registro_salida=salida,
+                punto=self.punto_salida,
+                hora_marcada=hora_base + timedelta(minutes=minutos),
+                hora_programada=hora_base + timedelta(minutes=minutos),
+            )
+            MarcacionPunto.objects.create(
+                registro_salida=salida,
+                punto=punto_apip,
+                hora_marcada=hora_base + timedelta(minutes=minutos + 12),
+                hora_programada=hora_base + timedelta(minutes=minutos + 12),
+            )
+
+        UbicacionVehiculo.objects.create(
+            vehiculo=self.vehiculo_1,
+            latitud=Decimal(str(punto_apip.latitud)),
+            longitud=Decimal(str(punto_apip.longitud)),
+            velocidad=10,
+            precision=10,
+        )
+        UbicacionVehiculo.objects.create(
+            vehiculo=self.vehiculo_2,
+            latitud=Decimal(str(punto_llam.latitud)),
+            longitud=Decimal(str(punto_llam.longitud)),
+            velocidad=10,
+            precision=10,
+            ultimo_punto_evento_codigo=punto_llam.codigo,
+            ultimo_punto_evento_orden=punto_llam.orden,
+            ultimo_punto_evento_at=timezone.now(),
+        )
+
+        self.sesion.salida = salida_actual
+        self.sesion.save(update_fields=["salida"])
+
+        response = self.client.get(
+            reverse("api_app_cola_contexto"),
+            HTTP_AUTHORIZATION=f"Bearer {self.sesion.token}",
+        )
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data["ok"])
+        self.assertEqual(data["actual"]["punto_referencia_codigo"], punto_apip.codigo)
+        self.assertEqual(data["adelante"][0]["unidad"], self.vehiculo_2.codigo)
+        self.assertEqual(data["adelante"][0]["punto_referencia_codigo"], punto_llam.codigo)
+
     def test_resetear_contexto_inicio_ruta_limpia_estado_previsto(self):
         hora_base = timezone.now().replace(hour=19, minute=23, second=0, microsecond=0)
         UbicacionVehiculo.objects.create(

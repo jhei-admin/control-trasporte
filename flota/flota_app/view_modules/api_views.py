@@ -1777,6 +1777,7 @@ def _construir_cola_contexto_payload(sesion, ahora=None):
         referencia = referencias_map.get(salida.id, {})
         orden_marcado = referencia.get("orden_marcado") or 0
         orden_confirmado = referencia.get("orden_confirmado") or 0
+        orden_referencia = referencia.get("orden_referencia") or 0
         hora_base = salida.hora_real_salida or salida.hora_salida or salida.hora_llegada
         hora_key = float(hora_base.timestamp()) if hora_base else 0.0
 
@@ -1789,7 +1790,16 @@ def _construir_cola_contexto_payload(sesion, ahora=None):
         # confirmada. Referencias/eventos internos ayudan a desempatar dentro de
         # la misma fase, pero no deben hacer que una unidad con solo SALI
         # adelantada por contexto opaque a otra que ya confirmo COLE/APIP/etc.
-        return (0, -float(orden_marcado), -float(orden_confirmado), hora_key)
+        # Pero si dos unidades comparten la misma ultima marcacion real, la que
+        # ya confirmo una referencia mas avanzada dentro de la misma fase debe
+        # quedar adelante para reflejar el sobrepaso real en puntos de paso.
+        return (
+            0,
+            -float(orden_marcado),
+            -float(orden_confirmado),
+            -float(orden_referencia),
+            hora_key,
+        )
 
     cola_ordenada = sorted(cola, key=calcular_avance_confirmado)
     index_actual = cola_ordenada.index(salida_actual)
