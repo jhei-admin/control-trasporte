@@ -1764,6 +1764,8 @@ def _construir_cola_contexto_payload(sesion, ahora=None):
             if punto_evento_actual and punto_evento_actual["orden"] > referencia_orden:
                 referencia_orden = punto_evento_actual["orden"]
                 referencia_codigo = punto_evento_actual["codigo"]
+                if punto_evento_actual["orden"] > orden_confirmado:
+                    orden_confirmado = punto_evento_actual["orden"]
                 instante_progreso = ubicacion.updated_at or instante_progreso
 
         return {
