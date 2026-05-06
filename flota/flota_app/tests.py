@@ -26,7 +26,11 @@ from .models import (
 )
 from .management.commands.auditar_preproduccion import Command
 from .services import recalcular_cola
-from .view_modules.api_views import _ruta_tiene_contexto_vuelta, resetear_contexto_inicio_ruta
+from .view_modules.api_views import (
+    _ruta_tiene_contexto_vuelta,
+    registrar_punto_evento_confirmado,
+    resetear_contexto_inicio_ruta,
+)
 
 
 class BaseFlotaTestCase(TestCase):
@@ -1794,6 +1798,34 @@ class ApiSecurityAndIsolationTests(BaseFlotaTestCase):
         self.assertTrue(data_vecino["ok"])
         self.assertEqual(data_vecino["atras"][0]["unidad"], self.vehiculo_1.codigo)
         self.assertEqual(data_vecino["atras"][0]["punto_referencia_codigo"], punto_muni.codigo)
+
+    def test_registrar_punto_evento_confirmado_conserva_primer_ingreso_al_mismo_punto(self):
+        ubicacion = UbicacionVehiculo.objects.create(
+            vehiculo=self.vehiculo_1,
+            latitud=Decimal(str(self.punto_control.latitud)),
+            longitud=Decimal(str(self.punto_control.longitud)),
+            velocidad=10,
+            precision=10,
+        )
+
+        punto_muni = self.punto_control
+        punto_muni.codigo = "MUNI"
+        punto_muni.nombre = "Entrada Municipal"
+        punto_muni.requiere_marcacion = False
+        punto_muni.confirma_avance = True
+        punto_muni.fase = PuntoControl.FASE_IDA
+        punto_muni.save(update_fields=["codigo", "nombre", "requiere_marcacion", "confirma_avance", "fase"])
+
+        primero = timezone.now() - timedelta(minutes=1)
+        segundo = timezone.now()
+
+        registrar_punto_evento_confirmado(self.sesion, punto_muni, primero)
+        registrar_punto_evento_confirmado(self.sesion, punto_muni, segundo)
+
+        ubicacion.refresh_from_db()
+        self.assertEqual(ubicacion.ultimo_punto_evento_codigo, "MUNI")
+        self.assertEqual(ubicacion.ultimo_punto_evento_orden, punto_muni.orden)
+        self.assertEqual(ubicacion.ultimo_punto_evento_at, primero)
 
     def test_resetear_contexto_inicio_ruta_limpia_estado_previsto(self):
         hora_base = timezone.now().replace(hour=19, minute=23, second=0, microsecond=0)

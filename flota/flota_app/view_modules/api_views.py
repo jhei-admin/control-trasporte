@@ -708,7 +708,21 @@ def registrar_punto_evento_confirmado(sesion, punto, ahora):
 
     codigo = _codigo_audio_punto(punto)
     orden = punto["orden"] if isinstance(punto, dict) else punto.orden
-    UbicacionVehiculo.objects.filter(vehiculo=sesion.vehiculo).update(
+    ubicacion = UbicacionVehiculo.objects.filter(vehiculo=sesion.vehiculo).first()
+    if not ubicacion:
+        return
+
+    # En puntos de paso debemos conservar el primer instante en que la unidad
+    # alcanzo esa referencia. Si se reescribe cada ping dentro del mismo radio,
+    # el sistema olvida quien llego primero y se invierte el sobrepaso.
+    if (
+        (ubicacion.ultimo_punto_evento_codigo or "").strip().upper() == codigo
+        and (ubicacion.ultimo_punto_evento_orden or 0) == orden
+        and ubicacion.ultimo_punto_evento_at is not None
+    ):
+        return
+
+    UbicacionVehiculo.objects.filter(pk=ubicacion.pk).update(
         ultimo_punto_evento_codigo=codigo,
         ultimo_punto_evento_orden=orden,
         ultimo_punto_evento_at=ahora,
