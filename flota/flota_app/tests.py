@@ -1499,6 +1499,69 @@ class ApiSecurityAndIsolationTests(BaseFlotaTestCase):
         self.assertEqual(data_vecino["atras"][0]["unidad"], self.vehiculo_1.codigo)
         self.assertEqual(data_vecino["atras"][0]["punto_referencia_codigo"], punto_cole.codigo)
 
+    def test_api_cola_contexto_devuelve_vecino_adelante_inmediato_primero_con_tres_unidades(self):
+        hora_base = timezone.now().replace(hour=8, minute=0, second=0, microsecond=0)
+        salida_lider = RegistroSalida.objects.create(
+            vehiculo=self.vehiculo_1,
+            ruta=self.ruta_a,
+            fecha=timezone.localdate(),
+            hora_salida=hora_base,
+            hora_real_salida=hora_base,
+            activo=True,
+            en_cola=False,
+        )
+        salida_intermedia = RegistroSalida.objects.create(
+            vehiculo=self.vehiculo_2,
+            ruta=self.ruta_a,
+            fecha=timezone.localdate(),
+            hora_salida=hora_base + timedelta(minutes=3),
+            hora_real_salida=hora_base + timedelta(minutes=3),
+            activo=True,
+            en_cola=False,
+        )
+        salida_actual = RegistroSalida.objects.create(
+            vehiculo=self.vehiculo_3,
+            ruta=self.ruta_a,
+            fecha=timezone.localdate(),
+            hora_salida=hora_base + timedelta(minutes=6),
+            hora_real_salida=hora_base + timedelta(minutes=6),
+            activo=True,
+            en_cola=False,
+        )
+
+        for salida, minutos in (
+            (salida_lider, 0),
+            (salida_intermedia, 3),
+            (salida_actual, 6),
+        ):
+            MarcacionPunto.objects.create(
+                registro_salida=salida,
+                punto=self.punto_salida,
+                hora_marcada=hora_base + timedelta(minutes=minutos),
+                hora_programada=hora_base + timedelta(minutes=minutos),
+            )
+
+        sesion_actual = SesionUnidad.objects.create(
+            vehiculo=self.vehiculo_3,
+            activa=True,
+            last_heartbeat=timezone.now(),
+            salida=salida_actual,
+        )
+
+        response = self.client.get(
+            reverse("api_app_cola_contexto"),
+            HTTP_AUTHORIZATION=f"Bearer {sesion_actual.token}",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data["ok"])
+        self.assertEqual([item["unidad"] for item in data["adelante"]], [
+            self.vehiculo_2.codigo,
+            self.vehiculo_1.codigo,
+        ])
+        self.assertEqual(data["atras"], [])
+
     def test_api_cola_contexto_reordena_sobrepaso_en_puntos_de_paso_de_ida(self):
         hora_base = timezone.now().replace(hour=9, minute=20, second=0, microsecond=0)
         salida_actual = RegistroSalida.objects.create(

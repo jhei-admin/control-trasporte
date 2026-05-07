@@ -1889,7 +1889,7 @@ def _construir_cola_contexto_payload(sesion, ahora=None):
             "punto_referencia_codigo": referencias_map.get(salida_actual.id, {}).get("codigo"),
             "punto_audio_referencia_codigo": referencias_map.get(salida_actual.id, {}).get("audio_codigo"),
         },
-        "adelante": [serializar(salida) for salida in adelante],
+        "adelante": [serializar(salida) for salida in reversed(adelante)],
         "atras": [serializar(salida) for salida in atras],
     }
 
