@@ -27,6 +27,7 @@ from .models import (
 from .management.commands.auditar_preproduccion import Command
 from .services import recalcular_cola
 from .view_modules.api_views import (
+    _asegurar_marcaciones_salida,
     _ruta_tiene_contexto_vuelta,
     registrar_punto_evento_confirmado,
     resetear_contexto_inicio_ruta,
@@ -2059,6 +2060,86 @@ class ApiSecurityAndIsolationTests(BaseFlotaTestCase):
         self.assertEqual(ubicacion.ultimo_punto_evento_codigo, "MUNI")
         self.assertEqual(ubicacion.ultimo_punto_evento_orden, punto_muni.orden)
         self.assertEqual(ubicacion.ultimo_punto_evento_at, primero)
+
+    def test_api_gps_conductor_persiste_punto_de_paso_confirmado_en_ida(self):
+        hora_base = timezone.now() - timedelta(minutes=15)
+        salida = RegistroSalida.objects.create(
+            vehiculo=self.vehiculo_1,
+            ruta=self.ruta_a,
+            fecha=timezone.localdate(),
+            hora_salida=hora_base,
+            hora_real_salida=hora_base,
+            activo=True,
+            en_cola=False,
+        )
+        self.sesion.salida = salida
+        self.sesion.save(update_fields=["salida"])
+
+        punto_apip = self.punto_control
+        punto_apip.codigo = "APIP"
+        punto_apip.nombre = "Entrada Apipa"
+        punto_apip.orden = 5
+        punto_apip.offset_minutos = 12
+        punto_apip.requiere_marcacion = True
+        punto_apip.confirma_avance = True
+        punto_apip.fase = PuntoControl.FASE_IDA
+        punto_apip.save(update_fields=["codigo", "nombre", "orden", "offset_minutos", "requiere_marcacion", "confirma_avance", "fase"])
+
+        punto_muni = self.punto_retorno
+        punto_muni.codigo = "MUNI"
+        punto_muni.nombre = "Entrada Municipal"
+        punto_muni.orden = 6
+        punto_muni.requiere_marcacion = False
+        punto_muni.confirma_avance = True
+        punto_muni.fase = PuntoControl.FASE_IDA
+        punto_muni.save(update_fields=["codigo", "nombre", "orden", "requiere_marcacion", "confirma_avance", "fase"])
+
+        MarcacionPunto.objects.create(
+            registro_salida=salida,
+            punto=self.punto_salida,
+            hora_marcada=hora_base,
+            hora_programada=hora_base,
+        )
+        MarcacionPunto.objects.create(
+            registro_salida=salida,
+            punto=punto_apip,
+            hora_marcada=hora_base + timedelta(minutes=12),
+            hora_programada=hora_base + timedelta(minutes=12),
+        )
+        PuntoControl.objects.create(
+            ruta=self.ruta_a,
+            codigo="ZAMA",
+            nombre="Zamacola",
+            latitud=Decimal("-16.408000"),
+            longitud=Decimal("-71.508000"),
+            radio_metros=50,
+            orden=11,
+            offset_minutos=28,
+            requiere_marcacion=True,
+            confirma_avance=True,
+            fase=PuntoControl.FASE_IDA,
+            activo=True,
+        )
+        _asegurar_marcaciones_salida(salida)
+
+        response = self.client.post(
+            reverse("api_gps_conductor"),
+            data=json.dumps(
+                {
+                    "lat": float(punto_muni.latitud),
+                    "lng": float(punto_muni.longitud),
+                    "precision": 10,
+                }
+            ),
+            content_type="application/json",
+            HTTP_AUTHORIZATION=f"Bearer {self.sesion.token}",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        ubicacion = UbicacionVehiculo.objects.get(vehiculo=self.vehiculo_1)
+        self.assertEqual(ubicacion.ultimo_punto_evento_codigo, "MUNI")
+        self.assertEqual(ubicacion.ultimo_punto_evento_orden, punto_muni.orden)
+        self.assertIsNotNone(ubicacion.ultimo_punto_evento_at)
 
     def test_resetear_contexto_inicio_ruta_limpia_estado_previsto(self):
         hora_base = timezone.now().replace(hour=19, minute=23, second=0, microsecond=0)

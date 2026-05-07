@@ -1020,6 +1020,20 @@ def api_gps_conductor(request):
                 },
                 "cola_contexto": _construir_cola_contexto_payload(sesion, ahora=ahora),
             })
+
+        fase_objetivo = PuntoControl.FASE_RETORNO if en_retorno else PuntoControl.FASE_IDA
+        ubicacion_actual = _get_ubicacion_actual(sesion.vehiculo)
+        orden_minimo_evento = 1
+        if ubicacion_actual is not None:
+            orden_minimo_evento = max(orden_minimo_evento, int(ubicacion_actual.ultimo_punto_evento_orden or 0))
+        punto_evento_actual = _resolver_punto_evento_actual(
+            ubicacion_actual,
+            _serializar_puntos_ruta(salida.ruta),
+            orden_minimo_evento,
+            fase_objetivo=fase_objetivo,
+        )
+        if punto_evento_actual is not None:
+            registrar_punto_evento_confirmado(sesion, punto_evento_actual, ahora)
     else:
         en_retorno = en_retorno_actual
 
