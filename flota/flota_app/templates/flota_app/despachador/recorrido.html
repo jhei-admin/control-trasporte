@@ -113,7 +113,14 @@
       );
 
       if (!res.ok) {
-        throw new Error("Error consultando recorrido");
+        let detalle = "Error consultando recorrido";
+        try {
+          const errorData = await res.json();
+          if (errorData && errorData.error) {
+            detalle = errorData.error;
+          }
+        } catch (_) {}
+        throw new Error(detalle);
       }
 
       const data = await res.json();
@@ -124,10 +131,19 @@
       }
 
       const coords = [];
+      let puntosValidos = 0;
 
       data.forEach(p => {
-        const latlng = [p.lat, p.lng];
+        const lat = Number(p.lat);
+        const lng = Number(p.lng);
+
+        if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+          return;
+        }
+
+        const latlng = [lat, lng];
         coords.push(latlng);
+        puntosValidos += 1;
 
         const m = L.circleMarker(latlng, {
           radius: 4,
@@ -143,6 +159,11 @@
 
         puntos.push(m);
       });
+
+      if (!puntosValidos) {
+        alert("No hay registros GPS válidos para ese día");
+        return;
+      }
 
       polyline = L.polyline(coords, {
         color: "#dc3545",
@@ -160,7 +181,7 @@
 
     } catch (err) {
       console.error(err);
-      alert("Error cargando el recorrido");
+      alert(err.message || "Error cargando el recorrido");
     } finally {
       btn.disabled = false;
       btn.innerText = "Ver recorrido";
