@@ -7,67 +7,113 @@
   href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
 />
 
-<h2 class="mb-3">🧭 Historial de Recorrido</h2>
+<style>
+  .leaflet-container {
+    background: #0f172a;
+  }
+
+  .recorrido-shell {
+    background: #0f172a;
+    border-radius: 12px;
+    padding: 14px;
+    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.18);
+  }
+
+  .recorrido-head {
+    color: #e5eefc;
+    margin-bottom: 12px;
+  }
+
+  .recorrido-sub {
+    font-size: 13px;
+    color: #a8bddf;
+    margin-top: 4px;
+  }
+
+  .recorrido-panel {
+    margin-bottom: 12px;
+  }
+
+  .recorrido-panel label {
+    color: #dbeafe;
+    font-weight: 600;
+    margin-bottom: 6px;
+  }
+
+  #map {
+    height: 500px;
+    width: 100%;
+    border-radius: 10px;
+    overflow: hidden;
+    border: 1px solid rgba(148, 163, 184, 0.16);
+  }
+
+  .leaflet-popup-content-wrapper,
+  .leaflet-popup-tip {
+    background: #111827;
+    color: #f8fafc;
+  }
+</style>
+
+<h2 class="mb-3">Historial de Recorrido</h2>
 <hr>
 
-<div class="row mb-3">
-  <div class="col-md-4">
-    <label>Vehículo</label>
-    <select id="vehiculo" class="form-select">
-      {% for v in vehiculos %}
-        <option
-          value="{{ v.id }}"
-          {% if vehiculo_preseleccionado == v.id|stringformat:"s" %}selected{% endif %}
-        >{{ v.numero }}</option>
-      {% endfor %}
-    </select>
+<div class="recorrido-shell">
+  <div class="recorrido-head">
+    <div class="fw-bold">Detalle del recorrido y paradas</div>
+    <div class="recorrido-sub">
+      Esta vista sirve para revisar el trayecto GPS de una unidad en una fecha especifica.
+    </div>
   </div>
 
-  <div class="col-md-4">
-    <label>Fecha</label>
-    <input type="date" id="fecha" class="form-control">
+  <div class="row recorrido-panel">
+    <div class="col-md-4">
+      <label>Vehiculo</label>
+      <select id="vehiculo" class="form-select">
+        {% for v in vehiculos %}
+          <option
+            value="{{ v.id }}"
+            {% if vehiculo_preseleccionado == v.id|stringformat:"s" %}selected{% endif %}
+          >{{ v.numero }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="col-md-4">
+      <label>Fecha</label>
+      <input type="date" id="fecha" class="form-control">
+    </div>
+
+    <div class="col-md-4 d-flex align-items-end">
+      <button
+        class="btn btn-primary w-100"
+        id="btn-recorrido"
+        onclick="cargarRecorrido()"
+      >
+        Ver recorrido
+      </button>
+    </div>
   </div>
 
-  <div class="col-md-4 d-flex align-items-end">
-    <button
-      class="btn btn-primary w-100"
-      id="btn-recorrido"
-      onclick="cargarRecorrido()"
-    >
-      Ver recorrido
-    </button>
-  </div>
+  <div id="map"></div>
 </div>
-
-<div
-  id="map"
-  style="height:500px;width:100%;border-radius:8px;"
-></div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
 <script>
-  // ==============================
-  // 🗺️ Inicializar mapa
-  // ==============================
-  const map = L.map("map").setView([-16.338088, -71.619947], 13);
+  const MAP_CENTER = [-16.338088, -71.619947];
+  const map = L.map("map").setView(MAP_CENTER, 13);
 
-  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-    attribution: "© OpenStreetMap contributors"
+  L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
+    attribution: "&copy; OpenStreetMap contributors &copy; CARTO"
   }).addTo(map);
 
-  // ==============================
-  // 🧠 Capas
-  // ==============================
   let polyline = null;
   let puntos = [];
   let paradasMarkers = [];
 
-  // ==============================
-  // 🟡 Ícono de parada
-  // ==============================
   const paradaIcon = L.icon({
-    iconUrl: "/static/img/parada_amarilla.svg", // 👈 pon aquí tu ícono
+    iconUrl: "/static/img/parada_amarilla.svg",
     iconSize: [26, 26],
     iconAnchor: [13, 26],
     popupAnchor: [0, -26],
@@ -79,23 +125,26 @@
       polyline = null;
     }
 
-    puntos.forEach(p => map.removeLayer(p));
+    puntos.forEach((punto) => map.removeLayer(punto));
     puntos = [];
 
-    paradasMarkers.forEach(m => map.removeLayer(m));
+    paradasMarkers.forEach((marker) => map.removeLayer(marker));
     paradasMarkers = [];
   }
 
-  // ==============================
-  // 🚍 Cargar recorrido + paradas
-  // ==============================
+  function mensajeSinRecorrido(texto) {
+    limpiarMapa();
+    map.setView(MAP_CENTER, 13);
+    alert(texto);
+  }
+
   async function cargarRecorrido() {
     const vehiculo = document.getElementById("vehiculo").value;
     const fecha = document.getElementById("fecha").value;
     const btn = document.getElementById("btn-recorrido");
 
     if (!vehiculo || !fecha) {
-      alert("Selecciona vehículo y fecha");
+      alert("Selecciona vehiculo y fecha");
       return;
     }
 
@@ -105,9 +154,6 @@
     limpiarMapa();
 
     try {
-      // ==============================
-      // 🔵 RECORRIDO GPS
-      // ==============================
       const res = await fetch(
         `/sistema/api/despachador/recorrido/?vehiculo=${vehiculo}&fecha=${fecha}`
       );
@@ -125,103 +171,108 @@
 
       const data = await res.json();
 
-      if (!data.length) {
-        alert("No hay registros GPS para ese día");
+      if (!Array.isArray(data) || !data.length) {
+        mensajeSinRecorrido("No hay registros GPS para ese dia");
         return;
       }
 
       const coords = [];
-      let puntosValidos = 0;
 
-      data.forEach(p => {
-        const lat = Number(p.lat);
-        const lng = Number(p.lng);
+      data.forEach((punto) => {
+        const lat = Number(punto.lat);
+        const lng = Number(punto.lng);
 
         if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
           return;
         }
 
-        const latlng = [lat, lng];
-        coords.push(latlng);
-        puntosValidos += 1;
+        coords.push([lat, lng]);
 
-        const m = L.circleMarker(latlng, {
+        const marker = L.circleMarker([lat, lng], {
           radius: 4,
-          color: "#0d6efd",
-          fillOpacity: 0.8
+          color: "#8be9fd",
+          weight: 1,
+          fillColor: "#8be9fd",
+          fillOpacity: 0.85
         })
           .bindPopup(`
-            <strong>Hora:</strong> ${p.hora}<br>
-            <strong>Velocidad:</strong> ${p.velocidad} km/h<br>
-            <small>${p.lat.toFixed(5)}, ${p.lng.toFixed(5)}</small>
+            <strong>Hora:</strong> ${punto.hora}<br>
+            <strong>Velocidad:</strong> ${punto.velocidad} km/h<br>
+            <small>${lat.toFixed(5)}, ${lng.toFixed(5)}</small>
           `)
           .addTo(map);
 
-        puntos.push(m);
+        puntos.push(marker);
       });
 
-      if (!puntosValidos) {
-        alert("No hay registros GPS válidos para ese día");
+      if (!coords.length) {
+        mensajeSinRecorrido("No hay registros GPS validos para ese dia");
         return;
       }
 
-      polyline = L.polyline(coords, {
-        color: "#dc3545",
-        weight: 4
-      }).addTo(map);
+      if (coords.length === 1) {
+        map.setView(coords[0], 16);
+      } else {
+        polyline = L.polyline(coords, {
+          color: "#ffffff",
+          weight: 4,
+          opacity: 0.95
+        }).addTo(map);
 
-      map.fitBounds(polyline.getBounds(), {
-        padding: [40, 40]
-      });
+        map.fitBounds(polyline.getBounds(), {
+          padding: [40, 40]
+        });
+      }
 
-      // ==============================
-      // 🟡 PARADAS DETECTADAS
-      // ==============================
-      cargarParadas(vehiculo, fecha);
-
+      await cargarParadas(vehiculo, fecha);
     } catch (err) {
       console.error(err);
-      alert(err.message || "Error cargando el recorrido");
+      mensajeSinRecorrido(err.message || "Error cargando el recorrido");
     } finally {
       btn.disabled = false;
       btn.innerText = "Ver recorrido";
     }
   }
 
-  // ==============================
-  // 🛑 Cargar paradas
-  // ==============================
   async function cargarParadas(vehiculo, fecha) {
     try {
       const res = await fetch(
         `/sistema/api/despachador/paradas/?vehiculo=${vehiculo}&fecha=${fecha}`
       );
 
-      if (!res.ok) return;
+      if (!res.ok) {
+        return;
+      }
 
       const paradas = await res.json();
+      if (!Array.isArray(paradas)) {
+        return;
+      }
 
-      paradas.forEach(p => {
-        const m = L.marker([p.lat, p.lng], { icon: paradaIcon })
+      paradas.forEach((parada) => {
+        const lat = Number(parada.lat);
+        const lng = Number(parada.lng);
+
+        if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+          return;
+        }
+
+        const marker = L.marker([lat, lng], { icon: paradaIcon })
           .addTo(map)
           .bindPopup(`
-            <b>🛑 Parada</b><br>
-            <strong>Inicio:</strong> ${p.inicio}<br>
-            <strong>Fin:</strong> ${p.fin}<br>
-            <strong>Duración:</strong> ${p.duracion_min} min
+            <b>Parada</b><br>
+            <strong>Inicio:</strong> ${parada.inicio}<br>
+            <strong>Fin:</strong> ${parada.fin || "Activa"}<br>
+            <strong>Duracion:</strong> ${parada.duracion_min} min
           `);
 
-        paradasMarkers.push(m);
+        paradasMarkers.push(marker);
       });
-
-    } catch (e) {
-      console.error("Error cargando paradas", e);
+    } catch (err) {
+      console.error("Error cargando paradas", err);
     }
   }
 
-  // ==============================
-  // 📅 Fecha por defecto: hoy
-  // ==============================
   document.addEventListener("DOMContentLoaded", () => {
     const fechaInicial = "{{ fecha_preseleccionada|default:'' }}";
     const hoy = new Date().toISOString().slice(0, 10);
