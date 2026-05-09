@@ -3,6 +3,10 @@
 {% block content %}
 
 <style>
+  .leaflet-container {
+    background: #0f172a;
+  }
+
   .recorrido-shell {
     background: #0f172a;
     border-radius: 12px;
@@ -45,15 +49,10 @@
     font-size: 13px;
   }
 
-  .parada-pill {
-    display: inline-block;
-    background: rgba(250, 204, 21, 0.15);
-    color: #fde68a;
-    padding: 2px 8px;
-    border-radius: 999px;
-    font-size: 12px;
-    font-weight: 600;
-    margin-bottom: 6px;
+  .leaflet-popup-content-wrapper,
+  .leaflet-popup-tip {
+    background: #111827;
+    color: #f8fafc;
   }
 </style>
 
@@ -64,7 +63,7 @@
   <div class="recorrido-head">
     <div class="fw-bold">Detalle del recorrido y paradas</div>
     <div class="recorrido-sub">
-      Esta vista muestra el trayecto GPS y las paradas registradas de una unidad en una fecha puntual.
+      Esta vista muestra el trayecto GPS real de una unidad en una fecha puntual.
     </div>
   </div>
 
@@ -104,159 +103,56 @@
 </div>
 
 <script>
-  const MAP_CENTER = [-71.619947, -16.338088];
-  const mapboxToken = "{{ MAPBOX_TOKEN|escapejs }}";
+  const MAP_CENTER = [-16.338088, -71.619947];
+  const map = L.map("map-recorrido", {
+    preferCanvas: true,
+    zoomAnimation: true,
+    fadeAnimation: false,
+    markerZoomAnimation: true
+  }).setView(MAP_CENTER, 13);
 
-  mapboxgl.accessToken = mapboxToken;
+  L.tileLayer(
+    "https://api.mapbox.com/styles/v1/mapbox/navigation-night-v1/tiles/{z}/{x}/{y}?access_token={{ MAPBOX_TOKEN }}",
+    {
+      tileSize: 512,
+      zoomOffset: -1,
+      maxZoom: 20,
+      keepBuffer: 6,
+      updateWhenZooming: true,
+      updateWhenIdle: false,
+      attribution: "© Mapbox © OpenStreetMap"
+    }
+  ).addTo(map);
 
-  const map = new mapboxgl.Map({
-    container: "map-recorrido",
-    style: "mapbox://styles/mapbox/dark-v11",
-    center: MAP_CENTER,
-    zoom: 12.8
+  map.zoomControl.setPosition("bottomright");
+  map.attributionControl.setPrefix(false);
+
+  let routeLayer = null;
+  let gpsLayer = L.layerGroup().addTo(map);
+  let stopLayer = L.layerGroup().addTo(map);
+
+  const paradaIcon = L.icon({
+    iconUrl: "/static/img/parada_amarilla.svg",
+    iconSize: [26, 26],
+    iconAnchor: [13, 26],
+    popupAnchor: [0, -26],
   });
 
-  let pointMarkers = [];
-  let stopMarkers = [];
-
-  function getEstadoRecorrido() {
-    return document.getElementById("estado-recorrido");
-  }
-
   function setEstadoRecorrido(texto) {
-    const estado = getEstadoRecorrido();
+    const estado = document.getElementById("estado-recorrido");
     if (estado) {
       estado.textContent = texto;
     }
   }
 
-  function clearMarkers(markers) {
-    markers.forEach((marker) => marker.remove());
-    markers.length = 0;
-  }
-
-  function clearRouteLayers() {
-    ["recorrido-line", "recorrido-points"].forEach((layerId) => {
-      if (map.getLayer(layerId)) {
-        map.removeLayer(layerId);
-      }
-    });
-
-    ["recorrido", "recorrido-puntos"].forEach((sourceId) => {
-      if (map.getSource(sourceId)) {
-        map.removeSource(sourceId);
-      }
-    });
-  }
-
-  function resetVisualState() {
-    clearRouteLayers();
-    clearMarkers(pointMarkers);
-    clearMarkers(stopMarkers);
-  }
-
-  function makePopup(html) {
-    return new mapboxgl.Popup({
-      closeButton: false,
-      closeOnClick: false,
-      offset: 16
-    }).setHTML(html);
-  }
-
-  function fitToCoordinates(coords) {
-    if (coords.length === 1) {
-      map.flyTo({
-        center: coords[0],
-        zoom: 16
-      });
-      return;
+  function resetMapState() {
+    if (routeLayer) {
+      map.removeLayer(routeLayer);
+      routeLayer = null;
     }
 
-    const bounds = coords.reduce(
-      (acc, coord) => acc.extend(coord),
-      new mapboxgl.LngLatBounds(coords[0], coords[0])
-    );
-
-    map.fitBounds(bounds, {
-      padding: 50,
-      duration: 700
-    });
-  }
-
-  function drawRoute(coords, puntosInfo) {
-    if (coords.length > 1) {
-      map.addSource("recorrido", {
-        type: "geojson",
-        data: {
-          type: "Feature",
-          geometry: {
-            type: "LineString",
-            coordinates: coords
-          }
-        }
-      });
-
-      map.addLayer({
-        id: "recorrido-line",
-        type: "line",
-        source: "recorrido",
-        paint: {
-          "line-color": "#ffffff",
-          "line-width": 4,
-          "line-opacity": 0.92
-        }
-      });
-    }
-
-    puntosInfo.forEach((punto) => {
-      const el = document.createElement("div");
-      el.style.width = "10px";
-      el.style.height = "10px";
-      el.style.borderRadius = "50%";
-      el.style.background = "#8be9fd";
-      el.style.boxShadow = "0 0 0 2px rgba(15,23,42,.85)";
-
-      const marker = new mapboxgl.Marker(el)
-        .setLngLat([punto.lng, punto.lat])
-        .setPopup(makePopup(`
-          <strong>Hora:</strong> ${punto.hora}<br>
-          <strong>Velocidad:</strong> ${punto.velocidad} km/h<br>
-          <small>${punto.lat.toFixed(5)}, ${punto.lng.toFixed(5)}</small>
-        `))
-        .addTo(map);
-
-      pointMarkers.push(marker);
-    });
-
-    fitToCoordinates(coords);
-  }
-
-  function drawStops(paradas) {
-    paradas.forEach((parada) => {
-      if (!Number.isFinite(parada.lat) || !Number.isFinite(parada.lng)) {
-        return;
-      }
-
-      const el = document.createElement("div");
-      el.style.width = "18px";
-      el.style.height = "18px";
-      el.style.borderRadius = "50%";
-      el.style.background = "#facc15";
-      el.style.border = "2px solid #111827";
-      el.style.boxShadow = "0 2px 8px rgba(0,0,0,.35)";
-
-      const marker = new mapboxgl.Marker(el)
-        .setLngLat([parada.lng, parada.lat])
-        .setPopup(makePopup(`
-          <div class="parada-pill">Parada</div><br>
-          <strong>Inicio:</strong> ${parada.inicio}<br>
-          <strong>Fin:</strong> ${parada.fin || "Activa"}<br>
-          <strong>Duracion:</strong> ${parada.duracion_min} min
-        `))
-        .addTo(map);
-
-      stopMarkers.push(marker);
-    });
+    gpsLayer.clearLayers();
+    stopLayer.clearLayers();
   }
 
   async function fetchJson(url, fallbackMessage) {
@@ -274,6 +170,72 @@
     return res.json();
   }
 
+  function drawGpsRoute(puntosInfo) {
+    const coords = puntosInfo.map((punto) => [punto.lat, punto.lng]);
+
+    if (coords.length === 1) {
+      const unico = coords[0];
+      L.circleMarker(unico, {
+        radius: 6,
+        color: "#8be9fd",
+        weight: 2,
+        fillColor: "#8be9fd",
+        fillOpacity: 0.85
+      })
+        .bindPopup(`
+          <strong>Hora:</strong> ${puntosInfo[0].hora}<br>
+          <strong>Velocidad:</strong> ${puntosInfo[0].velocidad} km/h
+        `)
+        .addTo(gpsLayer);
+
+      map.setView(unico, 16);
+      return;
+    }
+
+    routeLayer = L.polyline(coords, {
+      color: "#ffffff",
+      weight: 5,
+      opacity: 0.95
+    }).addTo(map);
+
+    puntosInfo.forEach((punto) => {
+      L.circleMarker([punto.lat, punto.lng], {
+        radius: 4,
+        color: "#8be9fd",
+        weight: 1,
+        fillColor: "#8be9fd",
+        fillOpacity: 0.8
+      })
+        .bindPopup(`
+          <strong>Hora:</strong> ${punto.hora}<br>
+          <strong>Velocidad:</strong> ${punto.velocidad} km/h<br>
+          <small>${punto.lat.toFixed(5)}, ${punto.lng.toFixed(5)}</small>
+        `)
+        .addTo(gpsLayer);
+    });
+
+    map.fitBounds(routeLayer.getBounds(), {
+      padding: [35, 35]
+    });
+  }
+
+  function drawStops(paradas) {
+    paradas.forEach((parada) => {
+      if (!Number.isFinite(parada.lat) || !Number.isFinite(parada.lng)) {
+        return;
+      }
+
+      L.marker([parada.lat, parada.lng], { icon: paradaIcon })
+        .bindPopup(`
+          <b>Parada</b><br>
+          <strong>Inicio:</strong> ${parada.inicio}<br>
+          <strong>Fin:</strong> ${parada.fin || "Activa"}<br>
+          <strong>Duracion:</strong> ${parada.duracion_min} min
+        `)
+        .addTo(stopLayer);
+    });
+  }
+
   async function cargarRecorrido() {
     const vehiculo = document.getElementById("vehiculo").value;
     const fecha = document.getElementById("fecha").value;
@@ -286,7 +248,7 @@
 
     btn.disabled = true;
     btn.innerText = "Cargando...";
-    resetVisualState();
+    resetMapState();
     setEstadoRecorrido("Cargando recorrido...");
 
     try {
@@ -308,39 +270,41 @@
 
       if (!puntosInfo.length) {
         setEstadoRecorrido("No hay registros GPS validos para esa fecha.");
-        map.flyTo({ center: MAP_CENTER, zoom: 12.8 });
+        map.setView(MAP_CENTER, 13);
         return;
       }
 
-      const coords = puntosInfo.map((punto) => [punto.lng, punto.lat]);
-      drawRoute(coords, puntosInfo);
+      drawGpsRoute(puntosInfo);
+      setEstadoRecorrido(`Se cargaron ${puntosInfo.length} punto(s) GPS.`);
 
-      const paradasRaw = await fetchJson(
+      fetchJson(
         `/sistema/api/despachador/paradas/?vehiculo=${vehiculo}&fecha=${fecha}`,
         "Error consultando paradas"
-      );
+      )
+        .then((paradasRaw) => {
+          const paradas = Array.isArray(paradasRaw)
+            ? paradasRaw.map((parada) => ({
+                lat: Number(parada.lat),
+                lng: Number(parada.lng),
+                inicio: parada.inicio || "",
+                fin: parada.fin || null,
+                duracion_min: Number(parada.duracion_min || 0)
+              }))
+            : [];
 
-      const paradas = Array.isArray(paradasRaw)
-        ? paradasRaw.map((parada) => ({
-            lat: Number(parada.lat),
-            lng: Number(parada.lng),
-            inicio: parada.inicio || "",
-            fin: parada.fin || null,
-            duracion_min: Number(parada.duracion_min || 0),
-            activa: Boolean(parada.activa)
-          }))
-        : [];
+          drawStops(paradas);
 
-      drawStops(paradas);
-
-      const resumenParadas = paradas.length
-        ? ` y ${paradas.length} parada${paradas.length === 1 ? "" : "s"}`
-        : "";
-      setEstadoRecorrido(`Se cargaron ${puntosInfo.length} punto(s) GPS${resumenParadas}.`);
+          if (paradas.length) {
+            setEstadoRecorrido(`Se cargaron ${puntosInfo.length} punto(s) GPS y ${paradas.length} parada(s).`);
+          }
+        })
+        .catch((err) => {
+          console.error("Error cargando paradas", err);
+        });
     } catch (err) {
       console.error(err);
       setEstadoRecorrido(err.message || "Error cargando el recorrido.");
-      map.flyTo({ center: MAP_CENTER, zoom: 12.8 });
+      map.setView(MAP_CENTER, 13);
     } finally {
       btn.disabled = false;
       btn.innerText = "Ver recorrido";
@@ -354,11 +318,9 @@
 
     fechaInput.value = fechaInicial || hoy;
 
-    map.on("load", () => {
-      if (document.getElementById("vehiculo").value && fechaInput.value) {
-        cargarRecorrido();
-      }
-    });
+    if (document.getElementById("vehiculo").value && fechaInput.value) {
+      cargarRecorrido();
+    }
   });
 </script>
 
