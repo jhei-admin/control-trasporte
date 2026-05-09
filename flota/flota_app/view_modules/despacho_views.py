@@ -649,6 +649,7 @@ def recorrido_vehiculo(request):
             "vehiculos": vehiculos,
             "vehiculo_preseleccionado": vehiculo_preseleccionado,
             "fecha_preseleccionada": fecha_preseleccionada,
+            "MAPBOX_TOKEN": settings.MAPBOX_TOKEN,
         },
     )
 
