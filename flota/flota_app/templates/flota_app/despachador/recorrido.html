@@ -82,7 +82,13 @@
 
     <div class="col-md-4">
       <label>Fecha</label>
-      <input type="date" id="fecha" class="form-control">
+      <input
+        type="date"
+        id="fecha"
+        class="form-control"
+        value="{{ fecha_preseleccionada|default:'' }}"
+        data-initial-date="{{ fecha_preseleccionada|default:'' }}"
+      >
     </div>
 
     <div class="col-md-4 d-flex align-items-end">
@@ -102,6 +108,7 @@
   </div>
 </div>
 
+{% block extra_js %}
 <script>
   const MAP_CENTER = [-16.338088, -71.619947];
   const map = L.map("map-recorrido", {
@@ -143,6 +150,22 @@
     if (estado) {
       estado.textContent = texto;
     }
+  }
+
+  function obtenerFechaSeleccionada() {
+    const input = document.getElementById("fecha");
+    if (!input) {
+      return "";
+    }
+
+    let fecha = (input.value || input.dataset.initialDate || "").trim();
+
+    if (/^\d{2}\/\d{2}\/\d{4}$/.test(fecha)) {
+      const [dia, mes, anio] = fecha.split("/");
+      fecha = `${anio}-${mes}-${dia}`;
+    }
+
+    return fecha;
   }
 
   function resetMapState() {
@@ -238,7 +261,7 @@
 
   async function cargarRecorrido() {
     const vehiculo = document.getElementById("vehiculo").value;
-    const fecha = document.getElementById("fecha").value;
+    const fecha = obtenerFechaSeleccionada();
     const btn = document.getElementById("btn-recorrido");
 
     if (!vehiculo || !fecha) {
@@ -312,16 +335,16 @@
   }
 
   document.addEventListener("DOMContentLoaded", () => {
-    const fechaInicial = "{{ fecha_preseleccionada|default:'' }}";
-    const hoy = new Date().toISOString().slice(0, 10);
     const fechaInput = document.getElementById("fecha");
+    const hoy = new Date().toISOString().slice(0, 10);
 
-    fechaInput.value = fechaInicial || hoy;
+    if (fechaInput && !fechaInput.value) {
+      fechaInput.value = fechaInput.dataset.initialDate || hoy;
+    }
 
-    if (document.getElementById("vehiculo").value && fechaInput.value) {
-      cargarRecorrido();
+    if (document.getElementById("vehiculo").value && obtenerFechaSeleccionada()) {
+      setEstadoRecorrido("Listo para consultar el recorrido.");
     }
   });
 </script>
-
 {% endblock %}
