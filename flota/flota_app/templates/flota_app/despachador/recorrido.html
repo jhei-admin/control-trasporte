@@ -15,7 +15,10 @@
     <label>Vehículo</label>
     <select id="vehiculo" class="form-select">
       {% for v in vehiculos %}
-        <option value="{{ v.id }}">{{ v.numero }}</option>
+        <option
+          value="{{ v.id }}"
+          {% if vehiculo_preseleccionado == v.id|stringformat:"s" %}selected{% endif %}
+        >{{ v.numero }}</option>
       {% endfor %}
     </select>
   </div>
@@ -199,8 +202,15 @@
   // 📅 Fecha por defecto: hoy
   // ==============================
   document.addEventListener("DOMContentLoaded", () => {
+    const fechaInicial = "{{ fecha_preseleccionada|default:'' }}";
     const hoy = new Date().toISOString().slice(0, 10);
-    document.getElementById("fecha").value = hoy;
+    const fechaInput = document.getElementById("fecha");
+
+    fechaInput.value = fechaInicial || hoy;
+
+    if (document.getElementById("vehiculo").value && fechaInput.value) {
+      cargarRecorrido();
+    }
   });
 </script>
 

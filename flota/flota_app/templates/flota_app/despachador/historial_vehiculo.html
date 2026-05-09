@@ -20,6 +20,16 @@ Historial del vehículo {{ vehiculo.codigo }} ({{ vehiculo.placa }})
 </select>
 
 </div>
+
+<div class="col-md-4 mt-3 mt-md-0">
+<a
+id="btn-paradas"
+class="btn btn-outline-primary"
+href="{% url 'recorrido_vehiculo' %}?vehiculo={{ vehiculo.id }}"
+>
+Ver recorrido y paradas
+</a>
+</div>
 </div>
 
 <div class="row mb-4">
@@ -131,6 +141,17 @@ Historial del vehículo {{ vehiculo.codigo }} ({{ vehiculo.placa }})
 <script>
 
 document.addEventListener("DOMContentLoaded", function(){
+
+const selectorFecha = document.getElementById("selector-fecha");
+const btnParadas = document.getElementById("btn-paradas");
+
+function actualizarLinkParadas() {
+if (!selectorFecha || !btnParadas) return;
+const fecha = selectorFecha.value || "";
+btnParadas.href = `/sistema/despachador/recorrido/?vehiculo={{ vehiculo.id }}&fecha=${fecha}`;
+}
+
+actualizarLinkParadas();
 
 mapboxgl.accessToken = "{{ MAPBOX_TOKEN }}";
 
@@ -390,6 +411,7 @@ if(selector){
 cargarRecorrido(selector.value);
 
 selector.addEventListener("change",function(){
+actualizarLinkParadas();
 cargarRecorrido(this.value);
 });
 
