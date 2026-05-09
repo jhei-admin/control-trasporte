@@ -136,9 +136,10 @@
   map.zoomControl.setPosition("bottomright");
   map.attributionControl.setPrefix(false);
 
-  let routeLayer = null;
+  let routeLayers = [];
   let gpsLayer = L.layerGroup().addTo(map);
   let stopLayer = L.layerGroup().addTo(map);
+  let arrowLayer = L.layerGroup().addTo(map);
 
   const paradaIcon = L.icon({
     iconUrl: "/static/img/parada_amarilla.svg",
@@ -171,13 +172,11 @@
   }
 
   function resetMapState() {
-    if (routeLayer) {
-      map.removeLayer(routeLayer);
-      routeLayer = null;
-    }
-
+    routeLayers.forEach((layer) => map.removeLayer(layer));
+    routeLayers = [];
     gpsLayer.clearLayers();
     stopLayer.clearLayers();
+    arrowLayer.clearLayers();
   }
 
   async function fetchJson(url, fallbackMessage) {
@@ -195,8 +194,35 @@
     return res.json();
   }
 
-  function drawGpsRoute(puntosInfo) {
-    const coords = puntosInfo.map((punto) => [punto.lat, punto.lng]);
+  function crearFlecha(lat, lng, angulo, punto) {
+    const icon = L.divIcon({
+      className: "",
+      html: `
+        <div style="
+          width: 0;
+          height: 0;
+          border-top: 7px solid transparent;
+          border-bottom: 7px solid transparent;
+          border-left: 14px solid rgba(15, 23, 42, 0.92);
+          transform: rotate(${angulo}deg);
+          filter: drop-shadow(0 1px 2px rgba(255,255,255,.25));
+        "></div>
+      `,
+      iconSize: [14, 14],
+      iconAnchor: [7, 7]
+    });
+
+    L.marker([lat, lng], { icon })
+      .bindPopup(`
+        <strong>Hora:</strong> ${punto.hora}<br>
+        <strong>Velocidad:</strong> ${punto.velocidad} km/h<br>
+        <small>${punto.lat.toFixed(5)}, ${punto.lng.toFixed(5)}</small>
+      `)
+      .addTo(arrowLayer);
+  }
+
+  function dibujarTramo(tramo) {
+    const coords = tramo.map((punto) => [punto.lat, punto.lng]);
 
     if (coords.length === 1) {
       const unico = coords[0];
@@ -208,28 +234,72 @@
         fillOpacity: 0.85
       })
         .bindPopup(`
-          <strong>Hora:</strong> ${puntosInfo[0].hora}<br>
-          <strong>Velocidad:</strong> ${puntosInfo[0].velocidad} km/h
+          <strong>Hora:</strong> ${tramo[0].hora}<br>
+          <strong>Velocidad:</strong> ${tramo[0].velocidad} km/h
         `)
         .addTo(gpsLayer);
-
-      map.setView(unico, 16);
-      return;
+      return coords;
     }
 
-    routeLayer = L.polyline(coords, {
-      color: "#ffffff",
+    const polyline = L.polyline(coords, {
+      color: "#e5eefc",
       weight: 5,
-      opacity: 0.95
+      opacity: 0.96,
+      lineJoin: "round"
     }).addTo(map);
+
+    routeLayers.push(polyline);
+
+    for (let i = 0; i < tramo.length; i += 12) {
+      const actual = tramo[i];
+      const siguiente = tramo[Math.min(i + 1, tramo.length - 1)];
+      if (!siguiente || (actual.lat === siguiente.lat && actual.lng === siguiente.lng)) {
+        continue;
+      }
+
+      const angulo = Math.atan2(
+        siguiente.lat - actual.lat,
+        siguiente.lng - actual.lng
+      ) * 180 / Math.PI;
+
+      crearFlecha(actual.lat, actual.lng, angulo, actual);
+    }
+
+    return coords;
+  }
+
+  function drawGpsRoute(puntosInfo) {
+    const tramos = [];
+    const agrupados = new Map();
+
+    puntosInfo.forEach((punto) => {
+      const clave = punto.salida_id || "sin_salida";
+      if (!agrupados.has(clave)) {
+        agrupados.set(clave, []);
+      }
+      agrupados.get(clave).push(punto);
+    });
+
+    agrupados.forEach((tramo) => {
+      if (tramo.length) {
+        tramos.push(tramo);
+      }
+    });
+
+    const bounds = [];
+
+    tramos.forEach((tramo) => {
+      const coords = dibujarTramo(tramo);
+      coords.forEach((coord) => bounds.push(coord));
+    });
 
     puntosInfo.forEach((punto) => {
       L.circleMarker([punto.lat, punto.lng], {
-        radius: 4,
+        radius: 3,
         color: "#8be9fd",
         weight: 1,
         fillColor: "#8be9fd",
-        fillOpacity: 0.8
+        fillOpacity: 0.7
       })
         .bindPopup(`
           <strong>Hora:</strong> ${punto.hora}<br>
@@ -239,9 +309,13 @@
         .addTo(gpsLayer);
     });
 
-    map.fitBounds(routeLayer.getBounds(), {
-      padding: [35, 35]
-    });
+    if (bounds.length === 1) {
+      map.setView(bounds[0], 16);
+    } else if (bounds.length > 1) {
+      map.fitBounds(bounds, {
+        padding: [35, 35]
+      });
+    }
   }
 
   function drawStops(paradas) {
@@ -288,7 +362,8 @@
               lat: Number(punto.lat),
               lng: Number(punto.lng),
               hora: punto.hora || "",
-              velocidad: Number(punto.velocidad || 0)
+              velocidad: Number(punto.velocidad || 0),
+              salida_id: punto.salida_id || null
             }))
             .filter((punto) => Number.isFinite(punto.lat) && Number.isFinite(punto.lng))
         : [];

@@ -1471,6 +1471,7 @@ def api_recorrido_vehiculo(request):
                 "lng": registro.lng,
                 "hora": registro.timestamp.strftime("%H:%M:%S"),
                 "velocidad": registro.velocidad or 0,
+                "salida_id": salida.id,
             })
 
     return JsonResponse(data, safe=False)
