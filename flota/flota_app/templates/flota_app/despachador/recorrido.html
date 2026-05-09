@@ -179,6 +179,40 @@
     arrowLayer.clearLayers();
   }
 
+  function dibujarRutaReal(coords) {
+    if (!Array.isArray(coords) || coords.length < 2) {
+      return [];
+    }
+
+    const base = L.polyline(coords, {
+      color: "#000",
+      weight: 16,
+      opacity: 0.7,
+      lineCap: "round",
+      lineJoin: "round"
+    }).addTo(map);
+
+    const carril = L.polyline(coords, {
+      color: "#e5e5e5",
+      weight: 12,
+      opacity: 0.95,
+      lineCap: "round",
+      lineJoin: "round"
+    }).addTo(map);
+
+    const guia = L.polyline(coords, {
+      color: "#00e5ff",
+      weight: 4,
+      dashArray: "10,10",
+      opacity: 0.9,
+      lineCap: "round",
+      lineJoin: "round"
+    }).addTo(map);
+
+    routeLayers.push(base, carril, guia);
+    return coords;
+  }
+
   async function fetchJson(url, fallbackMessage) {
     const res = await fetch(url);
     if (!res.ok) {
@@ -241,15 +275,6 @@
       return coords;
     }
 
-    const polyline = L.polyline(coords, {
-      color: "#e5eefc",
-      weight: 5,
-      opacity: 0.96,
-      lineJoin: "round"
-    }).addTo(map);
-
-    routeLayers.push(polyline);
-
     for (let i = 0; i < tramo.length; i += 12) {
       const actual = tramo[i];
       const siguiente = tramo[Math.min(i + 1, tramo.length - 1)];
@@ -268,7 +293,7 @@
     return coords;
   }
 
-  function drawGpsRoute(puntosInfo) {
+  function drawGpsMarkers(puntosInfo) {
     const tramos = [];
     const agrupados = new Map();
 
@@ -351,30 +376,46 @@
     setEstadoRecorrido("Cargando recorrido...");
 
     try {
-      const data = await fetchJson(
+      const payload = await fetchJson(
         `/sistema/api/despachador/recorrido/?vehiculo=${vehiculo}&fecha=${fecha}`,
         "Error consultando recorrido"
       );
 
-      const puntosInfo = Array.isArray(data)
-        ? data
-            .map((punto) => ({
-              lat: Number(punto.lat),
-              lng: Number(punto.lng),
-              hora: punto.hora || "",
-              velocidad: Number(punto.velocidad || 0),
-              salida_id: punto.salida_id || null
-            }))
-            .filter((punto) => Number.isFinite(punto.lat) && Number.isFinite(punto.lng))
-        : [];
+      const rutas = Array.isArray(payload.rutas) ? payload.rutas : [];
+      const gpsRaw = Array.isArray(payload.gps) ? payload.gps : [];
 
-      if (!puntosInfo.length) {
-        setEstadoRecorrido("No hay registros GPS validos para esa fecha.");
+      const puntosInfo = gpsRaw
+        .map((punto) => ({
+          lat: Number(punto.lat),
+          lng: Number(punto.lng),
+          hora: punto.hora || "",
+          velocidad: Number(punto.velocidad || 0),
+          salida_id: punto.salida_id || null
+        }))
+        .filter((punto) => Number.isFinite(punto.lat) && Number.isFinite(punto.lng));
+
+      if (!puntosInfo.length && !rutas.length) {
+        setEstadoRecorrido("No hay datos de recorrido para esa fecha.");
         map.setView(MAP_CENTER, 13);
         return;
       }
 
-      drawGpsRoute(puntosInfo);
+      const routeBounds = [];
+      rutas
+        .filter((ruta) => Array.isArray(ruta.geometria) && ruta.geometria.length > 1)
+        .forEach((ruta) => {
+          const coords = dibujarRutaReal(ruta.geometria);
+          coords.forEach((coord) => routeBounds.push(coord));
+        });
+
+      drawGpsMarkers(puntosInfo);
+
+      if (routeBounds.length > 1) {
+        map.fitBounds(routeBounds, {
+          padding: [35, 35]
+        });
+      }
+
       setEstadoRecorrido(`Se cargaron ${puntosInfo.length} punto(s) GPS.`);
 
       fetchJson(

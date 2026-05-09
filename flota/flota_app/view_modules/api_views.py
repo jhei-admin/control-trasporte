@@ -1452,10 +1452,21 @@ def api_recorrido_vehiculo(request):
     if not salidas:
         return JsonResponse([], safe=False)
 
+    rutas_payload = []
+    rutas_vistas = set()
     data = []
     for index, salida in enumerate(salidas):
         if not salida.hora_real_salida:
             continue
+
+        ruta = salida.ruta
+        if ruta and ruta.id not in rutas_vistas:
+            rutas_payload.append({
+                "id": ruta.id,
+                "nombre": ruta.nombre,
+                "geometria": _serializar_geometria_ruta(ruta),
+            })
+            rutas_vistas.add(ruta.id)
 
         inicio = salida.hora_real_salida
         fin = salidas[index + 1].hora_real_salida if index + 1 < len(salidas) and salidas[index + 1].hora_real_salida else timezone.now()
@@ -1474,7 +1485,10 @@ def api_recorrido_vehiculo(request):
                 "salida_id": salida.id,
             })
 
-    return JsonResponse(data, safe=False)
+    return JsonResponse({
+        "gps": data,
+        "rutas": rutas_payload,
+    })
 
 
 @login_required
