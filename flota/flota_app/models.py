@@ -930,6 +930,51 @@ class UbicacionVehiculo(models.Model):
             models.Index(fields=["vehiculo", "updated_at"])
         ]
 
+
+# =========================
+# ESTADO TECNICO DEL DISPOSITIVO
+# =========================
+class EstadoDispositivo(models.Model):
+    vehiculo = models.OneToOneField(
+        Vehiculo,
+        on_delete=models.CASCADE,
+        related_name="estado_dispositivo",
+        db_index=True,
+    )
+
+    kiosco_activo = models.BooleanField(default=False, db_index=True)
+    pantalla_fija_activa = models.BooleanField(default=False)
+
+    wifi_conectado = models.BooleanField(default=False, db_index=True)
+    wifi_ssid = models.CharField(max_length=100, blank=True, default="")
+    internet_disponible = models.BooleanField(default=False, db_index=True)
+    gps_activo = models.BooleanField(default=False, db_index=True)
+
+    bateria_porcentaje = models.PositiveSmallIntegerField(null=True, blank=True)
+    ip_local = models.GenericIPAddressField(null=True, blank=True)
+
+    app_version = models.CharField(max_length=50, blank=True, default="")
+    app_version_code = models.CharField(max_length=30, blank=True, default="")
+    android_version = models.CharField(max_length=30, blank=True, default="")
+    device_model = models.CharField(max_length=80, blank=True, default="")
+
+    ultimo_reinicio_en = models.DateTimeField(null=True, blank=True)
+    reportado_en = models.DateTimeField(auto_now=True, db_index=True)
+    creado_en = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Estado del dispositivo"
+        verbose_name_plural = "Estados de dispositivos"
+        indexes = [
+            models.Index(fields=["reportado_en"]),
+            models.Index(fields=["vehiculo", "reportado_en"]),
+            models.Index(fields=["kiosco_activo", "reportado_en"]),
+            models.Index(fields=["wifi_conectado", "internet_disponible"]),
+        ]
+
+    def __str__(self):
+        return f"Unidad {self.vehiculo.codigo} | {'KIOSCO' if self.kiosco_activo else 'NORMAL'}"
+    
 class ParadaQuerySet(models.QuerySet):
     def for_empresa(self, empresa):
         if empresa is None:

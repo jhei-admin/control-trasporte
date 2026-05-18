@@ -6,6 +6,7 @@ from .view_modules.api_views import (
     api_app_cola_contexto,
     api_app_control_marcar,
     api_app_control_ruta,
+    api_app_device_status,
     api_app_ganancias,
     api_app_ganancias_movimiento,
     api_app_mensajes,
@@ -227,6 +228,16 @@ urlpatterns = [
     path(
         "api/app/heartbeat",
         api_heartbeat
+    ),
+
+    path(
+        "api/app/device-status/",
+        api_app_device_status,
+        name="api_app_device_status"
+    ),
+    path(
+        "api/app/device-status",
+        api_app_device_status
     ),
 
     # =========================

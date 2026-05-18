@@ -21,6 +21,7 @@ from django.views.decorators.http import require_GET, require_POST
 from ..decorators import empresa_required
 from ..models import (
     ConfiguracionDespacho,
+    EstadoDispositivo,
     GPSRegistro,
     MarcacionPunto,
     MensajeGlobal,
@@ -49,6 +50,7 @@ from .reportes_views import _construir_reporte_salidas_diarias_contexto
 __all__ = [
     "api_admin_limpiar_gps",
     "api_app_cola_contexto",
+    "api_app_device_status",
     "api_app_mapa_operativo",
     "api_app_gerencia_login",
     "api_app_gerencia_mapa",
@@ -1963,6 +1965,95 @@ def api_heartbeat(request):
             ),
         }
 
+    return _disable_cache(JsonResponse(respuesta))
+
+
+def _as_bool(value):
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return False
+    if isinstance(value, (int, float)):
+        return value != 0
+    return str(value).strip().lower() in {"1", "true", "si", "sí", "yes", "on"}
+
+
+def _as_optional_int(value):
+    if value in (None, "", "null"):
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _as_optional_datetime(value):
+    if not value:
+        return None
+    if isinstance(value, datetime):
+        return value
+    try:
+        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if timezone.is_naive(parsed):
+        parsed = timezone.make_aware(parsed, timezone.get_current_timezone())
+    return parsed
+
+
+@csrf_exempt
+@require_POST
+def api_app_device_status(request):
+    auth = request.headers.get("Authorization", "")
+    if not auth.startswith("Bearer "):
+        response = JsonResponse(
+            {"ok": False, "motivo": "TOKEN_REQUERIDO"},
+            status=401,
+        )
+        return _disable_cache(response)
+
+    token = auth.replace("Bearer ", "").strip()
+    sesion = validar_sesion(token)
+    if not sesion:
+        response = JsonResponse(
+            {"ok": False, "motivo": "SESION_INVALIDA"},
+            status=403,
+        )
+        return _disable_cache(response)
+
+    try:
+        data = json.loads(request.body or "{}")
+    except json.JSONDecodeError:
+        response = JsonResponse(
+            {"ok": False, "motivo": "JSON_INVALIDO"},
+            status=400,
+        )
+        return _disable_cache(response)
+
+    estado, _ = EstadoDispositivo.objects.update_or_create(
+        vehiculo=sesion.vehiculo,
+        defaults={
+            "kiosco_activo": _as_bool(data.get("kiosco_activo")),
+            "pantalla_fija_activa": _as_bool(data.get("pantalla_fija_activa")),
+            "wifi_conectado": _as_bool(data.get("wifi_conectado")),
+            "wifi_ssid": str(data.get("wifi_ssid") or "").strip(),
+            "internet_disponible": _as_bool(data.get("internet_disponible")),
+            "gps_activo": _as_bool(data.get("gps_activo")),
+            "bateria_porcentaje": _as_optional_int(data.get("bateria_porcentaje")),
+            "ip_local": str(data.get("ip_local") or "").strip() or None,
+            "app_version": str(data.get("app_version") or "").strip(),
+            "app_version_code": str(data.get("app_version_code") or "").strip(),
+            "android_version": str(data.get("android_version") or "").strip(),
+            "device_model": str(data.get("device_model") or "").strip(),
+            "ultimo_reinicio_en": _as_optional_datetime(data.get("ultimo_reinicio_en")),
+        },
+    )
+
+    respuesta = {
+        "ok": True,
+        "vehiculo": sesion.vehiculo.codigo,
+        "reportado_en": estado.reportado_en.isoformat(),
+    }
     return _disable_cache(JsonResponse(respuesta))
 
 

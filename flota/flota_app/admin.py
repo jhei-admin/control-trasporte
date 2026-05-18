@@ -1,5 +1,7 @@
 from django.contrib import admin
+from .services import calcular_estado_sesion
 from .models import (
+    EstadoDispositivo,
     Vehiculo,
     Ruta,
     RegistroSalida,
@@ -262,6 +264,59 @@ class UbicacionVehiculoAdmin(admin.ModelAdmin):
 # =================================================
 # 📢 MENSAJES GLOBALES (APP CONDUCTOR)
 # =================================================
+@admin.register(EstadoDispositivo)
+class EstadoDispositivoAdmin(admin.ModelAdmin):
+    list_display = (
+        "vehiculo",
+        "empresa",
+        "estado_operacion",
+        "kiosco_activo",
+        "wifi_conectado",
+        "wifi_ssid",
+        "internet_disponible",
+        "gps_activo",
+        "bateria_porcentaje",
+        "app_version",
+        "reportado_en",
+    )
+
+    list_filter = (
+        "kiosco_activo",
+        "wifi_conectado",
+        "internet_disponible",
+        "gps_activo",
+    )
+
+    search_fields = (
+        "vehiculo__codigo",
+        "vehiculo__placa",
+        "vehiculo__empresa__nombre",
+        "wifi_ssid",
+        "device_model",
+        "android_version",
+    )
+
+    ordering = ("-reportado_en",)
+
+    readonly_fields = (
+        "creado_en",
+        "reportado_en",
+    )
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).select_related("vehiculo", "vehiculo__empresa")
+
+    def empresa(self, obj):
+        return obj.vehiculo.empresa
+
+    def estado_operacion(self, obj):
+        sesion = obj.vehiculo.sesiones.filter(activa=True).order_by("-creada_en").first()
+        return calcular_estado_sesion(sesion) if sesion else "SIN_SESION"
+
+    empresa.short_description = "Empresa"
+    estado_operacion.short_description = "Estado app"
+
+
 @admin.register(MensajeGlobal)
 class MensajeGlobalAdmin(admin.ModelAdmin):
     list_display = (
