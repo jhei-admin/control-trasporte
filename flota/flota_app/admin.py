@@ -1,4 +1,6 @@
 from django.contrib import admin
+from django.utils import timezone
+from django.utils.html import format_html
 from .services import calcular_estado_sesion
 from .models import (
     EstadoDispositivo,
@@ -267,17 +269,15 @@ class UbicacionVehiculoAdmin(admin.ModelAdmin):
 @admin.register(EstadoDispositivo)
 class EstadoDispositivoAdmin(admin.ModelAdmin):
     list_display = (
-        "vehiculo",
+        "unidad",
         "empresa",
-        "estado_operacion",
-        "kiosco_activo",
-        "wifi_conectado",
-        "wifi_ssid",
-        "internet_disponible",
-        "gps_activo",
-        "bateria_porcentaje",
-        "app_version",
-        "reportado_en",
+        "estado_general",
+        "estado_operacion_badge",
+        "modo_kiosco",
+        "conectividad",
+        "bateria",
+        "version_app",
+        "ultimo_reporte",
     )
 
     list_filter = (
@@ -297,10 +297,81 @@ class EstadoDispositivoAdmin(admin.ModelAdmin):
     )
 
     ordering = ("-reportado_en",)
-
+    list_select_related = ("vehiculo", "vehiculo__empresa")
+    list_per_page = 30
     readonly_fields = (
+        "vehiculo",
+        "resumen_ejecutivo",
+        "estado_general",
+        "estado_operacion_badge",
+        "modo_kiosco",
+        "conectividad",
+        "bateria",
+        "version_app",
+        "ultimo_reporte",
+        "kiosco_activo",
+        "pantalla_fija_activa",
+        "wifi_conectado",
+        "wifi_ssid",
+        "internet_disponible",
+        "gps_activo",
+        "bateria_porcentaje",
+        "ip_local",
+        "app_version",
+        "app_version_code",
+        "android_version",
+        "device_model",
+        "ultimo_reinicio_en",
         "creado_en",
         "reportado_en",
+    )
+    fieldsets = (
+        (
+            "Resumen ejecutivo",
+            {
+                "fields": (
+                    "vehiculo",
+                    "resumen_ejecutivo",
+                    "estado_general",
+                    "estado_operacion_badge",
+                    "modo_kiosco",
+                    "conectividad",
+                    "bateria",
+                    "version_app",
+                    "ultimo_reporte",
+                )
+            },
+        ),
+        (
+            "Conectividad y operacion",
+            {
+                "fields": (
+                    ("kiosco_activo", "pantalla_fija_activa"),
+                    ("wifi_conectado", "wifi_ssid"),
+                    ("internet_disponible", "gps_activo"),
+                    ("bateria_porcentaje", "ip_local"),
+                )
+            },
+        ),
+        (
+            "Sistema",
+            {
+                "fields": (
+                    ("app_version", "app_version_code"),
+                    ("android_version", "device_model"),
+                )
+            },
+        ),
+        (
+            "Tiempos",
+            {
+                "fields": (
+                    "ultimo_reinicio_en",
+                    "reportado_en",
+                    "creado_en",
+                )
+            },
+        ),
     )
 
     def get_queryset(self, request):
@@ -309,12 +380,124 @@ class EstadoDispositivoAdmin(admin.ModelAdmin):
     def empresa(self, obj):
         return obj.vehiculo.empresa
 
+    def unidad(self, obj):
+        return f"Unidad {obj.vehiculo.codigo}"
+
     def estado_operacion(self, obj):
         sesion = obj.vehiculo.sesiones.filter(activa=True).order_by("-creada_en").first()
         return calcular_estado_sesion(sesion) if sesion else "SIN_SESION"
 
+    def _badge(self, text, bg, fg="#ffffff"):
+        return format_html(
+            '<span style="display:inline-block;padding:4px 10px;border-radius:999px;'
+            'background:{};color:{};font-weight:700;font-size:11px;letter-spacing:.3px;">{}</span>',
+            bg,
+            fg,
+            text,
+        )
+
+    def _bool_badge(self, value, ok_text="OK", bad_text="NO"):
+        return self._badge(ok_text, "#1f9d55") if value else self._badge(bad_text, "#d64545")
+
+    def estado_operacion_badge(self, obj):
+        estado = self.estado_operacion(obj)
+        colors = {
+            "EN_RUTA": ("EN RUTA", "#1f9d55"),
+            "DETENIDO": ("DETENIDO", "#1d72b8"),
+            "SIN_SENAL": ("SIN SENAL", "#d97706"),
+            "SIN_GPS": ("SIN GPS", "#d97706"),
+            "BLOQUEADO": ("BLOQUEADO", "#d64545"),
+            "SIN_SESION": ("SIN SESION", "#6b7280"),
+        }
+        label, color = colors.get(estado, (estado, "#6b7280"))
+        return self._badge(label, color)
+
+    def estado_general(self, obj):
+        minutos_sin_reporte = (timezone.now() - obj.reportado_en).total_seconds() / 60
+        if minutos_sin_reporte > 5:
+            return self._badge("SIN REPORTE", "#d64545")
+        if not obj.kiosco_activo:
+            return self._badge("SIN KIOSCO", "#d97706")
+        if not obj.wifi_conectado:
+            return self._badge("SIN WIFI", "#d97706")
+        if not obj.internet_disponible:
+            return self._badge("SIN INTERNET", "#d97706")
+        if not obj.gps_activo:
+            return self._badge("SIN GPS", "#d97706")
+        return self._badge("OK", "#1f9d55")
+
+    def modo_kiosco(self, obj):
+        principal = self._bool_badge(obj.kiosco_activo, "KIOSCO", "NORMAL")
+        secundario = self._bool_badge(obj.pantalla_fija_activa, "LOCK TASK", "SIN LOCK")
+        return format_html("{} {}", principal, secundario)
+
+    def conectividad(self, obj):
+        wifi = self._bool_badge(obj.wifi_conectado, "WIFI", "SIN WIFI")
+        net = self._bool_badge(obj.internet_disponible, "NET", "SIN NET")
+        gps = self._bool_badge(obj.gps_activo, "GPS", "SIN GPS")
+        ssid = format_html(
+            '<div style="margin-top:4px;color:#4b5563;font-size:11px;">{}</div>',
+            obj.wifi_ssid or "Sin SSID",
+        )
+        return format_html("{} {} {} {}", wifi, net, gps, ssid)
+
+    def bateria(self, obj):
+        if obj.bateria_porcentaje is None:
+            return self._badge("SIN DATO", "#6b7280")
+        color = "#1f9d55" if obj.bateria_porcentaje >= 50 else "#d97706" if obj.bateria_porcentaje >= 20 else "#d64545"
+        return self._badge(f"{obj.bateria_porcentaje}%", color)
+
+    def version_app(self, obj):
+        version = obj.app_version or "Sin version"
+        code = obj.app_version_code or "-"
+        return format_html(
+            '<strong>{}</strong><div style="color:#4b5563;font-size:11px;">code {}</div>',
+            version,
+            code,
+        )
+
+    def ultimo_reporte(self, obj):
+        delta = timezone.now() - obj.reportado_en
+        minutos = int(delta.total_seconds() // 60)
+        if minutos <= 1:
+            badge = self._badge("AHORA", "#1f9d55")
+        elif minutos <= 5:
+            badge = self._badge(f"{minutos} MIN", "#1d72b8")
+        else:
+            badge = self._badge(f"{minutos} MIN", "#d64545")
+        return format_html(
+            '{}<div style="color:#4b5563;font-size:11px;margin-top:4px;">{}</div>',
+            badge,
+            timezone.localtime(obj.reportado_en).strftime("%d/%m/%Y %H:%M:%S"),
+        )
+
+    def resumen_ejecutivo(self, obj):
+        return format_html(
+            "<div><strong>Unidad {}</strong> | {} | {} | bateria {}%</div>"
+            "<div style='margin-top:6px;color:#4b5563;'>SSID: {} | IP: {} | Android {} | {}</div>",
+            obj.vehiculo.codigo,
+            self.estado_operacion(obj).replace("_", " "),
+            "Kiosco activo" if obj.kiosco_activo else "Modo normal",
+            obj.bateria_porcentaje if obj.bateria_porcentaje is not None else "-",
+            obj.wifi_ssid or "Sin WiFi",
+            obj.ip_local or "Sin IP",
+            obj.android_version or "-",
+            obj.device_model or "-",
+        )
+
+    def has_add_permission(self, request):
+        return False
+
     empresa.short_description = "Empresa"
-    estado_operacion.short_description = "Estado app"
+    unidad.short_description = "Unidad"
+    estado_operacion_badge.short_description = "Estado app"
+    estado_general.short_description = "Estado general"
+    modo_kiosco.short_description = "Modo kiosco"
+    conectividad.short_description = "Conectividad"
+    bateria.short_description = "Bateria"
+    version_app.short_description = "Version"
+    ultimo_reporte.short_description = "Ultimo reporte"
+    resumen_ejecutivo.short_description = "Ficha tecnica"
 
 
 @admin.register(MensajeGlobal)
