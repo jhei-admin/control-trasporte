@@ -4,6 +4,8 @@ from django.urls import path
 from .view_modules.api_views import (
     api_admin_limpiar_gps,
     api_app_cola_contexto,
+    api_app_command_ack,
+    api_app_command_pull,
     api_app_control_marcar,
     api_app_control_ruta,
     api_app_device_status,
@@ -238,6 +240,25 @@ urlpatterns = [
     path(
         "api/app/device-status",
         api_app_device_status
+    ),
+
+    path(
+        "api/app/device-command/pull/",
+        api_app_command_pull,
+        name="api_app_command_pull"
+    ),
+    path(
+        "api/app/device-command/pull",
+        api_app_command_pull
+    ),
+    path(
+        "api/app/device-command/ack/",
+        api_app_command_ack,
+        name="api_app_command_ack"
+    ),
+    path(
+        "api/app/device-command/ack",
+        api_app_command_ack
     ),
 
     # =========================

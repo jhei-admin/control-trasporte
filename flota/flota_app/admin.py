@@ -4,6 +4,7 @@ from django.utils import timezone
 from django.utils.html import format_html
 from .services import calcular_estado_sesion
 from .models import (
+    ComandoDispositivo,
     EstadoDispositivo,
     Vehiculo,
     Ruta,
@@ -516,6 +517,80 @@ class EstadoDispositivoAdmin(admin.ModelAdmin):
     version_app.short_description = "Version"
     ultimo_reporte.short_description = "Ultimo reporte"
     resumen_ejecutivo.short_description = "Ficha tecnica"
+
+
+@admin.register(ComandoDispositivo)
+class ComandoDispositivoAdmin(admin.ModelAdmin):
+    list_display = (
+        "unidad",
+        "empresa",
+        "tipo_badge",
+        "estado_badge",
+        "nota",
+        "solicitado_en",
+        "actualizado_en",
+    )
+    list_filter = ("tipo", "estado")
+    search_fields = (
+        "vehiculo__codigo",
+        "vehiculo__placa",
+        "vehiculo__empresa__nombre",
+        "nota",
+    )
+    ordering = ("estado", "-solicitado_en")
+    list_select_related = ("vehiculo", "vehiculo__empresa")
+    readonly_fields = (
+        "solicitado_en",
+        "entregado_en",
+        "aplicado_en",
+        "actualizado_en",
+        "detalle_error",
+    )
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).select_related("vehiculo", "vehiculo__empresa")
+
+    def unidad(self, obj):
+        return f"Unidad {obj.vehiculo.codigo}"
+
+    def empresa(self, obj):
+        return obj.vehiculo.empresa
+
+    def tipo_badge(self, obj):
+        labels = {
+            ComandoDispositivo.TIPO_FORZAR_SYNC: ("SYNC", "#1d72b8"),
+            ComandoDispositivo.TIPO_REPORTAR_ESTADO: ("STATUS", "#1d72b8"),
+            ComandoDispositivo.TIPO_REABRIR_APP: ("REABRIR", "#6b7280"),
+            ComandoDispositivo.TIPO_ACTIVAR_KIOSCO: ("KIOSCO ON", "#1f9d55"),
+            ComandoDispositivo.TIPO_SALIR_KIOSCO: ("KIOSCO OFF", "#d97706"),
+            ComandoDispositivo.TIPO_ABRIR_WIFI_TECNICO: ("WIFI", "#7c3aed"),
+        }
+        text, color = labels.get(obj.tipo, (obj.tipo, "#6b7280"))
+        return format_html(
+            '<span style="display:inline-block;padding:4px 10px;border-radius:999px;background:{};color:#fff;font-weight:700;font-size:11px;">{}</span>',
+            color,
+            text,
+        )
+
+    def estado_badge(self, obj):
+        colors = {
+            ComandoDispositivo.ESTADO_PENDIENTE: ("PENDIENTE", "#d97706"),
+            ComandoDispositivo.ESTADO_ENTREGADO: ("ENTREGADO", "#1d72b8"),
+            ComandoDispositivo.ESTADO_APLICADO: ("APLICADO", "#1f9d55"),
+            ComandoDispositivo.ESTADO_ERROR: ("ERROR", "#d64545"),
+            ComandoDispositivo.ESTADO_CANCELADO: ("CANCELADO", "#6b7280"),
+        }
+        text, color = colors.get(obj.estado, (obj.estado, "#6b7280"))
+        return format_html(
+            '<span style="display:inline-block;padding:4px 10px;border-radius:999px;background:{};color:#fff;font-weight:700;font-size:11px;">{}</span>',
+            color,
+            text,
+        )
+
+    unidad.short_description = "Unidad"
+    empresa.short_description = "Empresa"
+    tipo_badge.short_description = "Comando"
+    estado_badge.short_description = "Estado"
 
 
 @admin.register(MensajeGlobal)

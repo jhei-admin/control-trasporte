@@ -974,6 +974,73 @@ class EstadoDispositivo(models.Model):
 
     def __str__(self):
         return f"Unidad {self.vehiculo.codigo} | {'KIOSCO' if self.kiosco_activo else 'NORMAL'}"
+
+
+class ComandoDispositivo(models.Model):
+    TIPO_FORZAR_SYNC = "FORZAR_SYNC"
+    TIPO_REPORTAR_ESTADO = "REPORTAR_ESTADO"
+    TIPO_REABRIR_APP = "REABRIR_APP"
+    TIPO_ACTIVAR_KIOSCO = "ACTIVAR_KIOSCO"
+    TIPO_SALIR_KIOSCO = "SALIR_KIOSCO"
+    TIPO_ABRIR_WIFI_TECNICO = "ABRIR_WIFI_TECNICO"
+
+    TIPO_CHOICES = (
+        (TIPO_FORZAR_SYNC, "Forzar sincronizacion"),
+        (TIPO_REPORTAR_ESTADO, "Reportar estado"),
+        (TIPO_REABRIR_APP, "Reabrir app"),
+        (TIPO_ACTIVAR_KIOSCO, "Activar kiosco"),
+        (TIPO_SALIR_KIOSCO, "Salir kiosco"),
+        (TIPO_ABRIR_WIFI_TECNICO, "Abrir WiFi tecnico"),
+    )
+
+    ESTADO_PENDIENTE = "PENDIENTE"
+    ESTADO_ENTREGADO = "ENTREGADO"
+    ESTADO_APLICADO = "APLICADO"
+    ESTADO_ERROR = "ERROR"
+    ESTADO_CANCELADO = "CANCELADO"
+
+    ESTADO_CHOICES = (
+        (ESTADO_PENDIENTE, "Pendiente"),
+        (ESTADO_ENTREGADO, "Entregado"),
+        (ESTADO_APLICADO, "Aplicado"),
+        (ESTADO_ERROR, "Error"),
+        (ESTADO_CANCELADO, "Cancelado"),
+    )
+
+    vehiculo = models.ForeignKey(
+        Vehiculo,
+        on_delete=models.CASCADE,
+        related_name="comandos_dispositivo",
+        db_index=True,
+    )
+    tipo = models.CharField(max_length=40, choices=TIPO_CHOICES, db_index=True)
+    estado = models.CharField(
+        max_length=20,
+        choices=ESTADO_CHOICES,
+        default=ESTADO_PENDIENTE,
+        db_index=True,
+    )
+    payload = models.JSONField(default=dict, blank=True)
+    nota = models.CharField(max_length=200, blank=True, default="")
+    detalle_error = models.TextField(blank=True, default="")
+
+    solicitado_en = models.DateTimeField(auto_now_add=True, db_index=True)
+    entregado_en = models.DateTimeField(null=True, blank=True)
+    aplicado_en = models.DateTimeField(null=True, blank=True)
+    actualizado_en = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Comando del dispositivo"
+        verbose_name_plural = "Comandos de dispositivos"
+        indexes = [
+            models.Index(fields=["vehiculo", "estado", "-solicitado_en"]),
+            models.Index(fields=["estado", "-solicitado_en"]),
+            models.Index(fields=["tipo", "estado"]),
+        ]
+        ordering = ["estado", "-solicitado_en", "-id"]
+
+    def __str__(self):
+        return f"Unidad {self.vehiculo.codigo} | {self.tipo} | {self.estado}"
     
 class ParadaQuerySet(models.QuerySet):
     def for_empresa(self, empresa):

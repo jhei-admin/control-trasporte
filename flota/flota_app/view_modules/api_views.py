@@ -20,6 +20,7 @@ from django.views.decorators.http import require_GET, require_POST
 
 from ..decorators import empresa_required
 from ..models import (
+    ComandoDispositivo,
     ConfiguracionDespacho,
     EstadoDispositivo,
     GPSRegistro,
@@ -50,6 +51,8 @@ from .reportes_views import _construir_reporte_salidas_diarias_contexto
 __all__ = [
     "api_admin_limpiar_gps",
     "api_app_cola_contexto",
+    "api_app_command_ack",
+    "api_app_command_pull",
     "api_app_device_status",
     "api_app_mapa_operativo",
     "api_app_gerencia_login",
@@ -2055,6 +2058,100 @@ def api_app_device_status(request):
         "reportado_en": estado.reportado_en.isoformat(),
     }
     return _disable_cache(JsonResponse(respuesta))
+
+
+@csrf_exempt
+@require_POST
+def api_app_command_pull(request):
+    auth = request.headers.get("Authorization", "")
+    if not auth.startswith("Bearer "):
+        response = JsonResponse({"ok": False, "motivo": "TOKEN_REQUERIDO"}, status=401)
+        return _disable_cache(response)
+
+    token = auth.replace("Bearer ", "").strip()
+    sesion = validar_sesion(token)
+    if not sesion:
+        response = JsonResponse({"ok": False, "motivo": "SESION_INVALIDA"}, status=403)
+        return _disable_cache(response)
+
+    comando = (
+        ComandoDispositivo.objects
+        .filter(
+            vehiculo=sesion.vehiculo,
+            estado=ComandoDispositivo.ESTADO_PENDIENTE,
+        )
+        .order_by("solicitado_en", "id")
+        .first()
+    )
+
+    if not comando:
+        return _disable_cache(JsonResponse({"ok": True, "comando": None}))
+
+    ahora = timezone.now()
+    comando.estado = ComandoDispositivo.ESTADO_ENTREGADO
+    comando.entregado_en = ahora
+    comando.save(update_fields=["estado", "entregado_en", "actualizado_en"])
+
+    return _disable_cache(JsonResponse({
+        "ok": True,
+        "comando": {
+            "id": comando.id,
+            "tipo": comando.tipo,
+            "payload": comando.payload,
+            "nota": comando.nota,
+            "solicitado_en": comando.solicitado_en.isoformat(),
+        }
+    }))
+
+
+@csrf_exempt
+@require_POST
+def api_app_command_ack(request):
+    auth = request.headers.get("Authorization", "")
+    if not auth.startswith("Bearer "):
+        response = JsonResponse({"ok": False, "motivo": "TOKEN_REQUERIDO"}, status=401)
+        return _disable_cache(response)
+
+    token = auth.replace("Bearer ", "").strip()
+    sesion = validar_sesion(token)
+    if not sesion:
+        response = JsonResponse({"ok": False, "motivo": "SESION_INVALIDA"}, status=403)
+        return _disable_cache(response)
+
+    try:
+        data = json.loads(request.body or "{}")
+    except json.JSONDecodeError:
+        response = JsonResponse({"ok": False, "motivo": "JSON_INVALIDO"}, status=400)
+        return _disable_cache(response)
+
+    comando_id = data.get("comando_id")
+    resultado = str(data.get("resultado") or "").strip().upper()
+    detalle_error = str(data.get("detalle_error") or "").strip()
+
+    if not comando_id:
+        response = JsonResponse({"ok": False, "motivo": "COMANDO_REQUERIDO"}, status=400)
+        return _disable_cache(response)
+
+    try:
+        comando = ComandoDispositivo.objects.get(id=comando_id, vehiculo=sesion.vehiculo)
+    except ComandoDispositivo.DoesNotExist:
+        response = JsonResponse({"ok": False, "motivo": "COMANDO_NO_ENCONTRADO"}, status=404)
+        return _disable_cache(response)
+
+    if resultado == "APLICADO":
+        comando.estado = ComandoDispositivo.ESTADO_APLICADO
+        comando.aplicado_en = timezone.now()
+        comando.detalle_error = ""
+        comando.save(update_fields=["estado", "aplicado_en", "detalle_error", "actualizado_en"])
+    elif resultado == "ERROR":
+        comando.estado = ComandoDispositivo.ESTADO_ERROR
+        comando.detalle_error = detalle_error
+        comando.save(update_fields=["estado", "detalle_error", "actualizado_en"])
+    else:
+        response = JsonResponse({"ok": False, "motivo": "RESULTADO_INVALIDO"}, status=400)
+        return _disable_cache(response)
+
+    return _disable_cache(JsonResponse({"ok": True, "estado": comando.estado}))
 
 
 @csrf_exempt
