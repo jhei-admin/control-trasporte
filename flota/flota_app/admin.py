@@ -1,4 +1,5 @@
 from django.contrib import admin
+from django.db.models import Case, IntegerField, Value, When
 from django.utils import timezone
 from django.utils.html import format_html
 from .services import calcular_estado_sesion
@@ -296,9 +297,9 @@ class EstadoDispositivoAdmin(admin.ModelAdmin):
         "android_version",
     )
 
-    ordering = ("-reportado_en",)
     list_select_related = ("vehiculo", "vehiculo__empresa")
     list_per_page = 30
+    actions = None
     readonly_fields = (
         "vehiculo",
         "resumen_ejecutivo",
@@ -375,7 +376,26 @@ class EstadoDispositivoAdmin(admin.ModelAdmin):
     )
 
     def get_queryset(self, request):
-        return super().get_queryset(request).select_related("vehiculo", "vehiculo__empresa")
+        limite_reporte = timezone.now() - timezone.timedelta(minutes=5)
+        return (
+            super()
+            .get_queryset(request)
+            .select_related("vehiculo", "vehiculo__empresa")
+            .annotate(
+                alerta_prioridad=Case(
+                    When(reportado_en__lt=limite_reporte, then=Value(0)),
+                    When(kiosco_activo=False, then=Value(1)),
+                    When(wifi_conectado=False, then=Value(2)),
+                    When(internet_disponible=False, then=Value(3)),
+                    When(gps_activo=False, then=Value(4)),
+                    default=Value(5),
+                    output_field=IntegerField(),
+                )
+            )
+        )
+
+    def get_ordering(self, request):
+        return ("alerta_prioridad", "-reportado_en")
 
     def empresa(self, obj):
         return obj.vehiculo.empresa
