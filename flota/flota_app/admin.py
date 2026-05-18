@@ -392,10 +392,8 @@ class EstadoDispositivoAdmin(admin.ModelAdmin):
                     output_field=IntegerField(),
                 )
             )
+            .order_by("alerta_prioridad", "-reportado_en")
         )
-
-    def get_ordering(self, request):
-        return ("alerta_prioridad", "-reportado_en")
 
     def empresa(self, obj):
         return obj.vehiculo.empresa
