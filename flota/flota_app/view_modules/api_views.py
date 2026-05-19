@@ -1,5 +1,7 @@
 from datetime import date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
+import base64
+import hashlib
 from pathlib import Path
 import json
 import math
@@ -62,6 +64,8 @@ __all__ = [
     "api_app_mensajes",
     "api_app_version",
     "api_app_update_apk",
+    "api_admin_update_apk",
+    "api_admin_provisioning_qr",
     "api_app_control_ruta",
     "api_app_control_marcar",
     "api_app_estado",
@@ -207,6 +211,31 @@ def _resolve_app_update_url(request):
     return request.build_absolute_uri(reverse("api_app_update_apk"))
 
 
+def _resolve_admin_update_url(request):
+    explicit_dpc_url = getattr(settings, "ADMIN_DPC_DOWNLOAD_URL", "").strip()
+    if explicit_dpc_url:
+        return explicit_dpc_url
+
+    external_url = getattr(settings, "ADMIN_APP_UPDATE_APK_URL", "").strip()
+    if external_url:
+        return external_url
+
+    return request.build_absolute_uri(reverse("api_admin_update_apk"))
+
+
+def _build_admin_package_checksum():
+    configured_checksum = getattr(settings, "ADMIN_DPC_PACKAGE_CHECKSUM", "").strip()
+    if configured_checksum:
+        return configured_checksum
+
+    apk_path = Path(getattr(settings, "ADMIN_APP_UPDATE_APK_PATH", ""))
+    if not apk_path.is_file():
+        return ""
+
+    digest = hashlib.sha256(apk_path.read_bytes()).digest()
+    return base64.urlsafe_b64encode(digest).decode("ascii").rstrip("=")
+
+
 @require_GET
 def api_app_version(request):
     latest_version_code = int(getattr(settings, "APP_LATEST_VERSION_CODE", 0) or 0)
@@ -251,6 +280,80 @@ def api_app_update_apk(request):
     )
     response["Cache-Control"] = "no-store, max-age=0"
     return response
+
+
+@require_GET
+def api_admin_update_apk(request):
+    external_url = getattr(settings, "ADMIN_APP_UPDATE_APK_URL", "").strip()
+    if external_url:
+        return HttpResponseRedirect(external_url)
+
+    apk_path = Path(getattr(settings, "ADMIN_APP_UPDATE_APK_PATH", ""))
+    if not apk_path.is_file():
+        raise Http404("APK admin no disponible")
+
+    response = FileResponse(
+        apk_path.open("rb"),
+        as_attachment=True,
+        filename=apk_path.name,
+        content_type="application/vnd.android.package-archive",
+    )
+    response["Cache-Control"] = "no-store, max-age=0"
+    return response
+
+
+@require_GET
+def api_admin_provisioning_qr(request):
+    component_name = getattr(settings, "ADMIN_DPC_COMPONENT_NAME", "").strip()
+    package_download_url = _resolve_admin_update_url(request)
+    package_checksum = _build_admin_package_checksum()
+    server_url = request.build_absolute_uri("/sistema/")
+
+    if not component_name or not package_download_url or not package_checksum:
+        return JsonResponse(
+            {
+                "ok": False,
+                "motivo": "PROVISIONING_INCOMPLETO",
+                "component_name": component_name,
+                "package_download_url": package_download_url,
+                "package_checksum": package_checksum,
+            },
+            status=503,
+        )
+
+    payload = {
+        "android.app.extra.PROVISIONING_DEVICE_ADMIN_COMPONENT_NAME": component_name,
+        "android.app.extra.PROVISIONING_DEVICE_ADMIN_PACKAGE_DOWNLOAD_LOCATION": package_download_url,
+        "android.app.extra.PROVISIONING_DEVICE_ADMIN_PACKAGE_CHECKSUM": package_checksum,
+        "android.app.extra.PROVISIONING_SKIP_ENCRYPTION": bool(
+            getattr(settings, "ADMIN_DPC_SKIP_ENCRYPTION", True)
+        ),
+        "android.app.extra.PROVISIONING_LEAVE_ALL_SYSTEM_APPS_ENABLED": bool(
+            getattr(settings, "ADMIN_DPC_LEAVE_ALL_SYSTEM_APPS_ENABLED", True)
+        ),
+        "android.app.extra.PROVISIONING_ADMIN_EXTRAS_BUNDLE": {
+            "server_url": server_url,
+            "device_token": "",
+            "auto_start": True,
+        },
+    }
+
+    return JsonResponse(
+        {
+            "ok": True,
+            "modo": "fully_managed_device",
+            "component_name": component_name,
+            "download_url": package_download_url,
+            "package_checksum": package_checksum,
+            "payload": payload,
+            "instrucciones": [
+                "Resetea el equipo y entra al asistente inicial.",
+                "En la pantalla inicial toca varias veces para abrir el lector QR de Android Enterprise si el equipo lo soporta.",
+                "Escanea el payload QR generado a partir de este JSON.",
+                "Completa el enrolamiento y luego verifica GPS Flota Admin como Device Owner.",
+            ],
+        }
+    )
 
 
 def _serializar_salida_panel(salida, ruta_actual_id, fecha_operativa_iso, hora_actual_hhmm):

@@ -3,6 +3,8 @@ from django.urls import path
 
 from .view_modules.api_views import (
     api_admin_limpiar_gps,
+    api_admin_provisioning_qr,
+    api_admin_update_apk,
     api_app_cola_contexto,
     api_app_command_ack,
     api_app_command_pull,
@@ -69,6 +71,24 @@ urlpatterns = [
     path(
         "api/admin/limpiar-gps",
         api_admin_limpiar_gps
+    ),
+    path(
+        "api/admin/provisioning-qr/",
+        api_admin_provisioning_qr,
+        name="api_admin_provisioning_qr"
+    ),
+    path(
+        "api/admin/provisioning-qr",
+        api_admin_provisioning_qr
+    ),
+    path(
+        "api/admin/update-apk/",
+        api_admin_update_apk,
+        name="api_admin_update_apk"
+    ),
+    path(
+        "api/admin/update-apk",
+        api_admin_update_apk
     ),
 
     path(

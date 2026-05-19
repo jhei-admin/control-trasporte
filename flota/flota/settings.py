@@ -369,6 +369,23 @@ APP_UPDATE_APK_FILENAME = (
     or "gpsflotaaqp-latest.apk"
 )
 APP_UPDATE_APK_PATH = BASE_DIR / "app_updates" / APP_UPDATE_APK_FILENAME
+ADMIN_APP_UPDATE_APK_URL = os.getenv("ADMIN_APP_UPDATE_APK_URL", "").strip()
+ADMIN_APP_UPDATE_APK_FILENAME = (
+    os.getenv("ADMIN_APP_UPDATE_APK_FILENAME", "gpsflotaadmin-latest.apk").strip()
+    or "gpsflotaadmin-latest.apk"
+)
+ADMIN_APP_UPDATE_APK_PATH = BASE_DIR / "app_updates" / ADMIN_APP_UPDATE_APK_FILENAME
+ADMIN_DPC_COMPONENT_NAME = os.getenv(
+    "ADMIN_DPC_COMPONENT_NAME",
+    "com.controlruta.gpsflotaadmin/.admin.GpsFlotaDeviceAdminReceiver",
+).strip() or "com.controlruta.gpsflotaadmin/.admin.GpsFlotaDeviceAdminReceiver"
+ADMIN_DPC_DOWNLOAD_URL = os.getenv("ADMIN_DPC_DOWNLOAD_URL", "").strip()
+ADMIN_DPC_PACKAGE_CHECKSUM = os.getenv("ADMIN_DPC_PACKAGE_CHECKSUM", "").strip()
+ADMIN_DPC_SKIP_ENCRYPTION = env_bool("ADMIN_DPC_SKIP_ENCRYPTION", True)
+ADMIN_DPC_LEAVE_ALL_SYSTEM_APPS_ENABLED = env_bool(
+    "ADMIN_DPC_LEAVE_ALL_SYSTEM_APPS_ENABLED",
+    True,
+)
 
 
 # =================================================
