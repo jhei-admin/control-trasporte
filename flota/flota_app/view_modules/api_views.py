@@ -2074,11 +2074,26 @@ def api_app_command_pull(request):
         response = JsonResponse({"ok": False, "motivo": "SESION_INVALIDA"}, status=403)
         return _disable_cache(response)
 
+    device_role = str(request.headers.get("X-Device-Role") or "").strip().lower()
+    if device_role == "admin":
+        allowed_types = [
+            ComandoDispositivo.TIPO_REABRIR_APP,
+            ComandoDispositivo.TIPO_ACTIVAR_KIOSCO,
+            ComandoDispositivo.TIPO_SALIR_KIOSCO,
+            ComandoDispositivo.TIPO_ABRIR_WIFI_TECNICO,
+        ]
+    else:
+        allowed_types = [
+            ComandoDispositivo.TIPO_REPORTAR_ESTADO,
+            ComandoDispositivo.TIPO_FORZAR_SYNC,
+        ]
+
     comando = (
         ComandoDispositivo.objects
         .filter(
             vehiculo=sesion.vehiculo,
             estado=ComandoDispositivo.ESTADO_PENDIENTE,
+            tipo__in=allowed_types,
         )
         .order_by("solicitado_en", "id")
         .first()
