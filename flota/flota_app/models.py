@@ -1,4 +1,6 @@
 import math
+import secrets
+import string
 from datetime import timedelta
 import uuid
 
@@ -9,6 +11,13 @@ from django.db.models import Q
 from django.contrib.auth.models import User
 from django.db.models.signals import post_save
 from django.dispatch import receiver
+
+
+ACTIVATION_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+
+
+def generar_codigo_activacion(longitud=8):
+    return "".join(secrets.choice(ACTIVATION_CODE_ALPHABET) for _ in range(longitud))
 
 # =========================
 # 🔥 MANAGER MULTIEMPRESA (PRO)
@@ -693,6 +702,14 @@ class SesionUnidad(models.Model):
         db_index=True  # 🔥 lookup por token (API)
     )
 
+    codigo_activacion = models.CharField(
+        max_length=12,
+        unique=True,
+        editable=False,
+        db_index=True,
+        blank=True,
+    )
+
     activa = models.BooleanField(default=True, db_index=True)
 
     creada_en = models.DateTimeField(auto_now_add=True)
@@ -715,9 +732,19 @@ class SesionUnidad(models.Model):
         indexes = [
             models.Index(fields=["vehiculo", "activa"]),
             models.Index(fields=["token", "activa"]),
+            models.Index(fields=["codigo_activacion", "activa"]),
             models.Index(fields=["expira_en"]),
             models.Index(fields=["last_heartbeat"]),
         ]
+
+    def save(self, *args, **kwargs):
+        if not self.codigo_activacion:
+            while True:
+                candidato = generar_codigo_activacion()
+                if not SesionUnidad.objects.filter(codigo_activacion=candidato).exists():
+                    self.codigo_activacion = candidato
+                    break
+        super().save(*args, **kwargs)
 
     def esta_valida(self):
         if not self.activa:

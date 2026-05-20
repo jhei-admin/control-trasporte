@@ -278,6 +278,7 @@ class SesionUnidadAdmin(admin.ModelAdmin):
     list_display = (
         "vehiculo",
         "activa",
+        "codigo_activacion",
         "creada_en",
         "expira_en",
         "last_heartbeat",
@@ -286,7 +287,15 @@ class SesionUnidadAdmin(admin.ModelAdmin):
 
     list_filter = ("activa",)
 
+    search_fields = (
+        "vehiculo__codigo",
+        "vehiculo__placa",
+        "codigo_activacion",
+        "token",
+    )
+
     readonly_fields = (
+        "codigo_activacion",
         "token",
         "creada_en",
         "expira_en",

@@ -1,5 +1,6 @@
 from django.utils import timezone
 from datetime import timedelta
+from django.core.exceptions import ValidationError
 
 from .models import (
     RegistroSalida,
@@ -65,18 +66,38 @@ def registrar_llegada_al_paradero(vehiculo, ruta):
 def validar_sesion(token):
     """
     Capa de compatibilidad para vistas heredadas.
-    Devuelve la sesion activa asociada al token si sigue vigente.
+    Devuelve la sesion activa asociada a una credencial valida
+    (token UUID, clave corta o placa) si sigue vigente.
     """
-
-    try:
-        sesion = SesionUnidad.objects.select_related("vehiculo").get(
-            token=token,
-            activa=True,
-        )
-    except SesionUnidad.DoesNotExist:
+    credencial = (token or "").strip()
+    if not credencial:
         return None
 
-    return sesion if sesion.esta_valida() else None
+    queryset = SesionUnidad.objects.select_related("vehiculo").filter(activa=True)
+
+    try:
+        sesion = queryset.get(
+            token=credencial,
+            activa=True,
+        )
+        return sesion if sesion.esta_valida() else None
+    except (SesionUnidad.DoesNotExist, ValidationError, ValueError):
+        pass
+
+    try:
+        sesion = queryset.get(codigo_activacion__iexact=credencial)
+        return sesion if sesion.esta_valida() else None
+    except SesionUnidad.DoesNotExist:
+        pass
+    except SesionUnidad.MultipleObjectsReturned:
+        return None
+
+    sesiones_por_placa = queryset.filter(vehiculo__placa__iexact=credencial)
+    if sesiones_por_placa.count() == 1:
+        sesion = sesiones_por_placa.first()
+        return sesion if sesion and sesion.esta_valida() else None
+
+    return None
 
 
 def validar_sesion_staff(token):
