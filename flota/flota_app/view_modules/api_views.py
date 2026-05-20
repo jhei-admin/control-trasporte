@@ -223,6 +223,10 @@ def _resolve_admin_update_url(request):
     return request.build_absolute_uri(reverse("api_admin_update_apk"))
 
 
+def _resolve_admin_update_url_from_request(request):
+    return _resolve_admin_update_url(request)
+
+
 def _build_admin_package_checksum():
     configured_checksum = getattr(settings, "ADMIN_DPC_PACKAGE_CHECKSUM", "").strip()
     if configured_checksum:
@@ -2136,23 +2140,38 @@ def api_app_device_status(request):
         )
         return _disable_cache(response)
 
-    estado, _ = EstadoDispositivo.objects.update_or_create(
-        vehiculo=sesion.vehiculo,
-        defaults={
+    device_role = str(request.headers.get("X-Device-Role") or "").strip().lower()
+    defaults = {
+        "wifi_conectado": _as_bool(data.get("wifi_conectado")),
+        "wifi_ssid": str(data.get("wifi_ssid") or "").strip(),
+        "internet_disponible": _as_bool(data.get("internet_disponible")),
+        "gps_activo": _as_bool(data.get("gps_activo")),
+        "bateria_porcentaje": _as_optional_int(data.get("bateria_porcentaje")),
+        "ip_local": str(data.get("ip_local") or "").strip() or None,
+        "android_version": str(data.get("android_version") or "").strip(),
+        "device_model": str(data.get("device_model") or "").strip(),
+        "ultimo_reinicio_en": _as_optional_datetime(data.get("ultimo_reinicio_en")),
+    }
+    if device_role == "admin":
+        defaults.update({
+            "device_owner_activo": _as_bool(data.get("device_owner_activo")),
+            "admin_home_activo": _as_bool(data.get("admin_home_activo")),
+            "admin_app_version": str(data.get("admin_app_version") or data.get("app_version") or "").strip(),
+            "admin_app_version_code": str(data.get("admin_app_version_code") or data.get("app_version_code") or "").strip(),
+            "admin_ultimo_estado": str(data.get("admin_ultimo_estado") or "").strip(),
+            "admin_reportado_en": timezone.now(),
+        })
+    else:
+        defaults.update({
             "kiosco_activo": _as_bool(data.get("kiosco_activo")),
             "pantalla_fija_activa": _as_bool(data.get("pantalla_fija_activa")),
-            "wifi_conectado": _as_bool(data.get("wifi_conectado")),
-            "wifi_ssid": str(data.get("wifi_ssid") or "").strip(),
-            "internet_disponible": _as_bool(data.get("internet_disponible")),
-            "gps_activo": _as_bool(data.get("gps_activo")),
-            "bateria_porcentaje": _as_optional_int(data.get("bateria_porcentaje")),
-            "ip_local": str(data.get("ip_local") or "").strip() or None,
             "app_version": str(data.get("app_version") or "").strip(),
             "app_version_code": str(data.get("app_version_code") or "").strip(),
-            "android_version": str(data.get("android_version") or "").strip(),
-            "device_model": str(data.get("device_model") or "").strip(),
-            "ultimo_reinicio_en": _as_optional_datetime(data.get("ultimo_reinicio_en")),
-        },
+        })
+
+    estado, _ = EstadoDispositivo.objects.update_or_create(
+        vehiculo=sesion.vehiculo,
+        defaults=defaults,
     )
 
     respuesta = {
@@ -2184,6 +2203,8 @@ def api_app_command_pull(request):
             ComandoDispositivo.TIPO_ACTIVAR_KIOSCO,
             ComandoDispositivo.TIPO_SALIR_KIOSCO,
             ComandoDispositivo.TIPO_ABRIR_WIFI_TECNICO,
+            ComandoDispositivo.TIPO_ACTUALIZAR_OPERATIVA,
+            ComandoDispositivo.TIPO_ACTUALIZAR_ADMIN,
         ]
     else:
         allowed_types = [

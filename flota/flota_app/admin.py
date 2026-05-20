@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.contrib import admin
 from django.db.models import Case, IntegerField, Value, When
 from django.utils import timezone
@@ -275,10 +276,12 @@ class EstadoDispositivoAdmin(admin.ModelAdmin):
         "empresa",
         "estado_general",
         "estado_operacion_badge",
+        "estado_admin_badge",
         "modo_kiosco",
         "conectividad",
         "bateria",
         "version_app",
+        "version_admin",
         "ultimo_reporte",
     )
 
@@ -300,16 +303,23 @@ class EstadoDispositivoAdmin(admin.ModelAdmin):
 
     list_select_related = ("vehiculo", "vehiculo__empresa")
     list_per_page = 30
-    actions = None
+    actions = (
+        "encolar_actualizacion_operativa",
+        "encolar_actualizacion_admin",
+        "encolar_aplicar_modo_dedicado",
+        "encolar_abrir_wifi_tecnico",
+    )
     readonly_fields = (
         "vehiculo",
         "resumen_ejecutivo",
         "estado_general",
         "estado_operacion_badge",
+        "estado_admin_badge",
         "modo_kiosco",
         "conectividad",
         "bateria",
         "version_app",
+        "version_admin",
         "ultimo_reporte",
         "kiosco_activo",
         "pantalla_fija_activa",
@@ -321,8 +331,14 @@ class EstadoDispositivoAdmin(admin.ModelAdmin):
         "ip_local",
         "app_version",
         "app_version_code",
+        "admin_app_version",
+        "admin_app_version_code",
         "android_version",
         "device_model",
+        "device_owner_activo",
+        "admin_home_activo",
+        "admin_ultimo_estado",
+        "admin_reportado_en",
         "ultimo_reinicio_en",
         "creado_en",
         "reportado_en",
@@ -336,10 +352,12 @@ class EstadoDispositivoAdmin(admin.ModelAdmin):
                     "resumen_ejecutivo",
                     "estado_general",
                     "estado_operacion_badge",
+                    "estado_admin_badge",
                     "modo_kiosco",
                     "conectividad",
                     "bateria",
                     "version_app",
+                    "version_admin",
                     "ultimo_reporte",
                 )
             },
@@ -360,7 +378,18 @@ class EstadoDispositivoAdmin(admin.ModelAdmin):
             {
                 "fields": (
                     ("app_version", "app_version_code"),
+                    ("admin_app_version", "admin_app_version_code"),
                     ("android_version", "device_model"),
+                )
+            },
+        ),
+        (
+            "Administracion DPC",
+            {
+                "fields": (
+                    ("device_owner_activo", "admin_home_activo"),
+                    "admin_ultimo_estado",
+                    "admin_reportado_en",
                 )
             },
         ),
@@ -504,17 +533,109 @@ class EstadoDispositivoAdmin(admin.ModelAdmin):
             obj.device_model or "-",
         )
 
+    def estado_admin_badge(self, obj):
+        if obj.device_owner_activo and obj.admin_home_activo:
+            return self._badge("OWNER OK", "#1f9d55")
+        if obj.device_owner_activo:
+            return self._badge("OWNER", "#1d72b8")
+        if obj.admin_reportado_en:
+            return self._badge("ADMIN SIN OWNER", "#d97706")
+        return self._badge("SIN ADMIN", "#6b7280")
+
+    def version_admin(self, obj):
+        version = obj.admin_app_version or "Sin version"
+        code = obj.admin_app_version_code or "-"
+        extra = obj.admin_ultimo_estado or "Sin telemetria admin"
+        return format_html(
+            '<strong>{}</strong><div style="color:#4b5563;font-size:11px;">code {}</div>'
+            '<div style="color:#4b5563;font-size:11px;">{}</div>',
+            version,
+            code,
+            extra,
+        )
+
+    def _enqueue_command(self, queryset, command_type, note, payload=None):
+        created = 0
+        for estado in queryset.select_related("vehiculo"):
+            vehiculo = estado.vehiculo
+            exists = ComandoDispositivo.objects.filter(
+                vehiculo=vehiculo,
+                estado__in=(
+                    ComandoDispositivo.ESTADO_PENDIENTE,
+                    ComandoDispositivo.ESTADO_ENTREGADO,
+                ),
+                tipo=command_type,
+            ).exists()
+            if exists:
+                continue
+            ComandoDispositivo.objects.create(
+                vehiculo=vehiculo,
+                tipo=command_type,
+                nota=note,
+                payload=payload or {},
+            )
+            created += 1
+        return created
+
+    @admin.action(description="Encolar actualizacion APK operativa")
+    def encolar_actualizacion_operativa(self, request, queryset):
+        payload = {}
+        external_url = getattr(settings, "APP_UPDATE_APK_URL", "").strip()
+        if external_url:
+            payload["apk_url"] = external_url
+        created = self._enqueue_command(
+            queryset,
+            ComandoDispositivo.TIPO_ACTUALIZAR_OPERATIVA,
+            "Rollout remoto de APK operativa",
+            payload=payload,
+        )
+        self.message_user(request, f"Se encolaron {created} actualizaciones operativas.")
+
+    @admin.action(description="Encolar actualizacion APK admin")
+    def encolar_actualizacion_admin(self, request, queryset):
+        payload = {}
+        external_url = getattr(settings, "ADMIN_APP_UPDATE_APK_URL", "").strip()
+        if external_url:
+            payload["apk_url"] = external_url
+        created = self._enqueue_command(
+            queryset,
+            ComandoDispositivo.TIPO_ACTUALIZAR_ADMIN,
+            "Rollout remoto de APK admin",
+            payload=payload,
+        )
+        self.message_user(request, f"Se encolaron {created} actualizaciones admin.")
+
+    @admin.action(description="Encolar aplicar modo dedicado")
+    def encolar_aplicar_modo_dedicado(self, request, queryset):
+        created = self._enqueue_command(
+            queryset,
+            ComandoDispositivo.TIPO_ACTIVAR_KIOSCO,
+            "Aplicar modo dedicado remoto",
+        )
+        self.message_user(request, f"Se encolaron {created} activaciones de modo dedicado.")
+
+    @admin.action(description="Encolar abrir WiFi tecnico")
+    def encolar_abrir_wifi_tecnico(self, request, queryset):
+        created = self._enqueue_command(
+            queryset,
+            ComandoDispositivo.TIPO_ABRIR_WIFI_TECNICO,
+            "Abrir WiFi tecnico remoto",
+        )
+        self.message_user(request, f"Se encolaron {created} aperturas de WiFi tecnico.")
+
     def has_add_permission(self, request):
         return False
 
     empresa.short_description = "Empresa"
     unidad.short_description = "Unidad"
     estado_operacion_badge.short_description = "Estado app"
+    estado_admin_badge.short_description = "Estado admin"
     estado_general.short_description = "Estado general"
     modo_kiosco.short_description = "Modo kiosco"
     conectividad.short_description = "Conectividad"
     bateria.short_description = "Bateria"
     version_app.short_description = "Version"
+    version_admin.short_description = "Version admin"
     ultimo_reporte.short_description = "Ultimo reporte"
     resumen_ejecutivo.short_description = "Ficha tecnica"
 
@@ -564,6 +685,8 @@ class ComandoDispositivoAdmin(admin.ModelAdmin):
             ComandoDispositivo.TIPO_ACTIVAR_KIOSCO: ("KIOSCO ON", "#1f9d55"),
             ComandoDispositivo.TIPO_SALIR_KIOSCO: ("KIOSCO OFF", "#d97706"),
             ComandoDispositivo.TIPO_ABRIR_WIFI_TECNICO: ("WIFI", "#7c3aed"),
+            ComandoDispositivo.TIPO_ACTUALIZAR_OPERATIVA: ("UPDATE APP", "#0f766e"),
+            ComandoDispositivo.TIPO_ACTUALIZAR_ADMIN: ("UPDATE ADMIN", "#4338ca"),
         }
         text, color = labels.get(obj.tipo, (obj.tipo, "#6b7280"))
         return format_html(

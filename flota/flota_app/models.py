@@ -955,11 +955,17 @@ class EstadoDispositivo(models.Model):
 
     app_version = models.CharField(max_length=50, blank=True, default="")
     app_version_code = models.CharField(max_length=30, blank=True, default="")
+    admin_app_version = models.CharField(max_length=50, blank=True, default="")
+    admin_app_version_code = models.CharField(max_length=30, blank=True, default="")
     android_version = models.CharField(max_length=30, blank=True, default="")
     device_model = models.CharField(max_length=80, blank=True, default="")
+    device_owner_activo = models.BooleanField(default=False)
+    admin_home_activo = models.BooleanField(default=False)
+    admin_ultimo_estado = models.CharField(max_length=200, blank=True, default="")
 
     ultimo_reinicio_en = models.DateTimeField(null=True, blank=True)
     reportado_en = models.DateTimeField(auto_now=True, db_index=True)
+    admin_reportado_en = models.DateTimeField(null=True, blank=True)
     creado_en = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -983,6 +989,8 @@ class ComandoDispositivo(models.Model):
     TIPO_ACTIVAR_KIOSCO = "ACTIVAR_KIOSCO"
     TIPO_SALIR_KIOSCO = "SALIR_KIOSCO"
     TIPO_ABRIR_WIFI_TECNICO = "ABRIR_WIFI_TECNICO"
+    TIPO_ACTUALIZAR_OPERATIVA = "ACTUALIZAR_OPERATIVA"
+    TIPO_ACTUALIZAR_ADMIN = "ACTUALIZAR_ADMIN"
 
     TIPO_CHOICES = (
         (TIPO_FORZAR_SYNC, "Forzar sincronizacion"),
@@ -991,6 +999,8 @@ class ComandoDispositivo(models.Model):
         (TIPO_ACTIVAR_KIOSCO, "Activar kiosco"),
         (TIPO_SALIR_KIOSCO, "Salir kiosco"),
         (TIPO_ABRIR_WIFI_TECNICO, "Abrir WiFi tecnico"),
+        (TIPO_ACTUALIZAR_OPERATIVA, "Actualizar APK operativa"),
+        (TIPO_ACTUALIZAR_ADMIN, "Actualizar APK admin"),
     )
 
     ESTADO_PENDIENTE = "PENDIENTE"
