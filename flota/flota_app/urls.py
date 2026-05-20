@@ -5,6 +5,7 @@ from .view_modules.api_views import (
     api_admin_limpiar_gps,
     api_admin_provisioning_qr,
     api_admin_update_apk,
+    api_admin_version,
     api_app_cola_contexto,
     api_app_command_ack,
     api_app_command_pull,
@@ -89,6 +90,15 @@ urlpatterns = [
     path(
         "api/admin/update-apk",
         api_admin_update_apk
+    ),
+    path(
+        "api/admin/version/",
+        api_admin_version,
+        name="api_admin_version"
+    ),
+    path(
+        "api/admin/version",
+        api_admin_version
     ),
 
     path(

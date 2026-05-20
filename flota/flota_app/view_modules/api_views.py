@@ -65,6 +65,7 @@ __all__ = [
     "api_app_version",
     "api_app_update_apk",
     "api_admin_update_apk",
+    "api_admin_version",
     "api_admin_provisioning_qr",
     "api_app_control_ruta",
     "api_app_control_marcar",
@@ -304,6 +305,32 @@ def api_admin_update_apk(request):
     )
     response["Cache-Control"] = "no-store, max-age=0"
     return response
+
+
+@require_GET
+def api_admin_version(request):
+    latest_version_code = int(getattr(settings, "ADMIN_LATEST_VERSION_CODE", 0) or 0)
+    latest_version_name = getattr(settings, "ADMIN_LATEST_VERSION_NAME", "").strip()
+    changelog = getattr(settings, "ADMIN_UPDATE_CHANGELOG", "").strip()
+    published_at = getattr(settings, "ADMIN_UPDATE_PUBLISHED_AT", "").strip()
+    apk_url = _resolve_admin_update_url(request)
+    local_apk_path = Path(getattr(settings, "ADMIN_APP_UPDATE_APK_PATH", ""))
+    local_apk_exists = local_apk_path.is_file()
+    external_url = getattr(settings, "ADMIN_APP_UPDATE_APK_URL", "").strip()
+    update_ready = bool(latest_version_code > 0 and (external_url or local_apk_exists))
+
+    return JsonResponse(
+        {
+            "ok": True,
+            "update_ready": update_ready,
+            "latest_version_code": latest_version_code,
+            "latest_version_name": latest_version_name,
+            "force_update": bool(getattr(settings, "ADMIN_UPDATE_FORCE", False)),
+            "changelog": changelog,
+            "published_at": published_at,
+            "apk_url": apk_url if update_ready else None,
+        }
+    )
 
 
 @require_GET
