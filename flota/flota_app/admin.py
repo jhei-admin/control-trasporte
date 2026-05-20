@@ -21,6 +21,79 @@ from .models import (
     PerfilUsuario,
 )
 
+
+def _safe_int(value):
+    try:
+        return int(str(value).strip())
+    except (TypeError, ValueError, AttributeError):
+        return None
+
+
+class OperativaActualizacionFilter(admin.SimpleListFilter):
+    title = "Operativa"
+    parameter_name = "operativa_estado"
+
+    def lookups(self, request, model_admin):
+        return (
+            ("outdated", "Operativa desactualizada"),
+            ("updated", "Operativa actualizada"),
+            ("unknown", "Operativa sin version"),
+        )
+
+    def queryset(self, request, queryset):
+        expected = _safe_int(getattr(settings, "APP_LATEST_VERSION_CODE", 0))
+        if self.value() == "unknown":
+            return queryset.filter(app_version_code="")
+        if self.value() == "updated" and expected:
+            ids = [obj.pk for obj in queryset if _safe_int(obj.app_version_code) == expected]
+            return queryset.filter(pk__in=ids)
+        if self.value() == "outdated" and expected:
+            ids = [obj.pk for obj in queryset if _safe_int(obj.app_version_code) != expected]
+            return queryset.filter(pk__in=ids)
+        return queryset
+
+
+class AdminActualizacionFilter(admin.SimpleListFilter):
+    title = "Admin"
+    parameter_name = "admin_estado_version"
+
+    def lookups(self, request, model_admin):
+        return (
+            ("outdated", "Admin desactualizado"),
+            ("updated", "Admin actualizado"),
+            ("unknown", "Admin sin version"),
+        )
+
+    def queryset(self, request, queryset):
+        expected = _safe_int(getattr(settings, "ADMIN_LATEST_VERSION_CODE", 0))
+        if self.value() == "unknown":
+            return queryset.filter(admin_app_version_code="")
+        if self.value() == "updated" and expected:
+            ids = [obj.pk for obj in queryset if _safe_int(obj.admin_app_version_code) == expected]
+            return queryset.filter(pk__in=ids)
+        if self.value() == "outdated" and expected:
+            ids = [obj.pk for obj in queryset if _safe_int(obj.admin_app_version_code) != expected]
+            return queryset.filter(pk__in=ids)
+        return queryset
+
+
+class DeviceOwnerFilter(admin.SimpleListFilter):
+    title = "Device Owner"
+    parameter_name = "device_owner_estado"
+
+    def lookups(self, request, model_admin):
+        return (
+            ("active", "Owner activo"),
+            ("pending", "Owner pendiente"),
+        )
+
+    def queryset(self, request, queryset):
+        if self.value() == "active":
+            return queryset.filter(device_owner_activo=True)
+        if self.value() == "pending":
+            return queryset.filter(device_owner_activo=False)
+        return queryset
+
 # =================================================
 # EMPRESA
 # =================================================
@@ -277,6 +350,8 @@ class EstadoDispositivoAdmin(admin.ModelAdmin):
         "estado_general",
         "estado_operacion_badge",
         "estado_admin_badge",
+        "operativa_rollout_badge",
+        "admin_rollout_badge",
         "modo_kiosco",
         "conectividad",
         "bateria",
@@ -290,6 +365,9 @@ class EstadoDispositivoAdmin(admin.ModelAdmin):
         "wifi_conectado",
         "internet_disponible",
         "gps_activo",
+        DeviceOwnerFilter,
+        OperativaActualizacionFilter,
+        AdminActualizacionFilter,
     )
 
     search_fields = (
@@ -306,6 +384,8 @@ class EstadoDispositivoAdmin(admin.ModelAdmin):
     actions = (
         "encolar_actualizacion_operativa",
         "encolar_actualizacion_admin",
+        "encolar_actualizacion_operativa_pendientes",
+        "encolar_actualizacion_admin_pendientes",
         "encolar_aplicar_modo_dedicado",
         "encolar_abrir_wifi_tecnico",
     )
@@ -353,6 +433,8 @@ class EstadoDispositivoAdmin(admin.ModelAdmin):
                     "estado_general",
                     "estado_operacion_badge",
                     "estado_admin_badge",
+                    "operativa_rollout_badge",
+                    "admin_rollout_badge",
                     "modo_kiosco",
                     "conectividad",
                     "bateria",
@@ -504,6 +586,17 @@ class EstadoDispositivoAdmin(admin.ModelAdmin):
             code,
         )
 
+    def operativa_rollout_badge(self, obj):
+        expected_code = _safe_int(getattr(settings, "APP_LATEST_VERSION_CODE", 0))
+        current_code = _safe_int(obj.app_version_code)
+        if not current_code:
+            return self._badge("SIN VERSION", "#6b7280")
+        if expected_code and current_code == expected_code:
+            return self._badge("OPERATIVA OK", "#1f9d55")
+        if expected_code:
+            return self._badge(f"PENDIENTE {current_code}->{expected_code}", "#d97706")
+        return self._badge(f"CODE {current_code}", "#1d72b8")
+
     def ultimo_reporte(self, obj):
         delta = timezone.now() - obj.reportado_en
         minutos = int(delta.total_seconds() // 60)
@@ -554,6 +647,17 @@ class EstadoDispositivoAdmin(admin.ModelAdmin):
             extra,
         )
 
+    def admin_rollout_badge(self, obj):
+        expected_code = _safe_int(getattr(settings, "ADMIN_LATEST_VERSION_CODE", 0))
+        current_code = _safe_int(obj.admin_app_version_code)
+        if not current_code:
+            return self._badge("SIN VERSION", "#6b7280")
+        if expected_code and current_code == expected_code:
+            return self._badge("ADMIN OK", "#1f9d55")
+        if expected_code:
+            return self._badge(f"PENDIENTE {current_code}->{expected_code}", "#d97706")
+        return self._badge(f"CODE {current_code}", "#4338ca")
+
     def _enqueue_command(self, queryset, command_type, note, payload=None):
         created = 0
         for estado in queryset.select_related("vehiculo"):
@@ -591,6 +695,25 @@ class EstadoDispositivoAdmin(admin.ModelAdmin):
         )
         self.message_user(request, f"Se encolaron {created} actualizaciones operativas.")
 
+    @admin.action(description="Encolar actualizacion APK operativa solo a pendientes")
+    def encolar_actualizacion_operativa_pendientes(self, request, queryset):
+        expected_code = _safe_int(getattr(settings, "APP_LATEST_VERSION_CODE", 0))
+        if not expected_code:
+            self.message_user(request, "No hay APP_LATEST_VERSION_CODE configurado.", level="warning")
+            return
+        pendientes = [obj.pk for obj in queryset if _safe_int(obj.app_version_code) != expected_code]
+        payload = {}
+        external_url = getattr(settings, "APP_UPDATE_APK_URL", "").strip()
+        if external_url:
+            payload["apk_url"] = external_url
+        created = self._enqueue_command(
+            queryset.filter(pk__in=pendientes),
+            ComandoDispositivo.TIPO_ACTUALIZAR_OPERATIVA,
+            f"Rollout remoto de APK operativa target {expected_code}",
+            payload=payload,
+        )
+        self.message_user(request, f"Se encolaron {created} actualizaciones operativas pendientes.")
+
     @admin.action(description="Encolar actualizacion APK admin")
     def encolar_actualizacion_admin(self, request, queryset):
         payload = {}
@@ -604,6 +727,25 @@ class EstadoDispositivoAdmin(admin.ModelAdmin):
             payload=payload,
         )
         self.message_user(request, f"Se encolaron {created} actualizaciones admin.")
+
+    @admin.action(description="Encolar actualizacion APK admin solo a pendientes")
+    def encolar_actualizacion_admin_pendientes(self, request, queryset):
+        expected_code = _safe_int(getattr(settings, "ADMIN_LATEST_VERSION_CODE", 0))
+        if not expected_code:
+            self.message_user(request, "No hay ADMIN_LATEST_VERSION_CODE configurado.", level="warning")
+            return
+        pendientes = [obj.pk for obj in queryset if _safe_int(obj.admin_app_version_code) != expected_code]
+        payload = {}
+        external_url = getattr(settings, "ADMIN_APP_UPDATE_APK_URL", "").strip()
+        if external_url:
+            payload["apk_url"] = external_url
+        created = self._enqueue_command(
+            queryset.filter(pk__in=pendientes),
+            ComandoDispositivo.TIPO_ACTUALIZAR_ADMIN,
+            f"Rollout remoto de APK admin target {expected_code}",
+            payload=payload,
+        )
+        self.message_user(request, f"Se encolaron {created} actualizaciones admin pendientes.")
 
     @admin.action(description="Encolar aplicar modo dedicado")
     def encolar_aplicar_modo_dedicado(self, request, queryset):
@@ -630,6 +772,8 @@ class EstadoDispositivoAdmin(admin.ModelAdmin):
     unidad.short_description = "Unidad"
     estado_operacion_badge.short_description = "Estado app"
     estado_admin_badge.short_description = "Estado admin"
+    operativa_rollout_badge.short_description = "Rollout operativa"
+    admin_rollout_badge.short_description = "Rollout admin"
     estado_general.short_description = "Estado general"
     modo_kiosco.short_description = "Modo kiosco"
     conectividad.short_description = "Conectividad"
