@@ -4,7 +4,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ("flota_app", "0032_alter_mensajeglobal_options_and_more"),
+        ("flota_app", "0029_comandodispositivo"),
     ]
 
     operations = [
