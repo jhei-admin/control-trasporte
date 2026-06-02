@@ -1016,18 +1016,16 @@ def _resolver_marcacion_por_ubicacion(salida, lat, lng, ahora, *, en_retorno=Fal
     # En el tramo inicial la señal puede fallar y permitimos recuperar un solo
     # punto perdido. Desde ZAMA en adelante la ruta comparte radios entre
     # subida y bajada, asi que se bloquea cualquier salto automatico.
-    if punto_esperado.punto.orden >= 4 and pendientes_previas:
-        return punto_esperado, [], coincidencia
+    fase_esperada = getattr(punto_esperado.punto, "fase", PuntoControl.FASE_IDA)
 
-    # Evita saltos agresivos: solo se recupera un punto perdido por GPS.
-    if len(pendientes_previas) > 1:
-        return punto_esperado, [], coincidencia
+    if fase_esperada != PuntoControl.FASE_RETORNO:
+        if punto_esperado.punto.orden >= 4 and pendientes_previas:
+            return punto_esperado, [], coincidencia
 
-    # En rutas ida/vuelta puede ocurrir que el trazado pase cerca de un punto
-    # posterior antes de llegar al control correcto. Solo permitimos omitir un
-    # punto si ese control previo ya estaba "vencido" por horario.
-    if len(pendientes_previas) == 1:
-        punto_previo = pendientes_previas[0]
+        if len(pendientes_previas) > 1:
+            return punto_esperado, [], coincidencia
+
+    for punto_previo in pendientes_previas:
         hora_previa = punto_previo.hora_programada or punto_previo.calcular_hora_programada()
         if hora_previa and ahora < hora_previa:
             return punto_esperado, [], coincidencia
