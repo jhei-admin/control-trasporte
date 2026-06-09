@@ -454,12 +454,17 @@
     return String(value || "IDA").trim().toUpperCase();
   }
 
-  function resolverFasePunto(punto, rutaPuntos) {
+  function resolverReferenciaRuta(punto, rutaPuntos) {
     if (!Array.isArray(rutaPuntos) || !rutaPuntos.length) {
-      return "IDA";
+      return {
+        fase: "IDA",
+        orden: 0,
+        distancia: Number.POSITIVE_INFINITY,
+      };
     }
 
     let mejorFase = "IDA";
+    let mejorOrden = 0;
     let mejorDistancia = Number.POSITIVE_INFINITY;
 
     rutaPuntos.forEach((rutaPunto) => {
@@ -473,42 +478,91 @@
       if (distancia < mejorDistancia) {
         mejorDistancia = distancia;
         mejorFase = normalizarFase(rutaPunto.fase);
+        mejorOrden = Number(rutaPunto.orden || 0);
       }
     });
 
-    if (mejorFase === "CONTEXTO") {
-      return "RETORNO";
-    }
-
-    return mejorFase === "RETORNO" ? "RETORNO" : "IDA";
+    return {
+      fase: mejorFase,
+      orden: mejorOrden,
+      distancia: mejorDistancia,
+    };
   }
 
   function enriquecerPuntosRecorrido(puntosInfo, rutas) {
-    const rutasMap = new Map(
-      (Array.isArray(rutas) ? rutas : []).map((ruta) => [String(ruta.id), Array.isArray(ruta.puntos) ? ruta.puntos : []])
-    );
+    const rutasMap = new Map();
+    (Array.isArray(rutas) ? rutas : []).forEach((ruta) => {
+      const puntos = Array.isArray(ruta.puntos) ? ruta.puntos : [];
+      const primerRetorno = puntos.find((rutaPunto) => {
+        const fase = normalizarFase(rutaPunto.fase);
+        return fase === "RETORNO" || fase === "CONTEXTO";
+      });
 
-    return puntosInfo.map((punto, index) => {
-      const anterior = index > 0 ? puntosInfo[index - 1] : null;
-      const siguiente = index + 1 < puntosInfo.length ? puntosInfo[index + 1] : null;
-      const velocidadReal = Number(punto.velocidad || 0);
-      const velocidadCalculada = velocidadReal > 0
-        ? velocidadReal
-        : calcularVelocidadEstimada(punto, anterior, siguiente);
-      const rutaPuntos = rutasMap.get(String(punto.ruta_id || "")) || [];
-      const fase = resolverFasePunto(punto, rutaPuntos);
-
-      return {
-        ...punto,
-        velocidad: Number.isFinite(velocidadCalculada) ? velocidadCalculada : 0,
-        fase,
-      };
+      rutasMap.set(String(ruta.id), {
+        puntos,
+        primerRetornoOrden: Number(primerRetorno?.orden || 0),
+      });
     });
+
+    const grupos = new Map();
+    puntosInfo.forEach((punto) => {
+      const clave = `${punto.salida_id || "sin_salida"}::${punto.ruta_id || "sin_ruta"}`;
+      if (!grupos.has(clave)) {
+        grupos.set(clave, []);
+      }
+      grupos.get(clave).push(punto);
+    });
+
+    const enriquecidos = [];
+
+    grupos.forEach((grupo) => {
+      let maxOrdenVisto = 0;
+      let retornoActivo = false;
+
+      grupo.forEach((punto, index) => {
+        const anterior = index > 0 ? grupo[index - 1] : null;
+        const siguiente = index + 1 < grupo.length ? grupo[index + 1] : null;
+        const velocidadReal = Number(punto.velocidad || 0);
+        const velocidadCalculada = velocidadReal > 0
+          ? velocidadReal
+          : calcularVelocidadEstimada(punto, anterior, siguiente);
+
+        const rutaData = rutasMap.get(String(punto.ruta_id || "")) || { puntos: [], primerRetornoOrden: 0 };
+        const referencia = resolverReferenciaRuta(punto, rutaData.puntos);
+        const faseReferencia = normalizarFase(referencia.fase);
+        const ordenReferencia = Number(referencia.orden || 0);
+
+        maxOrdenVisto = Math.max(maxOrdenVisto, ordenReferencia);
+
+        const entroEnRetorno =
+          faseReferencia === "RETORNO" ||
+          faseReferencia === "CONTEXTO" ||
+          (
+            rutaData.primerRetornoOrden > 0 &&
+            maxOrdenVisto >= rutaData.primerRetornoOrden &&
+            ordenReferencia <= maxOrdenVisto - 1
+          );
+
+        if (entroEnRetorno) {
+          retornoActivo = true;
+        }
+
+        enriquecidos.push({
+          ...punto,
+          velocidad: Number.isFinite(velocidadCalculada) ? velocidadCalculada : 0,
+          fase: retornoActivo ? "RETORNO" : "IDA",
+          orden_ruta: ordenReferencia,
+          distancia_ruta: referencia.distancia,
+        });
+      });
+    });
+
+    return enriquecidos;
   }
 
   function colorFase(fase) {
     return fase === "RETORNO"
-      ? "rgba(245, 158, 11, 0.96)"
+      ? "rgba(249, 115, 22, 0.98)"
       : "rgba(10, 10, 10, 0.96)";
   }
 
@@ -537,17 +591,18 @@
       className: "",
       html: `
         <div style="
+          position: relative;
           width: 0;
           height: 0;
-          border-top: 7px solid transparent;
-          border-bottom: 7px solid transparent;
-          border-left: 16px solid ${color};
+          border-top: 8px solid transparent;
+          border-bottom: 8px solid transparent;
+          border-left: 18px solid ${color};
           transform: rotate(${angulo}deg);
           filter: drop-shadow(0 1px 1px rgba(255,255,255,.16));
         "></div>
       `,
-      iconSize: [16, 14],
-      iconAnchor: [8, 7]
+      iconSize: [18, 16],
+      iconAnchor: [9, 8]
     });
 
     const vehiculoSelect = document.getElementById("vehiculo");
@@ -585,11 +640,9 @@
       return coords;
     }
 
-    const saltoFlecha = tramo.length > 450
+    const saltoFlecha = tramo.length > 600
       ? 2
-      : tramo.length > 220
-        ? 1
-        : 1;
+      : 1;
 
     for (let i = 0; i < tramo.length; i += saltoFlecha) {
       const actual = tramo[i];
@@ -634,20 +687,21 @@
       coords.forEach((coord) => bounds.push(coord));
     });
 
-    const markerRadius = puntosInfo.length > 900 ? 1.4 : 1.8;
-    const markerOpacity = 0.22;
+    const markerRadius = 1.1;
+    const markerOpacity = 0.12;
 
     puntosInfo.forEach((punto) => {
       L.circleMarker([punto.lat, punto.lng], {
         radius: markerRadius,
-        color: "rgba(15, 23, 42, 0.24)",
-        weight: 0.8,
-        fillColor: "rgba(110, 231, 255, 0.38)",
+        color: punto.fase === "RETORNO" ? "rgba(249, 115, 22, 0.20)" : "rgba(15, 23, 42, 0.18)",
+        weight: 0.5,
+        fillColor: punto.fase === "RETORNO" ? "rgba(249, 115, 22, 0.30)" : "rgba(110, 231, 255, 0.28)",
         fillOpacity: markerOpacity
       })
         .bindPopup(`
+          <strong>Fase:</strong> ${etiquetaFase(punto.fase)}<br>
           <strong>Hora:</strong> ${punto.hora}<br>
-          <strong>Velocidad:</strong> ${punto.velocidad} km/h<br>
+          <strong>Velocidad:</strong> ${punto.velocidad.toFixed(1)} km/h<br>
           <small>${punto.lat.toFixed(5)}, ${punto.lng.toFixed(5)}</small>
         `)
         .addTo(gpsLayer);
