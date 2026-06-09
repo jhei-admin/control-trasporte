@@ -501,8 +501,14 @@
       coords.forEach((coord) => bounds.push(coord));
     });
 
+    const pasoMarcador = puntosInfo.length > 900
+      ? 4
+      : puntosInfo.length > 450
+        ? 2
+        : 1;
+
     puntosInfo.forEach((punto, index) => {
-      if (index % 30 !== 0) {
+      if (index % pasoMarcador !== 0) {
         return;
       }
 
