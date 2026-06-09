@@ -502,19 +502,19 @@
     });
 
     const markerRadius = puntosInfo.length > 900
-      ? 1.6
+      ? 2.2
       : puntosInfo.length > 450
-        ? 2
-        : 2.4;
-    const markerOpacity = puntosInfo.length > 900 ? 0.42 : 0.58;
+        ? 2.8
+        : 3.4;
+    const markerOpacity = puntosInfo.length > 900 ? 0.78 : 0.92;
 
     puntosInfo.forEach((punto) => {
 
       L.circleMarker([punto.lat, punto.lng], {
         radius: markerRadius,
-        color: "rgba(125, 211, 252, 0.78)",
-        weight: 1,
-        fillColor: "rgba(125, 211, 252, 0.88)",
+        color: "rgba(15, 23, 42, 0.98)",
+        weight: 1.6,
+        fillColor: "rgba(56, 189, 248, 0.95)",
         fillOpacity: markerOpacity
       })
         .bindPopup(`
