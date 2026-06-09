@@ -636,6 +636,7 @@ def recorrido_vehiculo(request):
     vehiculos = Vehiculo.objects.for_empresa(empresa).order_by("codigo")
     vehiculo_preseleccionado = request.GET.get("vehiculo", "").strip()
     fecha_preseleccionada = request.GET.get("fecha", "").strip()
+    salida_preseleccionada = request.GET.get("salida", "").strip()
 
     if vehiculo_preseleccionado and not vehiculos.filter(
         id=vehiculo_preseleccionado
@@ -649,6 +650,7 @@ def recorrido_vehiculo(request):
             "vehiculos": vehiculos,
             "vehiculo_preseleccionado": vehiculo_preseleccionado,
             "fecha_preseleccionada": fecha_preseleccionada,
+            "salida_preseleccionada": salida_preseleccionada,
             "MAPBOX_TOKEN": settings.MAPBOX_TOKEN,
         },
     )

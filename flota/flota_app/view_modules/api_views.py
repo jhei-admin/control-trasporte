@@ -1575,6 +1575,7 @@ def api_buscar_vehiculo_por_codigo(request):
 def api_recorrido_vehiculo(request):
     vehiculo_id = request.GET.get("vehiculo")
     fecha = request.GET.get("fecha")
+    salida_id = request.GET.get("salida", "").strip()
     if not vehiculo_id or not fecha:
         return JsonResponse({"error": "Parametros incompletos"}, status=400)
 
@@ -1591,11 +1592,37 @@ def api_recorrido_vehiculo(request):
         .order_by("hora_real_salida", "hora_salida", "id")
     )
     ventanas = _construir_ventanas_recorrido(salidas, fecha_dt)
+    salida_filtrada_id = None
+
+    if salida_id:
+        salida_filtrada = next(
+            (ventana["salida"] for ventana in ventanas if str(ventana["salida"].id) == salida_id),
+            None,
+        )
+        if not salida_filtrada:
+            return JsonResponse({"error": "Salida invalida para esa fecha"}, status=400)
+        salida_filtrada_id = salida_filtrada.id
+
+    paradas_qs = (
+        Parada.objects.for_empresa(empresa)
+        .filter(vehiculo_id=vehiculo_id, inicio__date=fecha_dt)
+        .order_by("inicio")
+    )
+    paradas_por_salida = {ventana["salida"].id: [] for ventana in ventanas}
+    paradas_sin_ventana = []
+    for parada in paradas_qs:
+        ventana = _ventana_asociada_a_parada(parada, ventanas)
+        if ventana:
+            paradas_por_salida.setdefault(ventana["salida"].id, []).append(parada)
+        elif not ventanas:
+            paradas_sin_ventana.append(parada)
 
     if not salidas:
         return JsonResponse({
             "gps": [],
+            "paradas": [],
             "rutas": [],
+            "salidas": [],
             "meta": {
                 "gps_total": 0,
                 "gps_visible": 0,
@@ -1607,9 +1634,11 @@ def api_recorrido_vehiculo(request):
     rutas_payload = []
     rutas_vistas = set()
     data = []
+    paradas_payload = []
+    salidas_payload = []
     gps_total = 0
     salidas_con_gps = 0
-    for ventana in ventanas:
+    for indice, ventana in enumerate(ventanas, start=1):
         salida = ventana["salida"]
         ruta = salida.ruta
         if ruta and ruta.id not in rutas_vistas:
@@ -1632,6 +1661,29 @@ def api_recorrido_vehiculo(request):
             registros,
             RECORRIDO_MAX_GPS_POINTS_PER_SALIDA,
         )
+        paradas_salida = paradas_por_salida.get(salida.id, [])
+        ultimo_gps = registros[-1].timestamp if registros else None
+        fin_resumen = ultimo_gps or _ultimo_fin_paradas(paradas_salida) or ventana["fin"]
+        salida_payload = {
+            "id": salida.id,
+            "indice": indice,
+            "titulo": f"Vuelta {indice}",
+            "ruta": ruta.nombre if ruta else "",
+            "hora_programada": _format_hora(salida.hora_salida),
+            "hora_inicio": _format_hora(salida.hora_real_salida),
+            "hora_fin": _format_hora(fin_resumen),
+            "gps_total": len(registros),
+            "gps_visible": len(registros_visibles),
+            "gps_recortado": len(registros) > len(registros_visibles),
+            "paradas_total": len(paradas_salida),
+            "activa": bool(salida.activo),
+            "detalle_url": reverse("detalle_salida", args=[salida.id]),
+            "control_url": reverse("control_ruta", args=[salida.id]),
+        }
+        salidas_payload.append(salida_payload)
+
+        if salida_filtrada_id and salida.id != salida_filtrada_id:
+            continue
         if registros_visibles:
             salidas_con_gps += 1
 
@@ -1643,15 +1695,28 @@ def api_recorrido_vehiculo(request):
                 "velocidad": registro.velocidad or 0,
                 "salida_id": salida.id,
             })
+        for parada in paradas_salida:
+            paradas_payload.append({
+                "lat": parada.lat,
+                "lng": parada.lng,
+                "inicio": parada.inicio.strftime("%H:%M:%S"),
+                "fin": parada.fin.strftime("%H:%M:%S") if parada.fin else None,
+                "duracion_min": int(parada.duracion_segundos / 60),
+                "activa": parada.activa,
+                "salida_id": salida.id,
+            })
 
     return JsonResponse({
         "gps": data,
+        "paradas": paradas_payload,
         "rutas": rutas_payload,
+        "salidas": salidas_payload,
         "meta": {
             "gps_total": gps_total,
             "gps_visible": len(data),
             "gps_recortado": gps_total > len(data),
             "salidas_con_gps": salidas_con_gps,
+            "salida_filtrada_id": salida_filtrada_id,
         },
     })
 
@@ -1756,6 +1821,12 @@ def _ventana_asociada_a_parada(parada, ventanas):
         if parada.inicio < ventana["fin"] and fin_parada >= ventana["inicio"]:
             return ventana
     return None
+
+
+def _ultimo_fin_paradas(paradas):
+    if not paradas:
+        return None
+    return max((parada.fin or parada.inicio) for parada in paradas)
 
 
 def _disable_cache(response):

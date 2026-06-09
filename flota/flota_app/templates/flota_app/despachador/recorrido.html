@@ -49,6 +49,89 @@
     font-size: 13px;
   }
 
+  .resumen-recorrido {
+    margin-top: 14px;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 12px;
+  }
+
+  .salida-card {
+    background: rgba(15, 23, 42, 0.82);
+    border: 1px solid rgba(148, 163, 184, 0.18);
+    border-radius: 12px;
+    padding: 12px;
+    color: #e2e8f0;
+  }
+
+  .salida-card.activa {
+    border-color: rgba(96, 165, 250, 0.95);
+    box-shadow: 0 0 0 1px rgba(96, 165, 250, 0.35);
+  }
+
+  .salida-card-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+    gap: 8px;
+  }
+
+  .salida-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(37, 99, 235, 0.16);
+    color: #bfdbfe;
+    border-radius: 999px;
+    padding: 3px 10px;
+    font-size: 12px;
+    font-weight: 700;
+  }
+
+  .salida-chip.estado {
+    background: rgba(16, 185, 129, 0.14);
+    color: #86efac;
+  }
+
+  .salida-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    margin-top: 10px;
+  }
+
+  .salida-metric {
+    background: rgba(30, 41, 59, 0.9);
+    border-radius: 10px;
+    padding: 8px 10px;
+  }
+
+  .salida-metric-label {
+    color: #93c5fd;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .salida-metric-value {
+    color: #f8fafc;
+    font-size: 15px;
+    font-weight: 700;
+  }
+
+  .salida-links {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 12px;
+  }
+
+  .salida-links a,
+  .salida-links button {
+    border-radius: 10px;
+  }
+
   .leaflet-popup-content-wrapper,
   .leaflet-popup-tip {
     background: #111827;
@@ -91,7 +174,18 @@
       >
     </div>
 
-    <div class="col-md-4 d-flex align-items-end">
+    <div class="col-md-2">
+      <label>Vuelta</label>
+      <select
+        id="salida"
+        class="form-select"
+        data-initial-salida="{{ salida_preseleccionada|default:'' }}"
+      >
+        <option value="">Todo el dia</option>
+      </select>
+    </div>
+
+    <div class="col-md-2 d-flex align-items-end">
       <button
         class="btn btn-primary w-100"
         id="btn-recorrido"
@@ -106,6 +200,7 @@
   <div id="estado-recorrido" class="estado-recorrido">
     Selecciona una fecha para revisar el trayecto de la unidad.
   </div>
+  <div id="resumen-recorrido" class="resumen-recorrido"></div>
 </div>
 
 {% endblock %}
@@ -153,6 +248,94 @@
     if (estado) {
       estado.textContent = texto;
     }
+  }
+
+  function formatValue(value, fallback = "--") {
+    const text = (value ?? "").toString().trim();
+    return text || fallback;
+  }
+
+  function renderResumenSalidas(salidas, selectedSalidaId) {
+    const container = document.getElementById("resumen-recorrido");
+    if (!container) {
+      return;
+    }
+
+    if (!Array.isArray(salidas) || !salidas.length) {
+      container.innerHTML = "";
+      return;
+    }
+
+    container.innerHTML = salidas.map((salida) => {
+      const isActive = selectedSalidaId
+        ? String(salida.id) === String(selectedSalidaId)
+        : false;
+      const gpsText = salida.gps_recortado
+        ? `${salida.gps_visible}/${salida.gps_total}`
+        : `${salida.gps_total}`;
+      const estadoChip = salida.activa
+        ? '<span class="salida-chip estado">Activa</span>'
+        : '';
+
+      return `
+        <div class="salida-card ${isActive ? "activa" : ""}">
+          <div class="salida-card-head">
+            <span class="salida-chip">${salida.titulo}</span>
+            ${estadoChip}
+          </div>
+          <div class="small text-info-emphasis">${formatValue(salida.ruta, "Ruta no asignada")}</div>
+          <div class="salida-grid">
+            <div class="salida-metric">
+              <div class="salida-metric-label">Inicio</div>
+              <div class="salida-metric-value">${formatValue(salida.hora_inicio)}</div>
+            </div>
+            <div class="salida-metric">
+              <div class="salida-metric-label">Fin</div>
+              <div class="salida-metric-value">${formatValue(salida.hora_fin)}</div>
+            </div>
+            <div class="salida-metric">
+              <div class="salida-metric-label">GPS</div>
+              <div class="salida-metric-value">${gpsText}</div>
+            </div>
+            <div class="salida-metric">
+              <div class="salida-metric-label">Paradas</div>
+              <div class="salida-metric-value">${salida.paradas_total || 0}</div>
+            </div>
+          </div>
+          <div class="salida-links">
+            <button type="button" class="btn btn-sm btn-outline-info" onclick="filtrarSalida('${salida.id}')">Ver solo esta vuelta</button>
+            <a class="btn btn-sm btn-outline-light" href="${salida.detalle_url}">Trazabilidad</a>
+            <a class="btn btn-sm btn-outline-primary" href="${salida.control_url}">Control ruta</a>
+          </div>
+        </div>
+      `;
+    }).join("");
+  }
+
+  function renderSalidaOptions(salidas, selectedSalidaId) {
+    const select = document.getElementById("salida");
+    if (!select) {
+      return;
+    }
+
+    const current = selectedSalidaId ?? select.dataset.initialSalida ?? "";
+    const options = ['<option value="">Todo el dia</option>'];
+    (salidas || []).forEach((salida) => {
+      const selected = String(salida.id) === String(current) ? "selected" : "";
+      options.push(
+        `<option value="${salida.id}" ${selected}>${salida.titulo} · ${formatValue(salida.hora_inicio)}</option>`
+      );
+    });
+    select.innerHTML = options.join("");
+  }
+
+  function filtrarSalida(salidaId) {
+    const select = document.getElementById("salida");
+    if (!select) {
+      return;
+    }
+    select.value = salidaId || "";
+    cargarRecorrido();
   }
 
   function obtenerFechaSeleccionada() {
@@ -361,6 +544,7 @@
   async function cargarRecorrido() {
     const vehiculo = document.getElementById("vehiculo").value;
     const fecha = obtenerFechaSeleccionada();
+    const salida = document.getElementById("salida")?.value || "";
     const btn = document.getElementById("btn-recorrido");
 
     if (!vehiculo || !fecha) {
@@ -375,13 +559,16 @@
 
     try {
       const payload = await fetchJson(
-        `/sistema/api/despachador/recorrido/?vehiculo=${vehiculo}&fecha=${fecha}`,
+        `/sistema/api/despachador/recorrido/?vehiculo=${vehiculo}&fecha=${fecha}${salida ? `&salida=${salida}` : ""}`,
         "Error consultando recorrido"
       );
 
       const rutas = Array.isArray(payload.rutas) ? payload.rutas : [];
       const gpsRaw = Array.isArray(payload.gps) ? payload.gps : [];
+      const paradasRaw = Array.isArray(payload.paradas) ? payload.paradas : [];
+      const salidas = Array.isArray(payload.salidas) ? payload.salidas : [];
       const meta = payload.meta || {};
+      const salidaFiltradaId = meta.salida_filtrada_id || salida || "";
 
       const puntosInfo = gpsRaw
         .map((punto) => ({
@@ -392,6 +579,20 @@
           salida_id: punto.salida_id || null
         }))
         .filter((punto) => Number.isFinite(punto.lat) && Number.isFinite(punto.lng));
+
+      const paradas = paradasRaw
+        .map((parada) => ({
+          lat: Number(parada.lat),
+          lng: Number(parada.lng),
+          inicio: parada.inicio || "",
+          fin: parada.fin || null,
+          duracion_min: Number(parada.duracion_min || 0),
+          salida_id: parada.salida_id || null
+        }))
+        .filter((parada) => Number.isFinite(parada.lat) && Number.isFinite(parada.lng));
+
+      renderSalidaOptions(salidas, salidaFiltradaId);
+      renderResumenSalidas(salidas, salidaFiltradaId);
 
       if (!puntosInfo.length && !rutas.length) {
         setEstadoRecorrido("No hay datos de recorrido para esa fecha.");
@@ -423,35 +624,25 @@
         : `Se cargaron ${puntosInfo.length} punto(s) GPS.`;
 
       setEstadoRecorrido(resumenGps);
+      drawStops(paradas);
 
-      fetchJson(
-        `/sistema/api/despachador/paradas/?vehiculo=${vehiculo}&fecha=${fecha}`,
-        "Error consultando paradas"
-      )
-        .then((paradasRaw) => {
-          const paradas = Array.isArray(paradasRaw)
-            ? paradasRaw.map((parada) => ({
-                lat: Number(parada.lat),
-                lng: Number(parada.lng),
-                inicio: parada.inicio || "",
-                fin: parada.fin || null,
-                duracion_min: Number(parada.duracion_min || 0)
-              }))
-            : [];
+      if (paradas.length) {
+        setEstadoRecorrido(`${resumenGps} ${paradas.length} parada(s) detectada(s).`);
+      }
 
-          drawStops(paradas);
-
-          if (paradas.length) {
-            setEstadoRecorrido(`${resumenGps} ${paradas.length} parada(s) detectada(s).`);
-          }
-        })
-        .catch((err) => {
-          console.error("Error cargando paradas", err);
-          setEstadoRecorrido(`${resumenGps} No se pudieron cargar las paradas.`);
-        });
+      const url = new URL(window.location.href);
+      url.searchParams.set("vehiculo", vehiculo);
+      url.searchParams.set("fecha", fecha);
+      if (salidaFiltradaId) {
+        url.searchParams.set("salida", salidaFiltradaId);
+      } else {
+        url.searchParams.delete("salida");
+      }
+      window.history.replaceState({}, "", url);
     } catch (err) {
       console.error(err);
       setEstadoRecorrido(err.message || "Error cargando el recorrido.");
+      renderResumenSalidas([], "");
       map.setView(MAP_CENTER, 13);
     } finally {
       btn.disabled = false;
@@ -469,6 +660,7 @@
 
     if (document.getElementById("vehiculo").value && obtenerFechaSeleccionada()) {
       setEstadoRecorrido("Listo para consultar el recorrido.");
+      renderSalidaOptions([], document.getElementById("salida")?.dataset.initialSalida || "");
     }
   });
 </script>
