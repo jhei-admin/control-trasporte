@@ -661,6 +661,7 @@
     if (document.getElementById("vehiculo").value && obtenerFechaSeleccionada()) {
       setEstadoRecorrido("Listo para consultar el recorrido.");
       renderSalidaOptions([], document.getElementById("salida")?.dataset.initialSalida || "");
+      cargarRecorrido();
     }
   });
 </script>
