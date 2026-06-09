@@ -369,25 +369,25 @@
 
     const base = L.polyline(coords, {
       color: "#000",
-      weight: 16,
-      opacity: 0.7,
+      weight: 10,
+      opacity: 0.34,
       lineCap: "round",
       lineJoin: "round"
     }).addTo(map);
 
     const carril = L.polyline(coords, {
-      color: "#e5e5e5",
-      weight: 12,
-      opacity: 0.95,
+      color: "#f4f4f5",
+      weight: 7,
+      opacity: 0.86,
       lineCap: "round",
       lineJoin: "round"
     }).addTo(map);
 
     const guia = L.polyline(coords, {
       color: "#00e5ff",
-      weight: 4,
-      dashArray: "10,10",
-      opacity: 0.9,
+      weight: 2,
+      dashArray: "8,10",
+      opacity: 0.58,
       lineCap: "round",
       lineJoin: "round"
     }).addTo(map);
@@ -418,19 +418,23 @@
         <div style="
           width: 0;
           height: 0;
-          border-top: 6px solid transparent;
-          border-bottom: 6px solid transparent;
-          border-left: 12px solid rgba(17, 24, 39, 0.9);
+          border-top: 7px solid transparent;
+          border-bottom: 7px solid transparent;
+          border-left: 16px solid rgba(10, 10, 10, 0.96);
           transform: rotate(${angulo}deg);
-          filter: drop-shadow(0 1px 1px rgba(255,255,255,.18));
+          filter: drop-shadow(0 1px 1px rgba(255,255,255,.16));
         "></div>
       `,
-      iconSize: [12, 12],
-      iconAnchor: [6, 6]
+      iconSize: [16, 14],
+      iconAnchor: [8, 7]
     });
+
+    const vehiculoSelect = document.getElementById("vehiculo");
+    const unidadLabel = vehiculoSelect?.selectedOptions?.[0]?.textContent?.trim() || "Unidad";
 
     L.marker([lat, lng], { icon })
       .bindPopup(`
+        <strong>${unidadLabel}</strong><br>
         <strong>Hora:</strong> ${punto.hora}<br>
         <strong>Velocidad:</strong> ${punto.velocidad} km/h<br>
         <small>${punto.lat.toFixed(5)}, ${punto.lng.toFixed(5)}</small>
@@ -458,9 +462,15 @@
       return coords;
     }
 
-    for (let i = 0; i < tramo.length; i += 20) {
+    const saltoFlecha = tramo.length > 450
+      ? 2
+      : tramo.length > 220
+        ? 1
+        : 1;
+
+    for (let i = 0; i < tramo.length; i += saltoFlecha) {
       const actual = tramo[i];
-      const siguiente = tramo[Math.min(i + 1, tramo.length - 1)];
+      const siguiente = tramo[Math.min(i + saltoFlecha, tramo.length - 1)];
       if (!siguiente || (actual.lat === siguiente.lat && actual.lng === siguiente.lng)) {
         continue;
       }
@@ -501,20 +511,15 @@
       coords.forEach((coord) => bounds.push(coord));
     });
 
-    const markerRadius = puntosInfo.length > 900
-      ? 2.2
-      : puntosInfo.length > 450
-        ? 2.8
-        : 3.4;
-    const markerOpacity = puntosInfo.length > 900 ? 0.78 : 0.92;
+    const markerRadius = puntosInfo.length > 900 ? 1.4 : 1.8;
+    const markerOpacity = 0.22;
 
     puntosInfo.forEach((punto) => {
-
       L.circleMarker([punto.lat, punto.lng], {
         radius: markerRadius,
-        color: "rgba(15, 23, 42, 0.98)",
-        weight: 1.6,
-        fillColor: "rgba(56, 189, 248, 0.95)",
+        color: "rgba(15, 23, 42, 0.24)",
+        weight: 0.8,
+        fillColor: "rgba(110, 231, 255, 0.38)",
         fillOpacity: markerOpacity
       })
         .bindPopup(`
