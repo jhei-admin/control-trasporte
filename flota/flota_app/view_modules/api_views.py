@@ -1,4 +1,4 @@
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, time, timedelta
 from decimal import Decimal, InvalidOperation
 import base64
 import hashlib
@@ -98,6 +98,10 @@ GPS_SAVE_INTERVAL = timedelta(
     seconds=max(getattr(settings, "GPS_SAVE_INTERVAL_SECONDS", 5), 1)
 )
 GPS_MAX_PRECISION = getattr(settings, "GPS_MAX_PRECISION", 100.0)
+RECORRIDO_MAX_GPS_POINTS_PER_SALIDA = max(
+    getattr(settings, "RECORRIDO_MAX_GPS_POINTS_PER_SALIDA", 900),
+    50,
+)
 STAFF_SESSION_HOURS = 12
 PUNTOS_BLOQUEADOS_AUDIO_CODES = {"MUNI", "LLAM", "PLAZ", "PESQ"}
 PUNTOS_CONTEXTO_VUELTA_CODES = {"ZAMA_VTA"}
@@ -1583,19 +1587,30 @@ def api_recorrido_vehiculo(request):
     salidas = list(
         RegistroSalida.objects.for_empresa(empresa)
         .filter(vehiculo_id=vehiculo_id, fecha=fecha_dt)
-        .order_by("hora_real_salida")
+        .select_related("ruta")
+        .order_by("hora_real_salida", "hora_salida", "id")
     )
+    ventanas = _construir_ventanas_recorrido(salidas, fecha_dt)
 
     if not salidas:
-        return JsonResponse([], safe=False)
+        return JsonResponse({
+            "gps": [],
+            "rutas": [],
+            "meta": {
+                "gps_total": 0,
+                "gps_visible": 0,
+                "gps_recortado": False,
+                "salidas_con_gps": 0,
+            },
+        })
 
     rutas_payload = []
     rutas_vistas = set()
     data = []
-    for index, salida in enumerate(salidas):
-        if not salida.hora_real_salida:
-            continue
-
+    gps_total = 0
+    salidas_con_gps = 0
+    for ventana in ventanas:
+        salida = ventana["salida"]
         ruta = salida.ruta
         if ruta and ruta.id not in rutas_vistas:
             rutas_payload.append({
@@ -1605,15 +1620,22 @@ def api_recorrido_vehiculo(request):
             })
             rutas_vistas.add(ruta.id)
 
-        inicio = salida.hora_real_salida
-        fin = salidas[index + 1].hora_real_salida if index + 1 < len(salidas) and salidas[index + 1].hora_real_salida else timezone.now()
-        registros = GPSRegistro.objects.filter(
+        registros = list(
+            GPSRegistro.objects.filter(
             sesion__vehiculo_id=vehiculo_id,
-            timestamp__gte=inicio,
-            timestamp__lte=fin,
+            timestamp__gte=ventana["inicio"],
+            timestamp__lte=ventana["fin"],
         ).order_by("timestamp")
+        )
+        gps_total += len(registros)
+        registros_visibles = _reducir_registros_recorrido(
+            registros,
+            RECORRIDO_MAX_GPS_POINTS_PER_SALIDA,
+        )
+        if registros_visibles:
+            salidas_con_gps += 1
 
-        for registro in registros:
+        for registro in registros_visibles:
             data.append({
                 "lat": registro.lat,
                 "lng": registro.lng,
@@ -1625,6 +1647,12 @@ def api_recorrido_vehiculo(request):
     return JsonResponse({
         "gps": data,
         "rutas": rutas_payload,
+        "meta": {
+            "gps_total": gps_total,
+            "gps_visible": len(data),
+            "gps_recortado": gps_total > len(data),
+            "salidas_con_gps": salidas_con_gps,
+        },
     })
 
 
@@ -1643,6 +1671,13 @@ def api_paradas_vehiculo(request):
         return JsonResponse({"error": "Fecha invalida"}, status=400)
 
     empresa = request.empresa
+    salidas = list(
+        RegistroSalida.objects.for_empresa(empresa)
+        .filter(vehiculo_id=vehiculo_id, fecha=fecha_dt)
+        .order_by("hora_real_salida", "hora_salida", "id")
+    )
+    ventanas = _construir_ventanas_recorrido(salidas, fecha_dt)
+
     paradas = (
         Parada.objects.for_empresa(empresa)
         .filter(vehiculo_id=vehiculo_id, inicio__date=fecha_dt)
@@ -1651,6 +1686,9 @@ def api_paradas_vehiculo(request):
 
     data = []
     for parada in paradas:
+        ventana = _ventana_asociada_a_parada(parada, ventanas)
+        if ventanas and not ventana:
+            continue
         data.append({
             "lat": parada.lat,
             "lng": parada.lng,
@@ -1658,9 +1696,66 @@ def api_paradas_vehiculo(request):
             "fin": parada.fin.strftime("%H:%M:%S") if parada.fin else None,
             "duracion_min": int(parada.duracion_segundos / 60),
             "activa": parada.activa,
+            "salida_id": ventana["salida"].id if ventana else None,
         })
 
     return JsonResponse(data, safe=False)
+
+
+def _fin_operativo_para_fecha(fecha_dt):
+    fin_dia_local = datetime.combine(fecha_dt + timedelta(days=1), time.min)
+    fin_dia = timezone.make_aware(fin_dia_local, timezone.get_current_timezone())
+    return min(fin_dia, timezone.now()) if fecha_dt == timezone.localdate() else fin_dia
+
+
+def _construir_ventanas_recorrido(salidas, fecha_dt):
+    ventanas = []
+    salidas_validas = [salida for salida in salidas if salida.hora_real_salida]
+    if not salidas_validas:
+        return ventanas
+
+    fin_operativo = _fin_operativo_para_fecha(fecha_dt)
+    for index, salida in enumerate(salidas_validas):
+        inicio = salida.hora_real_salida
+        siguiente = (
+            salidas_validas[index + 1].hora_real_salida
+            if index + 1 < len(salidas_validas)
+            else None
+        )
+        fin = siguiente or fin_operativo
+        if fin <= inicio:
+            fin = inicio + timedelta(seconds=1)
+        ventanas.append({
+            "salida": salida,
+            "inicio": inicio,
+            "fin": fin,
+        })
+    return ventanas
+
+
+def _reducir_registros_recorrido(registros, max_puntos):
+    total = len(registros)
+    if total <= max_puntos:
+        return registros
+    if max_puntos <= 2:
+        return [registros[0], registros[-1]]
+
+    step = math.ceil(total / max_puntos)
+    reducidos = registros[::step]
+    if reducidos[-1].pk != registros[-1].pk:
+        reducidos.append(registros[-1])
+    return reducidos
+
+
+def _ventana_asociada_a_parada(parada, ventanas):
+    if not ventanas:
+        return None
+
+    fin_parada = parada.fin or parada.inicio
+    for ventana in ventanas:
+        if parada.inicio < ventana["fin"] and fin_parada >= ventana["inicio"]:
+            return ventana
+    return None
 
 
 def _disable_cache(response):

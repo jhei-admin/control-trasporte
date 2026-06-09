@@ -338,13 +338,7 @@
         .addTo(gpsLayer);
     });
 
-    if (bounds.length === 1) {
-      map.setView(bounds[0], 16);
-    } else if (bounds.length > 1) {
-      map.fitBounds(bounds, {
-        padding: [35, 35]
-      });
-    }
+    return bounds;
   }
 
   function drawStops(paradas) {
@@ -387,6 +381,7 @@
 
       const rutas = Array.isArray(payload.rutas) ? payload.rutas : [];
       const gpsRaw = Array.isArray(payload.gps) ? payload.gps : [];
+      const meta = payload.meta || {};
 
       const puntosInfo = gpsRaw
         .map((punto) => ({
@@ -412,15 +407,22 @@
           coords.forEach((coord) => routeBounds.push(coord));
         });
 
-      drawGpsMarkers(puntosInfo);
+      const gpsBounds = drawGpsMarkers(puntosInfo);
+      const allBounds = gpsBounds.length ? gpsBounds : routeBounds;
 
-      if (routeBounds.length > 1) {
-        map.fitBounds(routeBounds, {
+      if (allBounds.length === 1) {
+        map.setView(allBounds[0], 16);
+      } else if (allBounds.length > 1) {
+        map.fitBounds(allBounds, {
           padding: [35, 35]
         });
       }
 
-      setEstadoRecorrido(`Se cargaron ${puntosInfo.length} punto(s) GPS.`);
+      const resumenGps = meta.gps_recortado
+        ? `Se cargaron ${puntosInfo.length} punto(s) GPS de ${meta.gps_total || puntosInfo.length} registrados.`
+        : `Se cargaron ${puntosInfo.length} punto(s) GPS.`;
+
+      setEstadoRecorrido(resumenGps);
 
       fetchJson(
         `/sistema/api/despachador/paradas/?vehiculo=${vehiculo}&fecha=${fecha}`,
@@ -440,11 +442,12 @@
           drawStops(paradas);
 
           if (paradas.length) {
-            setEstadoRecorrido(`Se cargaron ${puntosInfo.length} punto(s) GPS y ${paradas.length} parada(s).`);
+            setEstadoRecorrido(`${resumenGps} ${paradas.length} parada(s) detectada(s).`);
           }
         })
         .catch((err) => {
           console.error("Error cargando paradas", err);
+          setEstadoRecorrido(`${resumenGps} No se pudieron cargar las paradas.`);
         });
     } catch (err) {
       console.error(err);
