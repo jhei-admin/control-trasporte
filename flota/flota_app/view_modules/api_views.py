@@ -98,9 +98,9 @@ GPS_SAVE_INTERVAL = timedelta(
     seconds=max(getattr(settings, "GPS_SAVE_INTERVAL_SECONDS", 5), 1)
 )
 GPS_MAX_PRECISION = getattr(settings, "GPS_MAX_PRECISION", 100.0)
-RECORRIDO_MAX_GPS_POINTS_PER_SALIDA = max(
-    getattr(settings, "RECORRIDO_MAX_GPS_POINTS_PER_SALIDA", 900),
-    50,
+RECORRIDO_SAMPLE_SECONDS = max(
+    getattr(settings, "RECORRIDO_SAMPLE_SECONDS", 15),
+    1,
 )
 STAFF_SESSION_HOURS = 12
 PUNTOS_BLOQUEADOS_AUDIO_CODES = {"MUNI", "LLAM", "PLAZ", "PESQ"}
@@ -1657,9 +1657,9 @@ def api_recorrido_vehiculo(request):
         ).order_by("timestamp")
         )
         gps_total += len(registros)
-        registros_visibles = _reducir_registros_recorrido(
+        registros_visibles = _muestrear_registros_recorrido_por_intervalo(
             registros,
-            RECORRIDO_MAX_GPS_POINTS_PER_SALIDA,
+            RECORRIDO_SAMPLE_SECONDS,
         )
         paradas_salida = paradas_por_salida.get(salida.id, [])
         ultimo_gps = registros[-1].timestamp if registros else None
@@ -1691,7 +1691,7 @@ def api_recorrido_vehiculo(request):
             data.append({
                 "lat": registro.lat,
                 "lng": registro.lng,
-                "hora": registro.timestamp.strftime("%H:%M:%S"),
+                "hora": timezone.localtime(registro.timestamp).strftime("%H:%M:%S"),
                 "velocidad": registro.velocidad or 0,
                 "salida_id": salida.id,
             })
@@ -1699,8 +1699,8 @@ def api_recorrido_vehiculo(request):
             paradas_payload.append({
                 "lat": parada.lat,
                 "lng": parada.lng,
-                "inicio": parada.inicio.strftime("%H:%M:%S"),
-                "fin": parada.fin.strftime("%H:%M:%S") if parada.fin else None,
+                "inicio": timezone.localtime(parada.inicio).strftime("%H:%M:%S"),
+                "fin": timezone.localtime(parada.fin).strftime("%H:%M:%S") if parada.fin else None,
                 "duracion_min": int(parada.duracion_segundos / 60),
                 "activa": parada.activa,
                 "salida_id": salida.id,
@@ -1798,18 +1798,22 @@ def _construir_ventanas_recorrido(salidas, fecha_dt):
     return ventanas
 
 
-def _reducir_registros_recorrido(registros, max_puntos):
+def _muestrear_registros_recorrido_por_intervalo(registros, interval_seconds):
     total = len(registros)
-    if total <= max_puntos:
+    if total <= 2:
         return registros
-    if max_puntos <= 2:
-        return [registros[0], registros[-1]]
+    intervalo = timedelta(seconds=max(interval_seconds, 1))
+    muestreados = [registros[0]]
+    ultimo_incluido = registros[0].timestamp
 
-    step = math.ceil(total / max_puntos)
-    reducidos = registros[::step]
-    if reducidos[-1].pk != registros[-1].pk:
-        reducidos.append(registros[-1])
-    return reducidos
+    for registro in registros[1:-1]:
+        if registro.timestamp - ultimo_incluido >= intervalo:
+            muestreados.append(registro)
+            ultimo_incluido = registro.timestamp
+
+    if muestreados[-1].pk != registros[-1].pk:
+        muestreados.append(registros[-1])
+    return muestreados
 
 
 def _ventana_asociada_a_parada(parada, ventanas):
