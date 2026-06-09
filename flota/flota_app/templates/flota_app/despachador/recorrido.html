@@ -566,8 +566,9 @@
       : "rgba(10, 10, 10, 0.96)";
   }
 
-  function etiquetaFase(fase) {
-    return fase === "RETORNO" ? "RETORNO" : "IDA";
+  function formatearVelocidad(kmh) {
+    const value = Number(kmh || 0);
+    return `${value.toFixed(1)} km/h`;
   }
 
   async function fetchJson(url, fallbackMessage) {
@@ -586,23 +587,40 @@
   }
 
   function crearFlecha(lat, lng, angulo, punto) {
-    const color = colorFase(punto.fase);
     const icon = L.divIcon({
       className: "",
       html: `
         <div style="
           position: relative;
-          width: 0;
-          height: 0;
-          border-top: 8px solid transparent;
-          border-bottom: 8px solid transparent;
-          border-left: 18px solid ${color};
+          width: 28px;
+          height: 14px;
           transform: rotate(${angulo}deg);
-          filter: drop-shadow(0 1px 1px rgba(255,255,255,.16));
-        "></div>
+          transform-origin: 50% 50%;
+        ">
+          <div style="
+            position: absolute;
+            left: 0;
+            top: 5px;
+            width: 14px;
+            height: 4px;
+            background: rgba(5, 5, 5, 0.98);
+            border-radius: 2px;
+          "></div>
+          <div style="
+            position: absolute;
+            left: 10px;
+            top: 0;
+            width: 0;
+            height: 0;
+            border-top: 7px solid transparent;
+            border-bottom: 7px solid transparent;
+            border-left: 18px solid rgba(5, 5, 5, 0.98);
+            filter: drop-shadow(0 1px 1px rgba(255,255,255,.10));
+          "></div>
+        </div>
       `,
-      iconSize: [18, 16],
-      iconAnchor: [9, 8]
+      iconSize: [28, 14],
+      iconAnchor: [14, 7]
     });
 
     const vehiculoSelect = document.getElementById("vehiculo");
@@ -611,9 +629,7 @@
     L.marker([lat, lng], { icon })
       .bindPopup(`
         <strong>${unidadLabel}</strong><br>
-        <strong>Fase:</strong> ${etiquetaFase(punto.fase)}<br>
-        <strong>Hora:</strong> ${punto.hora}<br>
-        <strong>Velocidad:</strong> ${punto.velocidad.toFixed(1)} km/h<br>
+        ${punto.hora} ${formatearVelocidad(punto.velocidad)}<br>
         <small>${punto.lat.toFixed(5)}, ${punto.lng.toFixed(5)}</small>
       `)
       .addTo(arrowLayer);
@@ -625,24 +641,21 @@
     if (coords.length === 1) {
       const unico = coords[0];
       L.circleMarker(unico, {
-        radius: 6,
-        color: "#8be9fd",
-        weight: 2,
-        fillColor: "#8be9fd",
-        fillOpacity: 0.85
+        radius: 2.4,
+        color: "rgba(5, 5, 5, 0.72)",
+        weight: 1,
+        fillColor: "rgba(5, 5, 5, 0.88)",
+        fillOpacity: 0.72
       })
         .bindPopup(`
-          <strong>Fase:</strong> ${etiquetaFase(tramo[0].fase)}<br>
-          <strong>Hora:</strong> ${tramo[0].hora}<br>
-          <strong>Velocidad:</strong> ${tramo[0].velocidad.toFixed(1)} km/h
+          <strong>${document.getElementById("vehiculo")?.selectedOptions?.[0]?.textContent?.trim() || "Unidad"}</strong><br>
+          ${tramo[0].hora} ${formatearVelocidad(tramo[0].velocidad)}
         `)
         .addTo(gpsLayer);
       return coords;
     }
 
-    const saltoFlecha = tramo.length > 600
-      ? 2
-      : 1;
+    const saltoFlecha = tramo.length > 900 ? 2 : 1;
 
     for (let i = 0; i < tramo.length; i += saltoFlecha) {
       const actual = tramo[i];
@@ -688,20 +701,19 @@
     });
 
     const markerRadius = 1.1;
-    const markerOpacity = 0.12;
+    const markerOpacity = 0.08;
 
     puntosInfo.forEach((punto) => {
       L.circleMarker([punto.lat, punto.lng], {
         radius: markerRadius,
-        color: punto.fase === "RETORNO" ? "rgba(249, 115, 22, 0.20)" : "rgba(15, 23, 42, 0.18)",
-        weight: 0.5,
-        fillColor: punto.fase === "RETORNO" ? "rgba(249, 115, 22, 0.30)" : "rgba(110, 231, 255, 0.28)",
+        color: "rgba(15, 23, 42, 0.12)",
+        weight: 0.35,
+        fillColor: "rgba(110, 231, 255, 0.18)",
         fillOpacity: markerOpacity
       })
         .bindPopup(`
-          <strong>Fase:</strong> ${etiquetaFase(punto.fase)}<br>
-          <strong>Hora:</strong> ${punto.hora}<br>
-          <strong>Velocidad:</strong> ${punto.velocidad.toFixed(1)} km/h<br>
+          <strong>${document.getElementById("vehiculo")?.selectedOptions?.[0]?.textContent?.trim() || "Unidad"}</strong><br>
+          ${punto.hora} ${formatearVelocidad(punto.velocidad)}<br>
           <small>${punto.lat.toFixed(5)}, ${punto.lng.toFixed(5)}</small>
         `)
         .addTo(gpsLayer);
