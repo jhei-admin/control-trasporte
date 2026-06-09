@@ -571,6 +571,30 @@
     return `${value.toFixed(1)} km/h`;
   }
 
+  function calcularAnguloSuavizado(tramo, index, span = 4) {
+    if (!Array.isArray(tramo) || tramo.length < 2) {
+      return null;
+    }
+
+    const inicio = Math.max(0, index - span);
+    const fin = Math.min(tramo.length - 1, index + span);
+    const puntoInicio = tramo[inicio];
+    const puntoFin = tramo[fin];
+
+    if (!puntoInicio || !puntoFin) {
+      return null;
+    }
+
+    if (puntoInicio.lat === puntoFin.lat && puntoInicio.lng === puntoFin.lng) {
+      return null;
+    }
+
+    return Math.atan2(
+      puntoFin.lat - puntoInicio.lat,
+      puntoFin.lng - puntoInicio.lng
+    ) * 180 / Math.PI;
+  }
+
   async function fetchJson(url, fallbackMessage) {
     const res = await fetch(url);
     if (!res.ok) {
@@ -655,19 +679,24 @@
       return coords;
     }
 
-    const saltoFlecha = tramo.length > 900 ? 2 : 1;
+    const saltoFlecha = tramo.length > 700
+      ? 5
+      : tramo.length > 320
+        ? 4
+        : tramo.length > 180
+          ? 3
+          : 2;
 
     for (let i = 0; i < tramo.length; i += saltoFlecha) {
       const actual = tramo[i];
-      const siguiente = tramo[Math.min(i + saltoFlecha, tramo.length - 1)];
-      if (!siguiente || (actual.lat === siguiente.lat && actual.lng === siguiente.lng)) {
+      if (!actual) {
         continue;
       }
 
-      const angulo = Math.atan2(
-        siguiente.lat - actual.lat,
-        siguiente.lng - actual.lng
-      ) * 180 / Math.PI;
+      const angulo = calcularAnguloSuavizado(tramo, i, Math.max(3, saltoFlecha));
+      if (angulo === null) {
+        continue;
+      }
 
       crearFlecha(actual.lat, actual.lng, angulo, actual);
     }
