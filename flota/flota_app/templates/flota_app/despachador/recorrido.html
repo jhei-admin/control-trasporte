@@ -396,6 +396,126 @@
     return coords;
   }
 
+  function parseTimestamp(value) {
+    if (!value) {
+      return null;
+    }
+
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+
+  function distanciaMetros(lat1, lng1, lat2, lng2) {
+    const toRad = (deg) => deg * Math.PI / 180;
+    const R = 6371000;
+    const dLat = toRad(lat2 - lat1);
+    const dLng = toRad(lng2 - lng1);
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+      Math.sin(dLng / 2) * Math.sin(dLng / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+  }
+
+  function calcularVelocidadEstimada(actual, anterior, siguiente) {
+    const candidatos = [];
+
+    if (anterior) {
+      candidatos.push([anterior, actual]);
+    }
+    if (siguiente) {
+      candidatos.push([actual, siguiente]);
+    }
+
+    for (const [p1, p2] of candidatos) {
+      const t1 = parseTimestamp(p1.timestamp);
+      const t2 = parseTimestamp(p2.timestamp);
+      if (!t1 || !t2) {
+        continue;
+      }
+
+      const segundos = Math.abs((t2.getTime() - t1.getTime()) / 1000);
+      if (!segundos || segundos > 180) {
+        continue;
+      }
+
+      const metros = distanciaMetros(p1.lat, p1.lng, p2.lat, p2.lng);
+      const kmh = (metros / segundos) * 3.6;
+      if (Number.isFinite(kmh) && kmh >= 0) {
+        return kmh;
+      }
+    }
+
+    return 0;
+  }
+
+  function normalizarFase(value) {
+    return String(value || "IDA").trim().toUpperCase();
+  }
+
+  function resolverFasePunto(punto, rutaPuntos) {
+    if (!Array.isArray(rutaPuntos) || !rutaPuntos.length) {
+      return "IDA";
+    }
+
+    let mejorFase = "IDA";
+    let mejorDistancia = Number.POSITIVE_INFINITY;
+
+    rutaPuntos.forEach((rutaPunto) => {
+      const lat = Number(rutaPunto.lat);
+      const lng = Number(rutaPunto.lng);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+        return;
+      }
+
+      const distancia = distanciaMetros(punto.lat, punto.lng, lat, lng);
+      if (distancia < mejorDistancia) {
+        mejorDistancia = distancia;
+        mejorFase = normalizarFase(rutaPunto.fase);
+      }
+    });
+
+    if (mejorFase === "CONTEXTO") {
+      return "RETORNO";
+    }
+
+    return mejorFase === "RETORNO" ? "RETORNO" : "IDA";
+  }
+
+  function enriquecerPuntosRecorrido(puntosInfo, rutas) {
+    const rutasMap = new Map(
+      (Array.isArray(rutas) ? rutas : []).map((ruta) => [String(ruta.id), Array.isArray(ruta.puntos) ? ruta.puntos : []])
+    );
+
+    return puntosInfo.map((punto, index) => {
+      const anterior = index > 0 ? puntosInfo[index - 1] : null;
+      const siguiente = index + 1 < puntosInfo.length ? puntosInfo[index + 1] : null;
+      const velocidadReal = Number(punto.velocidad || 0);
+      const velocidadCalculada = velocidadReal > 0
+        ? velocidadReal
+        : calcularVelocidadEstimada(punto, anterior, siguiente);
+      const rutaPuntos = rutasMap.get(String(punto.ruta_id || "")) || [];
+      const fase = resolverFasePunto(punto, rutaPuntos);
+
+      return {
+        ...punto,
+        velocidad: Number.isFinite(velocidadCalculada) ? velocidadCalculada : 0,
+        fase,
+      };
+    });
+  }
+
+  function colorFase(fase) {
+    return fase === "RETORNO"
+      ? "rgba(245, 158, 11, 0.96)"
+      : "rgba(10, 10, 10, 0.96)";
+  }
+
+  function etiquetaFase(fase) {
+    return fase === "RETORNO" ? "RETORNO" : "IDA";
+  }
+
   async function fetchJson(url, fallbackMessage) {
     const res = await fetch(url);
     if (!res.ok) {
@@ -412,6 +532,7 @@
   }
 
   function crearFlecha(lat, lng, angulo, punto) {
+    const color = colorFase(punto.fase);
     const icon = L.divIcon({
       className: "",
       html: `
@@ -420,7 +541,7 @@
           height: 0;
           border-top: 7px solid transparent;
           border-bottom: 7px solid transparent;
-          border-left: 16px solid rgba(10, 10, 10, 0.96);
+          border-left: 16px solid ${color};
           transform: rotate(${angulo}deg);
           filter: drop-shadow(0 1px 1px rgba(255,255,255,.16));
         "></div>
@@ -435,8 +556,9 @@
     L.marker([lat, lng], { icon })
       .bindPopup(`
         <strong>${unidadLabel}</strong><br>
+        <strong>Fase:</strong> ${etiquetaFase(punto.fase)}<br>
         <strong>Hora:</strong> ${punto.hora}<br>
-        <strong>Velocidad:</strong> ${punto.velocidad} km/h<br>
+        <strong>Velocidad:</strong> ${punto.velocidad.toFixed(1)} km/h<br>
         <small>${punto.lat.toFixed(5)}, ${punto.lng.toFixed(5)}</small>
       `)
       .addTo(arrowLayer);
@@ -455,8 +577,9 @@
         fillOpacity: 0.85
       })
         .bindPopup(`
+          <strong>Fase:</strong> ${etiquetaFase(tramo[0].fase)}<br>
           <strong>Hora:</strong> ${tramo[0].hora}<br>
-          <strong>Velocidad:</strong> ${tramo[0].velocidad} km/h
+          <strong>Velocidad:</strong> ${tramo[0].velocidad.toFixed(1)} km/h
         `)
         .addTo(gpsLayer);
       return coords;
@@ -584,10 +707,14 @@
           lat: Number(punto.lat),
           lng: Number(punto.lng),
           hora: punto.hora || "",
+          timestamp: punto.timestamp || "",
           velocidad: Number(punto.velocidad || 0),
-          salida_id: punto.salida_id || null
+          salida_id: punto.salida_id || null,
+          ruta_id: punto.ruta_id || null
         }))
         .filter((punto) => Number.isFinite(punto.lat) && Number.isFinite(punto.lng));
+
+      const puntosInfoEnriquecidos = enriquecerPuntosRecorrido(puntosInfo, rutas);
 
       const paradas = paradasRaw
         .map((parada) => ({
@@ -603,7 +730,7 @@
       renderSalidaOptions(salidas, salidaFiltradaId);
       renderResumenSalidas(salidas, salidaFiltradaId);
 
-      if (!puntosInfo.length && !rutas.length) {
+      if (!puntosInfoEnriquecidos.length && !rutas.length) {
         setEstadoRecorrido("No hay datos de recorrido para esa fecha.");
         map.setView(MAP_CENTER, 13);
         return;
@@ -617,7 +744,7 @@
           coords.forEach((coord) => routeBounds.push(coord));
         });
 
-      const gpsBounds = drawGpsMarkers(puntosInfo);
+      const gpsBounds = drawGpsMarkers(puntosInfoEnriquecidos);
       const allBounds = gpsBounds.length ? gpsBounds : routeBounds;
 
       if (allBounds.length === 1) {
@@ -629,8 +756,8 @@
       }
 
       const resumenGps = meta.gps_recortado
-        ? `Se cargaron ${puntosInfo.length} punto(s) GPS de ${meta.gps_total || puntosInfo.length} registrados.`
-        : `Se cargaron ${puntosInfo.length} punto(s) GPS.`;
+        ? `Se cargaron ${puntosInfoEnriquecidos.length} punto(s) GPS de ${meta.gps_total || puntosInfoEnriquecidos.length} registrados.`
+        : `Se cargaron ${puntosInfoEnriquecidos.length} punto(s) GPS.`;
 
       setEstadoRecorrido(resumenGps);
       drawStops(paradas);

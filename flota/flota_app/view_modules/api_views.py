@@ -1646,6 +1646,7 @@ def api_recorrido_vehiculo(request):
                 "id": ruta.id,
                 "nombre": ruta.nombre,
                 "geometria": _serializar_geometria_ruta(ruta),
+                "puntos": _serializar_puntos_ruta(ruta, incluir_contexto_interno=True),
             })
             rutas_vistas.add(ruta.id)
 
@@ -1692,8 +1693,10 @@ def api_recorrido_vehiculo(request):
                 "lat": registro.lat,
                 "lng": registro.lng,
                 "hora": timezone.localtime(registro.timestamp).strftime("%H:%M:%S"),
+                "timestamp": registro.timestamp.isoformat(),
                 "velocidad": registro.velocidad or 0,
                 "salida_id": salida.id,
+                "ruta_id": ruta.id if ruta else None,
             })
         for parada in paradas_salida:
             paradas_payload.append({
