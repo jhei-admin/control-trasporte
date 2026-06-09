@@ -501,23 +501,21 @@
       coords.forEach((coord) => bounds.push(coord));
     });
 
-    const pasoMarcador = puntosInfo.length > 900
-      ? 4
+    const markerRadius = puntosInfo.length > 900
+      ? 1.6
       : puntosInfo.length > 450
         ? 2
-        : 1;
+        : 2.4;
+    const markerOpacity = puntosInfo.length > 900 ? 0.42 : 0.58;
 
-    puntosInfo.forEach((punto, index) => {
-      if (index % pasoMarcador !== 0) {
-        return;
-      }
+    puntosInfo.forEach((punto) => {
 
       L.circleMarker([punto.lat, punto.lng], {
-        radius: 2,
-        color: "rgba(139, 233, 253, 0.35)",
+        radius: markerRadius,
+        color: "rgba(125, 211, 252, 0.78)",
         weight: 1,
-        fillColor: "rgba(139, 233, 253, 0.35)",
-        fillOpacity: 0.35
+        fillColor: "rgba(125, 211, 252, 0.88)",
+        fillOpacity: markerOpacity
       })
         .bindPopup(`
           <strong>Hora:</strong> ${punto.hora}<br>
