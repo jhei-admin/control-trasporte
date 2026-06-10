@@ -19,6 +19,7 @@ from .view_modules.api_views import (
     api_app_version,
     api_app_gerencia_login,
     api_app_gerencia_mapa,
+    api_app_gerencia_salidas,
     api_app_mapa_operativo,
     api_app_estado,
     api_app_referencia_tiempo,
@@ -218,6 +219,16 @@ urlpatterns = [
     path(
         "api/app/gerencia/mapa",
         api_app_gerencia_mapa
+    ),
+
+    path(
+        "api/app/gerencia/salidas/<int:vehiculo_id>/",
+        api_app_gerencia_salidas,
+        name="api_app_gerencia_salidas"
+    ),
+    path(
+        "api/app/gerencia/salidas/<int:vehiculo_id>",
+        api_app_gerencia_salidas
     ),
 
     path(

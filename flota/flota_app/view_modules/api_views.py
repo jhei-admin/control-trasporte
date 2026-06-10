@@ -59,6 +59,7 @@ __all__ = [
     "api_app_mapa_operativo",
     "api_app_gerencia_login",
     "api_app_gerencia_mapa",
+    "api_app_gerencia_salidas",
     "api_app_ganancias",
     "api_app_ganancias_movimiento",
     "api_app_mensajes",
@@ -1510,6 +1511,51 @@ def api_app_gerencia_mapa(request):
         "rutas": rutas,
         "unidades": unidades,
     })
+
+
+@require_GET
+def api_app_gerencia_salidas(request, vehiculo_id):
+    auth = request.headers.get("Authorization", "")
+    if not auth.startswith("Bearer "):
+        return JsonResponse({"ok": False, "mensaje": "Token no enviado."}, status=401)
+
+    token = auth.replace("Bearer ", "").strip()
+    sesion = validar_sesion_staff(token)
+    if not sesion:
+        return JsonResponse({"ok": False, "mensaje": "Sesion gerencial invalida o expirada."}, status=403)
+
+    ahora = timezone.now()
+    SesionStaffApp.objects.filter(pk=sesion.pk).update(ultimo_acceso=ahora)
+    empresa = sesion.empresa
+
+    vehiculo = get_object_or_404(
+        Vehiculo.objects.for_empresa(empresa).filter(activo=True),
+        id=vehiculo_id,
+    )
+    context = _construir_reporte_salidas_diarias_contexto(
+        empresa=empresa,
+        vehiculo_id=vehiculo.id,
+        fecha_param=request.GET.get("fecha"),
+    )
+
+    return JsonResponse(
+        {
+            "ok": True,
+            "fecha": context["fecha"].isoformat(),
+            "vehiculo": {
+                "id": vehiculo.id,
+                "codigo": vehiculo.codigo,
+                "placa": vehiculo.placa,
+            },
+            "resumen": {
+                "total_vueltas": context["total_vueltas"],
+                "promedio_marcacion": context["promedio_marcacion"],
+                "minutos_totales": context["minutos_totales"],
+                "alertas": context["alertas"],
+            },
+            "salidas": [_serializar_reporte_item(item) for item in context["salidas"]],
+        }
+    )
 
 
 @login_required
