@@ -18,9 +18,12 @@ html, body {
 }
 
 #map {
-    width: 100vw;
-    height: 100vh;
+    position: fixed;
+    inset: 0;
+    width: auto;
+    height: auto;
     background: #0f172a;
+    z-index: 1;
 }
 
 .leaflet-container {
@@ -32,7 +35,7 @@ html, body {
     top: 0;
     left: 0;
     right: 0;
-    z-index: 999;
+    z-index: 1000;
     padding: calc(env(safe-area-inset-top, 0px) + 12px) 12px 0;
     pointer-events: none;
 }
@@ -110,7 +113,7 @@ html, body {
     left: 0;
     right: 0;
     bottom: 0;
-    z-index: 999;
+    z-index: 1000;
     padding: 0 12px calc(env(safe-area-inset-bottom, 0px) + 10px);
     pointer-events: none;
 }
@@ -252,10 +255,26 @@ html, body {
     70% { box-shadow: 0 0 0 8px rgba(40,167,69,0); }
     100% { box-shadow: 0 0 0 0 rgba(40,167,69,0); }
 }
+
+.debug-badge {
+    position: fixed;
+    right: 12px;
+    top: calc(env(safe-area-inset-top, 0px) + 12px);
+    z-index: 1200;
+    max-width: 220px;
+    background: rgba(0, 0, 0, .82);
+    color: #fff;
+    border-radius: 12px;
+    padding: 8px 10px;
+    font-size: 11px;
+    line-height: 1.35;
+    box-shadow: 0 10px 24px rgba(0,0,0,.22);
+}
 </style>
 </head>
 <body>
 <div id="map"></div>
+<div id="debug-badge" class="debug-badge">Iniciando mapa...</div>
 
 <div class="top-shell">
     <div class="hero-card">
@@ -287,6 +306,18 @@ html, body {
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
+const debugBadge = document.getElementById("debug-badge");
+function debugMap(message) {
+    console.log("[MAPA_GERENCIA]", message);
+    if (debugBadge) {
+        debugBadge.textContent = message;
+    }
+}
+
+window.addEventListener("error", (event) => {
+    debugMap(`JS error: ${event.message}`);
+});
+
 const STAFF_TOKEN = "{{ staff_token|escapejs }}";
 const PARADERO = [-16.338088, -71.619947];
 const ZOOM_PARADERO = 15;
@@ -297,14 +328,16 @@ const ICON_BUS = {
     OFFLINE: "{% static 'icons/bus_red.png' %}"
 };
 
+const mapElement = document.getElementById("map");
+mapElement.style.height = `${window.innerHeight}px`;
+
 const map = L.map("map", {
-    preferCanvas: true,
     zoomAnimation: true,
     fadeAnimation: false,
     markerZoomAnimation: true
 }).setView(PARADERO, ZOOM_PARADERO);
 
-L.tileLayer(
+const mapboxLayer = L.tileLayer(
     "https://api.mapbox.com/styles/v1/mapbox/navigation-night-v1/tiles/{z}/{x}/{y}?access_token={{ MAPBOX_TOKEN }}",
     {
         tileSize: 512,
@@ -316,6 +349,35 @@ L.tileLayer(
         attribution: "© Mapbox © OpenStreetMap"
     }
 ).addTo(map);
+
+let fallbackApplied = false;
+let tileErrorCount = 0;
+
+mapboxLayer.on("load", () => {
+    debugMap("Mapa base cargado");
+    setTimeout(() => {
+        if (debugBadge) {
+            debugBadge.style.display = "none";
+        }
+    }, 1800);
+});
+
+mapboxLayer.on("tileerror", () => {
+    tileErrorCount += 1;
+    debugMap(`Error cargando tiles (${tileErrorCount})`);
+
+    if (fallbackApplied || tileErrorCount < 4) {
+        return;
+    }
+
+    fallbackApplied = true;
+    map.removeLayer(mapboxLayer);
+    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        maxZoom: 19,
+        attribution: "© OpenStreetMap"
+    }).addTo(map);
+    debugMap("Usando mapa alternativo");
+});
 
 map.zoomControl.setPosition("bottomright");
 map.attributionControl.setPrefix(false);
@@ -554,8 +616,22 @@ async function cargarMapaVivo() {
 renderizarRutasYPuntos();
 cargarMapaVivo();
 setInterval(cargarMapaVivo, 8000);
-map.whenReady(() => setTimeout(() => map.invalidateSize(true), 200));
-window.addEventListener("resize", () => map.invalidateSize(true));
+map.whenReady(() => {
+    debugMap("Mapa listo");
+    setTimeout(() => {
+        mapElement.style.height = `${window.innerHeight}px`;
+        map.invalidateSize(true);
+    }, 250);
+    setTimeout(() => {
+        mapElement.style.height = `${window.innerHeight}px`;
+        map.invalidateSize(true);
+    }, 900);
+});
+
+window.addEventListener("resize", () => {
+    mapElement.style.height = `${window.innerHeight}px`;
+    map.invalidateSize(true);
+});
 </script>
 </body>
 </html>
