@@ -34,8 +34,14 @@ html, body {
     left: 0;
     right: 0;
     z-index: 1000;
-    padding: calc(env(safe-area-inset-top, 0px) + 12px) 12px 0;
+    padding: calc(env(safe-area-inset-top, 0px) + 8px) 12px 0;
     pointer-events: none;
+}
+
+.top-chrome {
+    background: linear-gradient(180deg, rgba(15, 23, 42, 0.94) 0%, rgba(15, 23, 42, 0.76) 58%, rgba(15, 23, 42, 0) 100%);
+    border-radius: 0 0 22px 22px;
+    padding: 8px 6px 14px;
 }
 
 .toolbar-card {
@@ -60,9 +66,9 @@ html, body {
     display: flex;
     align-items: center;
     gap: 8px;
-    flex: 0 0 190px;
-    width: 190px;
-    max-width: calc(100vw - 96px);
+    flex: 0 0 160px;
+    width: 160px;
+    max-width: calc(100vw - 92px);
     background: #fff;
     border: 1px solid rgba(148, 163, 184, 0.35);
     border-radius: 14px;
@@ -200,26 +206,28 @@ html, body {
 <div id="map"></div>
 
 <div class="top-shell">
-    <div class="toolbar-card">
-        <div class="toolbar-row">
-            <div class="search-box">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                    <circle cx="11" cy="11" r="7"></circle>
-                    <path d="m20 20-3.5-3.5"></path>
-                </svg>
-                <input id="busqueda-unidad" type="text" placeholder="Codigo unidad">
+    <div class="top-chrome">
+        <div class="toolbar-card">
+            <div class="toolbar-row">
+                <div class="search-box">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <circle cx="11" cy="11" r="7"></circle>
+                        <path d="m20 20-3.5-3.5"></path>
+                    </svg>
+                    <input id="busqueda-unidad" type="text" placeholder="Unidad">
+                </div>
+                <button class="icon-btn" type="button" onclick="centrarMapa()" aria-label="Centrar mapa">
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <circle cx="12" cy="12" r="3"></circle>
+                        <path d="M12 2v3"></path>
+                        <path d="M12 19v3"></path>
+                        <path d="M2 12h3"></path>
+                        <path d="M19 12h3"></path>
+                    </svg>
+                </button>
             </div>
-            <button class="icon-btn" type="button" onclick="centrarMapa()" aria-label="Centrar mapa">
-                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                    <circle cx="12" cy="12" r="3"></circle>
-                    <path d="M12 2v3"></path>
-                    <path d="M12 19v3"></path>
-                    <path d="M2 12h3"></path>
-                    <path d="M19 12h3"></path>
-                </svg>
-            </button>
+            <div id="search-results" class="search-results"></div>
         </div>
-        <div id="search-results" class="search-results"></div>
     </div>
 </div>
 
