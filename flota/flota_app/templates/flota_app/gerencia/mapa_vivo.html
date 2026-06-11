@@ -129,26 +129,6 @@ html, body {
     margin-top: 2px;
 }
 
-.floating-badges {
-    position: fixed;
-    left: 12px;
-    bottom: calc(env(safe-area-inset-bottom, 0px) + 18px);
-    z-index: 1000;
-    display: flex;
-    gap: 8px;
-    pointer-events: none;
-}
-
-.mini-pill {
-    background: rgba(15, 23, 42, 0.78);
-    color: #fff;
-    border-radius: 999px;
-    padding: 8px 12px;
-    font-size: 12px;
-    font-weight: 700;
-    backdrop-filter: blur(8px);
-}
-
 .leaflet-tooltip.paradero-label,
 .punto-control-label {
     border: none;
@@ -210,25 +190,10 @@ html, body {
     100% { box-shadow: 0 0 0 0 rgba(40,167,69,0); }
 }
 
-.debug-badge {
-    position: fixed;
-    right: 12px;
-    top: calc(env(safe-area-inset-top, 0px) + 74px);
-    z-index: 1200;
-    max-width: 220px;
-    background: rgba(0, 0, 0, .82);
-    color: #fff;
-    border-radius: 12px;
-    padding: 8px 10px;
-    font-size: 11px;
-    line-height: 1.35;
-    box-shadow: 0 10px 24px rgba(0,0,0,.22);
-}
 </style>
 </head>
 <body>
 <div id="map"></div>
-<div id="debug-badge" class="debug-badge">Iniciando mapa...</div>
 
 <div class="top-shell">
     <div class="toolbar-card">
@@ -254,19 +219,10 @@ html, body {
     </div>
 </div>
 
-<div class="floating-badges">
-    <div class="mini-pill"><span id="cnt-online">0</span> online</div>
-    <div class="mini-pill"><span id="cnt-total">0</span> total</div>
-</div>
-
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-const debugBadge = document.getElementById("debug-badge");
 function debugMap(message) {
     console.log("[MAPA_GERENCIA]", message);
-    if (debugBadge) {
-        debugBadge.textContent = message;
-    }
 }
 
 window.addEventListener("error", (event) => {
@@ -317,11 +273,6 @@ const markers = {};
 
 mapboxLayer.on("load", () => {
     debugMap("Mapa base cargado");
-    setTimeout(() => {
-        if (debugBadge) {
-            debugBadge.style.display = "none";
-        }
-    }, 1600);
 });
 
 mapboxLayer.on("tileerror", () => {
@@ -531,12 +482,9 @@ async function cargarMapaVivo() {
             }
         });
 
-        let online = 0;
-
         unidades.forEach(v => {
             if (!v.lat || !v.lng) return;
             const estado = obtenerEstadoVisual(v);
-            if (estado === "ACTIVO") online++;
             bounds.push([v.lat, v.lng]);
             const icono = crearIconoBus(v);
             const html = popupBus(v, estado);
@@ -553,8 +501,6 @@ async function cargarMapaVivo() {
         });
 
         ultimaDataUnidades = unidades;
-        document.getElementById("cnt-online").innerText = online;
-        document.getElementById("cnt-total").innerText = unidades.length;
         renderSearchResults(unidades);
 
         if (bounds.length > 0 && !mapaCentrado) {
