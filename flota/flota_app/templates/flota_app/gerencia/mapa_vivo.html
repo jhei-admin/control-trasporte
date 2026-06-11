@@ -53,17 +53,20 @@ html, body {
     display: flex;
     align-items: center;
     gap: 8px;
+    justify-content: space-between;
 }
 
 .search-box {
     display: flex;
     align-items: center;
     gap: 8px;
-    flex: 1;
+    flex: 0 0 190px;
+    width: 190px;
+    max-width: calc(100vw - 96px);
     background: #fff;
     border: 1px solid rgba(148, 163, 184, 0.35);
     border-radius: 14px;
-    padding: 10px 12px;
+    padding: 8px 10px;
 }
 
 .search-box svg {
@@ -74,11 +77,12 @@ html, body {
 
 .search-box input {
     flex: 1;
+    min-width: 0;
     border: 0;
     outline: none;
     background: transparent;
     color: #0f172a;
-    font-size: 15px;
+    font-size: 13px;
 }
 
 .icon-btn {
@@ -203,7 +207,7 @@ html, body {
                     <circle cx="11" cy="11" r="7"></circle>
                     <path d="m20 20-3.5-3.5"></path>
                 </svg>
-                <input id="busqueda-unidad" type="text" placeholder="Buscar unidad o placa">
+                <input id="busqueda-unidad" type="text" placeholder="Codigo unidad">
             </div>
             <button class="icon-btn" type="button" onclick="centrarMapa()" aria-label="Centrar mapa">
                 <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
