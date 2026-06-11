@@ -14,7 +14,7 @@ from django.core import signing
 from django.db import IntegrityError
 from django.db.models import Max, Q, Sum
 from django.http import FileResponse, Http404, HttpResponseRedirect, JsonResponse
-from django.shortcuts import get_object_or_404
+from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
@@ -60,6 +60,7 @@ __all__ = [
     "api_app_gerencia_login",
     "api_app_gerencia_mapa",
     "api_app_gerencia_salidas",
+    "app_gerencia_mapa_vivo",
     "api_app_ganancias",
     "api_app_ganancias_movimiento",
     "api_app_mensajes",
@@ -118,6 +119,13 @@ def _label_audio_punto(punto):
     if punto.nombre:
         return punto.nombre.strip().upper()
     return (punto.codigo or "PUNTO").strip().upper()
+
+
+def _resolver_token_staff_request(request):
+    auth = request.headers.get("Authorization", "").strip()
+    if auth.startswith("Bearer "):
+        return auth.replace("Bearer ", "").strip()
+    return request.GET.get("token", "").strip()
 
 
 def _formatear_diferencia_audio(diferencia_minutos):
@@ -1467,11 +1475,9 @@ def api_app_gerencia_login(request):
 
 @require_GET
 def api_app_gerencia_mapa(request):
-    auth = request.headers.get("Authorization", "")
-    if not auth.startswith("Bearer "):
+    token = _resolver_token_staff_request(request)
+    if not token:
         return JsonResponse({"ok": False, "mensaje": "Token no enviado."}, status=401)
-
-    token = auth.replace("Bearer ", "").strip()
     sesion = validar_sesion_staff(token)
     if not sesion:
         return JsonResponse({"ok": False, "mensaje": "Sesion gerencial invalida o expirada."}, status=403)
@@ -1511,6 +1517,45 @@ def api_app_gerencia_mapa(request):
         "rutas": rutas,
         "unidades": unidades,
     })
+
+
+@require_GET
+def app_gerencia_mapa_vivo(request):
+    token = _resolver_token_staff_request(request)
+    if not token:
+        return JsonResponse({"ok": False, "mensaje": "Token no enviado."}, status=401)
+
+    sesion = validar_sesion_staff(token)
+    if not sesion:
+        return JsonResponse({"ok": False, "mensaje": "Sesion gerencial invalida o expirada."}, status=403)
+
+    ahora = timezone.now()
+    SesionStaffApp.objects.filter(pk=sesion.pk).update(ultimo_acceso=ahora)
+    empresa = sesion.empresa
+    rutas = []
+
+    for ruta in Ruta.objects.for_empresa(empresa).order_by("nombre"):
+        geometria = _serializar_geometria_ruta(ruta)
+        puntos = _serializar_puntos_ruta(ruta)
+        if not geometria and puntos:
+            geometria = [[punto["lat"], punto["lng"]] for punto in puntos]
+        rutas.append({
+            "id": ruta.id,
+            "nombre": ruta.nombre,
+            "geometria": geometria,
+            "puntos": puntos,
+        })
+
+    return render(
+        request,
+        "flota_app/gerencia/mapa_vivo.html",
+        {
+            "MAPBOX_TOKEN": settings.MAPBOX_TOKEN,
+            "empresa": empresa.nombre,
+            "staff_token": token,
+            "rutas_json": json.dumps(rutas),
+        },
+    )
 
 
 @require_GET

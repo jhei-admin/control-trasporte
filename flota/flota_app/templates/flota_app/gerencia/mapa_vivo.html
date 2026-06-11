@@ -1,0 +1,561 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>GPS Tracking AQP | Mapa vivo</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+html, body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: #0f172a;
+    font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+}
+
+#map {
+    width: 100vw;
+    height: 100vh;
+    background: #0f172a;
+}
+
+.leaflet-container {
+    background: #0f172a;
+}
+
+.top-shell {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 999;
+    padding: calc(env(safe-area-inset-top, 0px) + 12px) 12px 0;
+    pointer-events: none;
+}
+
+.hero-card {
+    background: rgba(15, 23, 42, 0.82);
+    color: #fff;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    backdrop-filter: blur(10px);
+    border-radius: 18px;
+    padding: 14px;
+    box-shadow: 0 14px 32px rgba(2, 6, 23, 0.35);
+    pointer-events: auto;
+}
+
+.hero-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.hero-logo {
+    width: 52px;
+    height: 52px;
+    border-radius: 14px;
+    object-fit: cover;
+    background: rgba(255,255,255,.08);
+}
+
+.hero-title {
+    font-size: 18px;
+    font-weight: 800;
+    margin: 0;
+}
+
+.hero-subtitle {
+    margin: 2px 0 0;
+    color: #cbd5e1;
+    font-size: 12px;
+}
+
+.stats-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+    margin-top: 10px;
+}
+
+.stat-pill {
+    border-radius: 14px;
+    padding: 10px 8px;
+    text-align: center;
+    background: rgba(255,255,255,.08);
+}
+
+.stat-pill strong {
+    display: block;
+    font-size: 18px;
+    line-height: 1.1;
+}
+
+.stat-pill span {
+    display: block;
+    font-size: 11px;
+    color: #dbeafe;
+}
+
+.ok { background: rgba(34, 197, 94, .18); }
+.warn { background: rgba(250, 204, 21, .18); }
+.off { background: rgba(239, 68, 68, .18); }
+.all { background: rgba(59, 130, 246, .18); }
+
+.bottom-sheet {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 999;
+    padding: 0 12px calc(env(safe-area-inset-bottom, 0px) + 10px);
+    pointer-events: none;
+}
+
+.bottom-panel {
+    background: rgba(15, 23, 42, 0.86);
+    color: #fff;
+    border-radius: 20px;
+    border: 1px solid rgba(255,255,255,.08);
+    backdrop-filter: blur(10px);
+    box-shadow: 0 -10px 30px rgba(2, 6, 23, 0.28);
+    padding: 12px;
+    pointer-events: auto;
+}
+
+.panel-title {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 8px;
+}
+
+.panel-title h3 {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 800;
+}
+
+.panel-title button {
+    border: 0;
+    border-radius: 10px;
+    background: #2563eb;
+    color: #fff;
+    padding: 8px 10px;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.unit-strip {
+    display: flex;
+    gap: 10px;
+    overflow-x: auto;
+    padding-bottom: 2px;
+}
+
+.unit-card {
+    min-width: 148px;
+    border-radius: 16px;
+    padding: 12px;
+    background: rgba(255,255,255,.08);
+    border: 1px solid rgba(255,255,255,.06);
+}
+
+.unit-card strong {
+    display: block;
+    font-size: 15px;
+}
+
+.unit-card small {
+    display: block;
+    color: #cbd5e1;
+    margin-top: 4px;
+}
+
+.state-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 999px;
+    display: inline-block;
+    margin-right: 6px;
+}
+
+.state-online { background: #22c55e; }
+.state-lento { background: #facc15; }
+.state-offline { background: #ef4444; }
+
+.leaflet-tooltip.paradero-label,
+.punto-control-label,
+.punto-referencia-label {
+    border: none;
+    border-radius: 7px;
+    padding: 4px 7px;
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.leaflet-tooltip.paradero-label,
+.punto-control-label {
+    background: rgba(15, 23, 42, .92);
+    color: #fff;
+}
+
+.punto-referencia-label {
+    background: rgba(30, 41, 59, .92);
+    color: #dbeafe;
+}
+
+.bus-marker {
+    position: relative;
+    width: 34px;
+    height: 34px;
+}
+
+.bus-numero {
+    position: absolute;
+    top: -10px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0,0,0,.82);
+    color: #fff;
+    font-size: 11px;
+    padding: 1px 6px;
+    border-radius: 6px;
+}
+
+.bus-marker img {
+    width: 100%;
+    height: 100%;
+    filter: drop-shadow(0 3px 4px rgba(0,0,0,.6));
+}
+
+.bus-activo { filter: drop-shadow(0 0 6px rgba(40,167,69,.9)); }
+.bus-offline { opacity: .45; filter: grayscale(80%); }
+
+.live-dot {
+    position: absolute;
+    top: -18px;
+    right: -6px;
+    width: 8px;
+    height: 8px;
+    background: #28a745;
+    border-radius: 50%;
+    animation: livePulse 1.5s infinite;
+}
+
+@keyframes livePulse {
+    0% { box-shadow: 0 0 0 0 rgba(40,167,69,.7); }
+    70% { box-shadow: 0 0 0 8px rgba(40,167,69,0); }
+    100% { box-shadow: 0 0 0 0 rgba(40,167,69,0); }
+}
+</style>
+</head>
+<body>
+<div id="map"></div>
+
+<div class="top-shell">
+    <div class="hero-card">
+        <div class="hero-row">
+            <img class="hero-logo" src="{% static 'icons/paradero.png' %}" alt="Logo">
+            <div>
+                <p class="hero-title">GPS Tracking AQP</p>
+                <p class="hero-subtitle">{{ empresa }} | Mapa vivo en tiempo real</p>
+            </div>
+        </div>
+        <div class="stats-row">
+            <div class="stat-pill ok"><strong id="cnt-online">0</strong><span>Online</span></div>
+            <div class="stat-pill warn"><strong id="cnt-lento">0</strong><span>Lento</span></div>
+            <div class="stat-pill off"><strong id="cnt-offline">0</strong><span>Offline</span></div>
+            <div class="stat-pill all"><strong id="cnt-total">0</strong><span>Total</span></div>
+        </div>
+    </div>
+</div>
+
+<div class="bottom-sheet">
+    <div class="bottom-panel">
+        <div class="panel-title">
+            <h3>Unidades visibles</h3>
+            <button type="button" onclick="centrarMapa()">Centrar</button>
+        </div>
+        <div id="lista-unidades" class="unit-strip"></div>
+    </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const STAFF_TOKEN = "{{ staff_token|escapejs }}";
+const PARADERO = [-16.338088, -71.619947];
+const ZOOM_PARADERO = 15;
+const rutasGeometria = {{ rutas_json|safe }};
+const ICON_BUS = {
+    ACTIVO: "{% static 'icons/bus_green.png' %}",
+    INACTIVO: "{% static 'icons/bus_yellow.png' %}",
+    OFFLINE: "{% static 'icons/bus_red.png' %}"
+};
+
+const map = L.map("map", {
+    preferCanvas: true,
+    zoomAnimation: true,
+    fadeAnimation: false,
+    markerZoomAnimation: true
+}).setView(PARADERO, ZOOM_PARADERO);
+
+L.tileLayer(
+    "https://api.mapbox.com/styles/v1/mapbox/navigation-night-v1/tiles/{z}/{x}/{y}?access_token={{ MAPBOX_TOKEN }}",
+    {
+        tileSize: 512,
+        zoomOffset: -1,
+        maxZoom: 20,
+        keepBuffer: 6,
+        updateWhenZooming: true,
+        updateWhenIdle: false,
+        attribution: "© Mapbox © OpenStreetMap"
+    }
+).addTo(map);
+
+map.zoomControl.setPosition("bottomright");
+map.attributionControl.setPrefix(false);
+
+const capaFlota = L.layerGroup().addTo(map);
+const capaParadero = L.layerGroup().addTo(map);
+const capaRutas = L.layerGroup().addTo(map);
+const capaPuntosControl = L.layerGroup().addTo(map);
+const markers = {};
+let mapaCentrado = false;
+
+L.control.layers(null, {
+    "Flota": capaFlota,
+    "Paradero": capaParadero,
+    "Ruta": capaRutas,
+    "Puntos": capaPuntosControl
+}).addTo(map);
+
+const paraderoIcon = L.icon({
+    iconUrl: "{% static 'icons/paradero.png' %}",
+    iconSize: [36, 36],
+    iconAnchor: [18, 36]
+});
+
+L.marker(PARADERO, { icon: paraderoIcon })
+    .bindTooltip("Paradero", { permanent: true, className: "paradero-label" })
+    .addTo(capaParadero);
+
+function dibujarRutaReal(coords) {
+    if (!coords || coords.length < 2) return;
+
+    L.polyline(coords, {
+        color: "#000",
+        weight: 16,
+        opacity: .7,
+        lineCap: "round",
+        lineJoin: "round"
+    }).addTo(capaRutas);
+
+    L.polyline(coords, {
+        color: "#e5e5e5",
+        weight: 12,
+        opacity: .95,
+        lineCap: "round",
+        lineJoin: "round"
+    }).addTo(capaRutas);
+
+    L.polyline(coords, {
+        color: "#00e5ff",
+        weight: 4,
+        dashArray: "10,10",
+        opacity: .9,
+        lineCap: "round",
+        lineJoin: "round"
+    }).addTo(capaRutas);
+}
+
+function renderizarRutasYPuntos() {
+    capaRutas.clearLayers();
+    capaPuntosControl.clearLayers();
+
+    rutasGeometria.forEach(ruta => {
+        dibujarRutaReal(ruta.geometria);
+        (ruta.puntos || []).forEach(p => {
+            const coord = [p.lat, p.lng];
+            const radioColor = "#ffd54f";
+            const puntoColor = "#ff9800";
+
+            L.circle(coord, {
+                radius: p.radio || 100,
+                color: radioColor,
+                fillColor: radioColor,
+                fillOpacity: .25
+            }).addTo(capaPuntosControl);
+
+            L.circleMarker(coord, {
+                radius: 6,
+                color: puntoColor,
+                fillColor: puntoColor,
+                fillOpacity: 1
+            }).bindTooltip(p.codigo, {
+                permanent: true,
+                className: "punto-control-label"
+            }).addTo(capaPuntosControl);
+        });
+    });
+}
+
+function obtenerEstadoVisual(v) {
+    if (v.estado_gps === "OFFLINE") return "OFFLINE";
+    return v.estado === "ACTIVO" ? "ACTIVO" : "INACTIVO";
+}
+
+function crearIconoBus(v) {
+    const estado = obtenerEstadoVisual(v);
+    const clase = estado === "ACTIVO" ? "bus-activo" : (estado === "OFFLINE" ? "bus-offline" : "");
+    const live = estado === "ACTIVO" ? '<span class="live-dot"></span>' : "";
+    const direccion = v.direccion || 0;
+
+    return L.divIcon({
+        className: "",
+        html: `
+            <div class="bus-marker ${clase}">
+                ${live}
+                <div class="bus-numero">${v.vehiculo}</div>
+                <img src="${ICON_BUS[estado]}" style="transform: rotate(${direccion}deg)">
+            </div>
+        `,
+        iconSize: [34, 34],
+        iconAnchor: [17, 17]
+    });
+}
+
+function popupBus(v, estadoVisual) {
+    return `
+        <div style="min-width:180px">
+            <b>Unidad:</b> ${v.vehiculo}<br>
+            <b>Estado:</b> ${estadoVisual}<br>
+            <b>GPS:</b> ${v.estado_gps || "--"}<br>
+            <b>Velocidad:</b> ${v.velocidad || 0} km/h<br>
+            <b>Ruta:</b> ${v.ruta_nombre || "--"}<br>
+            <b>Ultima senal:</b> ${v.actualizado_en || "--"}
+        </div>
+    `;
+}
+
+function animarMovimiento(marker, nuevaPos) {
+    let actual = marker.getLatLng();
+    const latDiff = (nuevaPos[0] - actual.lat) / 10;
+    const lngDiff = (nuevaPos[1] - actual.lng) / 10;
+    let i = 0;
+    const anim = setInterval(() => {
+        if (i >= 10) {
+            clearInterval(anim);
+            marker.setLatLng(nuevaPos);
+            return;
+        }
+        actual.lat += latDiff;
+        actual.lng += lngDiff;
+        marker.setLatLng([actual.lat, actual.lng]);
+        i++;
+    }, 40);
+}
+
+function renderLista(unidades) {
+    const contenedor = document.getElementById("lista-unidades");
+    contenedor.innerHTML = "";
+
+    unidades.forEach(v => {
+        const estado = obtenerEstadoVisual(v);
+        const dotClass = estado === "ACTIVO" ? "state-online" : (estado === "INACTIVO" ? "state-lento" : "state-offline");
+        const card = document.createElement("div");
+        card.className = "unit-card";
+        card.innerHTML = `
+            <strong><span class="state-dot ${dotClass}"></span>Bus ${v.vehiculo}</strong>
+            <small>${v.ruta_nombre || "Sin ruta activa"}</small>
+            <small>${v.placa || "--"}</small>
+        `;
+        card.onclick = () => {
+            if (markers[v.vehiculo]) {
+                map.setView(markers[v.vehiculo].getLatLng(), 18, { animate: true });
+                markers[v.vehiculo].openPopup();
+            }
+        };
+        contenedor.appendChild(card);
+    });
+}
+
+function centrarMapa() {
+    map.setView(PARADERO, ZOOM_PARADERO);
+}
+
+async function cargarMapaVivo() {
+    try {
+        const res = await fetch(`/sistema/api/app/gerencia/mapa/?token=${encodeURIComponent(STAFF_TOKEN)}`, {
+            cache: "no-store"
+        });
+        const data = await res.json();
+        if (!data.ok) {
+            console.error("Mapa gerencial sin datos", data);
+            return;
+        }
+
+        const unidades = data.unidades || [];
+        const bounds = [];
+
+        Object.keys(markers).forEach(codigo => {
+            const presente = unidades.some(v => String(v.vehiculo) === codigo && v.lat && v.lng);
+            if (!presente) {
+                capaFlota.removeLayer(markers[codigo]);
+                delete markers[codigo];
+            }
+        });
+
+        let online = 0;
+        let lento = 0;
+        let offline = 0;
+
+        unidades.forEach(v => {
+            if (!v.lat || !v.lng) return;
+            const estado = obtenerEstadoVisual(v);
+            if (estado === "ACTIVO") online++;
+            else if (estado === "INACTIVO") lento++;
+            else offline++;
+
+            bounds.push([v.lat, v.lng]);
+            const icono = crearIconoBus(v);
+            const html = popupBus(v, estado);
+
+            if (!markers[v.vehiculo]) {
+                markers[v.vehiculo] = L.marker([v.lat, v.lng], { icon: icono })
+                    .bindPopup(html)
+                    .addTo(capaFlota);
+            } else {
+                animarMovimiento(markers[v.vehiculo], [v.lat, v.lng]);
+                markers[v.vehiculo].setIcon(icono);
+                markers[v.vehiculo].setPopupContent(html);
+            }
+        });
+
+        document.getElementById("cnt-online").innerText = online;
+        document.getElementById("cnt-lento").innerText = lento;
+        document.getElementById("cnt-offline").innerText = offline;
+        document.getElementById("cnt-total").innerText = unidades.length;
+        renderLista(unidades);
+
+        if (bounds.length > 0 && !mapaCentrado) {
+            map.fitBounds(bounds, { padding: [40, 40] });
+            mapaCentrado = true;
+        }
+    } catch (error) {
+        console.error("Error cargando mapa gerencial", error);
+    }
+}
+
+renderizarRutasYPuntos();
+cargarMapaVivo();
+setInterval(cargarMapaVivo, 8000);
+map.whenReady(() => setTimeout(() => map.invalidateSize(true), 200));
+window.addEventListener("resize", () => map.invalidateSize(true));
+</script>
+</body>
+</html>
