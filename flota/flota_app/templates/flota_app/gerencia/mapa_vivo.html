@@ -20,8 +20,6 @@ html, body {
 #map {
     position: fixed;
     inset: 0;
-    width: auto;
-    height: auto;
     background: #0f172a;
     z-index: 1;
 }
@@ -40,176 +38,126 @@ html, body {
     pointer-events: none;
 }
 
-.hero-card {
-    background: rgba(15, 23, 42, 0.82);
-    color: #fff;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    backdrop-filter: blur(10px);
+.toolbar-card {
+    background: rgba(255, 255, 255, 0.92);
+    color: #0f172a;
     border-radius: 18px;
-    padding: 14px;
-    box-shadow: 0 14px 32px rgba(2, 6, 23, 0.35);
-    pointer-events: auto;
-}
-
-.hero-row {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-}
-
-.hero-logo {
-    width: 52px;
-    height: 52px;
-    border-radius: 14px;
-    object-fit: cover;
-    background: rgba(255,255,255,.08);
-}
-
-.hero-title {
-    font-size: 18px;
-    font-weight: 800;
-    margin: 0;
-}
-
-.hero-subtitle {
-    margin: 2px 0 0;
-    color: #cbd5e1;
-    font-size: 12px;
-}
-
-.stats-row {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 8px;
-    margin-top: 10px;
-}
-
-.stat-pill {
-    border-radius: 14px;
-    padding: 10px 8px;
-    text-align: center;
-    background: rgba(255,255,255,.08);
-}
-
-.stat-pill strong {
-    display: block;
-    font-size: 18px;
-    line-height: 1.1;
-}
-
-.stat-pill span {
-    display: block;
-    font-size: 11px;
-    color: #dbeafe;
-}
-
-.ok { background: rgba(34, 197, 94, .18); }
-.warn { background: rgba(250, 204, 21, .18); }
-.off { background: rgba(239, 68, 68, .18); }
-.all { background: rgba(59, 130, 246, .18); }
-
-.bottom-sheet {
-    position: fixed;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    z-index: 1000;
-    padding: 0 12px calc(env(safe-area-inset-bottom, 0px) + 10px);
-    pointer-events: none;
-}
-
-.bottom-panel {
-    background: rgba(15, 23, 42, 0.86);
-    color: #fff;
-    border-radius: 20px;
-    border: 1px solid rgba(255,255,255,.08);
+    border: 1px solid rgba(15, 23, 42, 0.06);
     backdrop-filter: blur(10px);
-    box-shadow: 0 -10px 30px rgba(2, 6, 23, 0.28);
-    padding: 12px;
+    box-shadow: 0 12px 28px rgba(15, 23, 42, 0.18);
+    padding: 10px;
     pointer-events: auto;
 }
 
-.panel-title {
+.toolbar-row {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-    margin-bottom: 8px;
+    gap: 8px;
 }
 
-.panel-title h3 {
-    margin: 0;
-    font-size: 14px;
-    font-weight: 800;
-}
-
-.panel-title button {
-    border: 0;
-    border-radius: 10px;
-    background: #2563eb;
-    color: #fff;
-    padding: 8px 10px;
-    font-size: 12px;
-    font-weight: 700;
-}
-
-.unit-strip {
+.search-box {
     display: flex;
-    gap: 10px;
-    overflow-x: auto;
-    padding-bottom: 2px;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+    background: #fff;
+    border: 1px solid rgba(148, 163, 184, 0.35);
+    border-radius: 14px;
+    padding: 10px 12px;
 }
 
-.unit-card {
-    min-width: 148px;
-    border-radius: 16px;
-    padding: 12px;
-    background: rgba(255,255,255,.08);
-    border: 1px solid rgba(255,255,255,.06);
+.search-box svg {
+    width: 18px;
+    height: 18px;
+    color: #64748b;
 }
 
-.unit-card strong {
-    display: block;
+.search-box input {
+    flex: 1;
+    border: 0;
+    outline: none;
+    background: transparent;
+    color: #0f172a;
     font-size: 15px;
 }
 
-.unit-card small {
+.icon-btn {
+    border: 0;
+    width: 44px;
+    height: 44px;
+    border-radius: 14px;
+    background: #fff;
+    color: #0f172a;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 8px 20px rgba(15, 23, 42, 0.12);
+}
+
+.search-results {
+    margin-top: 8px;
+    display: none;
+    max-height: 230px;
+    overflow-y: auto;
+    background: rgba(255,255,255,.98);
+    border-radius: 16px;
+    box-shadow: 0 12px 28px rgba(15, 23, 42, 0.16);
+}
+
+.search-results.visible {
     display: block;
-    color: #cbd5e1;
-    margin-top: 4px;
 }
 
-.state-dot {
-    width: 10px;
-    height: 10px;
+.result-item {
+    padding: 12px 14px;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.16);
+    cursor: pointer;
+}
+
+.result-item:last-child {
+    border-bottom: 0;
+}
+
+.result-item strong {
+    display: block;
+    font-size: 14px;
+}
+
+.result-item small {
+    display: block;
+    color: #64748b;
+    margin-top: 2px;
+}
+
+.floating-badges {
+    position: fixed;
+    left: 12px;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 18px);
+    z-index: 1000;
+    display: flex;
+    gap: 8px;
+    pointer-events: none;
+}
+
+.mini-pill {
+    background: rgba(15, 23, 42, 0.78);
+    color: #fff;
     border-radius: 999px;
-    display: inline-block;
-    margin-right: 6px;
+    padding: 8px 12px;
+    font-size: 12px;
+    font-weight: 700;
+    backdrop-filter: blur(8px);
 }
-
-.state-online { background: #22c55e; }
-.state-lento { background: #facc15; }
-.state-offline { background: #ef4444; }
 
 .leaflet-tooltip.paradero-label,
-.punto-control-label,
-.punto-referencia-label {
+.punto-control-label {
     border: none;
     border-radius: 7px;
     padding: 4px 7px;
     font-size: 11px;
     font-weight: 700;
-}
-
-.leaflet-tooltip.paradero-label,
-.punto-control-label {
     background: rgba(15, 23, 42, .92);
     color: #fff;
-}
-
-.punto-referencia-label {
-    background: rgba(30, 41, 59, .92);
-    color: #dbeafe;
 }
 
 .bus-marker {
@@ -236,8 +184,14 @@ html, body {
     filter: drop-shadow(0 3px 4px rgba(0,0,0,.6));
 }
 
-.bus-activo { filter: drop-shadow(0 0 6px rgba(40,167,69,.9)); }
-.bus-offline { opacity: .45; filter: grayscale(80%); }
+.bus-activo {
+    filter: drop-shadow(0 0 6px rgba(40,167,69,.9));
+}
+
+.bus-offline {
+    opacity: .45;
+    filter: grayscale(80%);
+}
 
 .live-dot {
     position: absolute;
@@ -259,7 +213,7 @@ html, body {
 .debug-badge {
     position: fixed;
     right: 12px;
-    top: calc(env(safe-area-inset-top, 0px) + 12px);
+    top: calc(env(safe-area-inset-top, 0px) + 74px);
     z-index: 1200;
     max-width: 220px;
     background: rgba(0, 0, 0, .82);
@@ -277,31 +231,32 @@ html, body {
 <div id="debug-badge" class="debug-badge">Iniciando mapa...</div>
 
 <div class="top-shell">
-    <div class="hero-card">
-        <div class="hero-row">
-            <img class="hero-logo" src="{% static 'icons/paradero.png' %}" alt="Logo">
-            <div>
-                <p class="hero-title">GPS Tracking AQP</p>
-                <p class="hero-subtitle">{{ empresa }} | Mapa vivo en tiempo real</p>
+    <div class="toolbar-card">
+        <div class="toolbar-row">
+            <div class="search-box">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <circle cx="11" cy="11" r="7"></circle>
+                    <path d="m20 20-3.5-3.5"></path>
+                </svg>
+                <input id="busqueda-unidad" type="text" placeholder="Buscar unidad o placa">
             </div>
+            <button class="icon-btn" type="button" onclick="centrarMapa()" aria-label="Centrar mapa">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <circle cx="12" cy="12" r="3"></circle>
+                    <path d="M12 2v3"></path>
+                    <path d="M12 19v3"></path>
+                    <path d="M2 12h3"></path>
+                    <path d="M19 12h3"></path>
+                </svg>
+            </button>
         </div>
-        <div class="stats-row">
-            <div class="stat-pill ok"><strong id="cnt-online">0</strong><span>Online</span></div>
-            <div class="stat-pill warn"><strong id="cnt-lento">0</strong><span>Lento</span></div>
-            <div class="stat-pill off"><strong id="cnt-offline">0</strong><span>Offline</span></div>
-            <div class="stat-pill all"><strong id="cnt-total">0</strong><span>Total</span></div>
-        </div>
+        <div id="search-results" class="search-results"></div>
     </div>
 </div>
 
-<div class="bottom-sheet">
-    <div class="bottom-panel">
-        <div class="panel-title">
-            <h3>Unidades visibles</h3>
-            <button type="button" onclick="centrarMapa()">Centrar</button>
-        </div>
-        <div id="lista-unidades" class="unit-strip"></div>
-    </div>
+<div class="floating-badges">
+    <div class="mini-pill"><span id="cnt-online">0</span> online</div>
+    <div class="mini-pill"><span id="cnt-total">0</span> total</div>
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -322,6 +277,9 @@ const STAFF_TOKEN = "{{ staff_token|escapejs }}";
 const PARADERO = [-16.338088, -71.619947];
 const ZOOM_PARADERO = 15;
 const rutasGeometria = {{ rutas_json|safe }};
+const initialSelectedVehiculoId = new URLSearchParams(window.location.search).get("vehiculo_id");
+const searchInput = document.getElementById("busqueda-unidad");
+const searchResults = document.getElementById("search-results");
 const ICON_BUS = {
     ACTIVO: "{% static 'icons/bus_green.png' %}",
     INACTIVO: "{% static 'icons/bus_yellow.png' %}",
@@ -352,6 +310,10 @@ const mapboxLayer = L.tileLayer(
 
 let fallbackApplied = false;
 let tileErrorCount = 0;
+let mapaCentrado = false;
+let initialFocusApplied = false;
+let ultimaDataUnidades = [];
+const markers = {};
 
 mapboxLayer.on("load", () => {
     debugMap("Mapa base cargado");
@@ -359,17 +321,15 @@ mapboxLayer.on("load", () => {
         if (debugBadge) {
             debugBadge.style.display = "none";
         }
-    }, 1800);
+    }, 1600);
 });
 
 mapboxLayer.on("tileerror", () => {
     tileErrorCount += 1;
     debugMap(`Error cargando tiles (${tileErrorCount})`);
-
     if (fallbackApplied || tileErrorCount < 4) {
         return;
     }
-
     fallbackApplied = true;
     map.removeLayer(mapboxLayer);
     L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
@@ -386,15 +346,6 @@ const capaFlota = L.layerGroup().addTo(map);
 const capaParadero = L.layerGroup().addTo(map);
 const capaRutas = L.layerGroup().addTo(map);
 const capaPuntosControl = L.layerGroup().addTo(map);
-const markers = {};
-let mapaCentrado = false;
-
-L.control.layers(null, {
-    "Flota": capaFlota,
-    "Paradero": capaParadero,
-    "Ruta": capaRutas,
-    "Puntos": capaPuntosControl
-}).addTo(map);
 
 const paraderoIcon = L.icon({
     iconUrl: "{% static 'icons/paradero.png' %}",
@@ -408,7 +359,6 @@ L.marker(PARADERO, { icon: paraderoIcon })
 
 function dibujarRutaReal(coords) {
     if (!coords || coords.length < 2) return;
-
     L.polyline(coords, {
         color: "#000",
         weight: 16,
@@ -416,7 +366,6 @@ function dibujarRutaReal(coords) {
         lineCap: "round",
         lineJoin: "round"
     }).addTo(capaRutas);
-
     L.polyline(coords, {
         color: "#e5e5e5",
         weight: 12,
@@ -424,7 +373,6 @@ function dibujarRutaReal(coords) {
         lineCap: "round",
         lineJoin: "round"
     }).addTo(capaRutas);
-
     L.polyline(coords, {
         color: "#00e5ff",
         weight: 4,
@@ -438,25 +386,20 @@ function dibujarRutaReal(coords) {
 function renderizarRutasYPuntos() {
     capaRutas.clearLayers();
     capaPuntosControl.clearLayers();
-
     rutasGeometria.forEach(ruta => {
         dibujarRutaReal(ruta.geometria);
         (ruta.puntos || []).forEach(p => {
             const coord = [p.lat, p.lng];
-            const radioColor = "#ffd54f";
-            const puntoColor = "#ff9800";
-
             L.circle(coord, {
                 radius: p.radio || 100,
-                color: radioColor,
-                fillColor: radioColor,
-                fillOpacity: .25
+                color: "#ffd54f",
+                fillColor: "#ffd54f",
+                fillOpacity: .18
             }).addTo(capaPuntosControl);
-
             L.circleMarker(coord, {
                 radius: 6,
-                color: puntoColor,
-                fillColor: puntoColor,
+                color: "#ff9800",
+                fillColor: "#ff9800",
                 fillOpacity: 1
             }).bindTooltip(p.codigo, {
                 permanent: true,
@@ -476,7 +419,6 @@ function crearIconoBus(v) {
     const clase = estado === "ACTIVO" ? "bus-activo" : (estado === "OFFLINE" ? "bus-offline" : "");
     const live = estado === "ACTIVO" ? '<span class="live-dot"></span>' : "";
     const direccion = v.direccion || 0;
-
     return L.divIcon({
         className: "",
         html: `
@@ -522,27 +464,44 @@ function animarMovimiento(marker, nuevaPos) {
     }, 40);
 }
 
-function renderLista(unidades) {
-    const contenedor = document.getElementById("lista-unidades");
-    contenedor.innerHTML = "";
+function abrirUnidad(unidad) {
+    const marker = markers[unidad.vehiculo];
+    if (!marker) return;
+    map.setView(marker.getLatLng(), 18, { animate: true });
+    marker.openPopup();
+    searchResults.classList.remove("visible");
+    searchInput.blur();
+}
 
-    unidades.forEach(v => {
-        const estado = obtenerEstadoVisual(v);
-        const dotClass = estado === "ACTIVO" ? "state-online" : (estado === "INACTIVO" ? "state-lento" : "state-offline");
-        const card = document.createElement("div");
-        card.className = "unit-card";
-        card.innerHTML = `
-            <strong><span class="state-dot ${dotClass}"></span>Bus ${v.vehiculo}</strong>
-            <small>${v.ruta_nombre || "Sin ruta activa"}</small>
-            <small>${v.placa || "--"}</small>
-        `;
-        card.onclick = () => {
-            if (markers[v.vehiculo]) {
-                map.setView(markers[v.vehiculo].getLatLng(), 18, { animate: true });
-                markers[v.vehiculo].openPopup();
+function renderSearchResults(unidades) {
+    const texto = (searchInput.value || "").trim().toLowerCase();
+    if (!texto) {
+        searchResults.innerHTML = "";
+        searchResults.classList.remove("visible");
+        return;
+    }
+    const filtradas = unidades
+        .filter(v => `${String(v.vehiculo).toLowerCase()} ${(v.placa || "").toLowerCase()}`.includes(texto))
+        .slice(0, 8);
+    if (!filtradas.length) {
+        searchResults.innerHTML = '<div class="result-item"><strong>Sin resultados</strong><small>Prueba con otro codigo o placa</small></div>';
+        searchResults.classList.add("visible");
+        return;
+    }
+    searchResults.innerHTML = filtradas.map(v => `
+        <div class="result-item" data-vehiculo="${v.vehiculo}">
+            <strong>Unidad ${v.vehiculo}</strong>
+            <small>${v.placa || "--"} | ${v.ruta_nombre || "Sin ruta activa"}</small>
+        </div>
+    `).join("");
+    searchResults.classList.add("visible");
+    searchResults.querySelectorAll(".result-item[data-vehiculo]").forEach(item => {
+        item.addEventListener("click", () => {
+            const unidad = unidades.find(v => String(v.vehiculo) === item.dataset.vehiculo);
+            if (unidad) {
+                abrirUnidad(unidad);
             }
-        };
-        contenedor.appendChild(card);
+        });
     });
 }
 
@@ -573,16 +532,11 @@ async function cargarMapaVivo() {
         });
 
         let online = 0;
-        let lento = 0;
-        let offline = 0;
 
         unidades.forEach(v => {
             if (!v.lat || !v.lng) return;
             const estado = obtenerEstadoVisual(v);
             if (estado === "ACTIVO") online++;
-            else if (estado === "INACTIVO") lento++;
-            else offline++;
-
             bounds.push([v.lat, v.lng]);
             const icono = crearIconoBus(v);
             const html = popupBus(v, estado);
@@ -598,24 +552,40 @@ async function cargarMapaVivo() {
             }
         });
 
+        ultimaDataUnidades = unidades;
         document.getElementById("cnt-online").innerText = online;
-        document.getElementById("cnt-lento").innerText = lento;
-        document.getElementById("cnt-offline").innerText = offline;
         document.getElementById("cnt-total").innerText = unidades.length;
-        renderLista(unidades);
+        renderSearchResults(unidades);
 
         if (bounds.length > 0 && !mapaCentrado) {
             map.fitBounds(bounds, { padding: [40, 40] });
             mapaCentrado = true;
+        }
+
+        if (initialSelectedVehiculoId && !initialFocusApplied) {
+            const unidadInicial = unidades.find(v => String(v.vehiculo_id) === String(initialSelectedVehiculoId));
+            if (unidadInicial) {
+                initialFocusApplied = true;
+                abrirUnidad(unidadInicial);
+            }
         }
     } catch (error) {
         console.error("Error cargando mapa gerencial", error);
     }
 }
 
+searchInput.addEventListener("input", () => renderSearchResults(ultimaDataUnidades));
+searchInput.addEventListener("focus", () => renderSearchResults(ultimaDataUnidades));
+document.addEventListener("click", (event) => {
+    if (!event.target.closest(".toolbar-card")) {
+        searchResults.classList.remove("visible");
+    }
+});
+
 renderizarRutasYPuntos();
 cargarMapaVivo();
 setInterval(cargarMapaVivo, 8000);
+
 map.whenReady(() => {
     debugMap("Mapa listo");
     setTimeout(() => {
