@@ -66,9 +66,9 @@ html, body {
     display: flex;
     align-items: center;
     gap: 8px;
-    flex: 0 0 160px;
-    width: 160px;
-    max-width: calc(100vw - 92px);
+    flex: 0 0 118px;
+    width: 118px;
+    max-width: calc(100vw - 148px);
     background: #fff;
     border: 1px solid rgba(148, 163, 184, 0.35);
     border-radius: 14px;
@@ -88,13 +88,13 @@ html, body {
     outline: none;
     background: transparent;
     color: #0f172a;
-    font-size: 13px;
+    font-size: 12px;
 }
 
 .icon-btn {
     border: 0;
-    width: 44px;
-    height: 44px;
+    width: 40px;
+    height: 40px;
     border-radius: 14px;
     background: #fff;
     color: #0f172a;
@@ -214,8 +214,15 @@ html, body {
                         <circle cx="11" cy="11" r="7"></circle>
                         <path d="m20 20-3.5-3.5"></path>
                     </svg>
-                    <input id="busqueda-unidad" type="text" placeholder="Unidad">
+                    <input id="busqueda-unidad" type="text" placeholder="Codigo">
                 </div>
+                <button class="icon-btn" type="button" onclick="toggleBaseMap()" aria-label="Cambiar a satelital">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M3 6l6-3 6 3 6-3v15l-6 3-6-3-6 3V6z"></path>
+                        <path d="M9 3v15"></path>
+                        <path d="M15 6v15"></path>
+                    </svg>
+                </button>
                 <button class="icon-btn" type="button" onclick="centrarMapa()" aria-label="Centrar mapa">
                     <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                         <circle cx="12" cy="12" r="3"></circle>
@@ -263,7 +270,7 @@ const map = L.map("map", {
     markerZoomAnimation: true
 }).setView(PARADERO, ZOOM_PARADERO);
 
-const mapboxLayer = L.tileLayer(
+const streetsLayer = L.tileLayer(
     "https://api.mapbox.com/styles/v1/mapbox/navigation-night-v1/tiles/{z}/{x}/{y}?access_token={{ MAPBOX_TOKEN }}",
     {
         tileSize: 512,
@@ -276,31 +283,53 @@ const mapboxLayer = L.tileLayer(
     }
 ).addTo(map);
 
+const satelliteLayer = L.tileLayer(
+    "https://api.mapbox.com/styles/v1/mapbox/satellite-streets-v12/tiles/{z}/{x}/{y}?access_token={{ MAPBOX_TOKEN }}",
+    {
+        tileSize: 512,
+        zoomOffset: -1,
+        maxZoom: 20,
+        keepBuffer: 6,
+        updateWhenZooming: true,
+        updateWhenIdle: false,
+        attribution: "© Mapbox © OpenStreetMap"
+    }
+);
+
 let fallbackApplied = false;
 let tileErrorCount = 0;
 let mapaCentrado = false;
 let initialFocusApplied = false;
 let ultimaDataUnidades = [];
+let currentBaseMap = "streets";
 const markers = {};
 
-mapboxLayer.on("load", () => {
+streetsLayer.on("load", () => {
     debugMap("Mapa base cargado");
 });
 
-mapboxLayer.on("tileerror", () => {
+function handleTileError() {
     tileErrorCount += 1;
     debugMap(`Error cargando tiles (${tileErrorCount})`);
     if (fallbackApplied || tileErrorCount < 4) {
         return;
     }
     fallbackApplied = true;
-    map.removeLayer(mapboxLayer);
+    if (map.hasLayer(streetsLayer)) {
+        map.removeLayer(streetsLayer);
+    }
+    if (map.hasLayer(satelliteLayer)) {
+        map.removeLayer(satelliteLayer);
+    }
     L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
         maxZoom: 19,
         attribution: "© OpenStreetMap"
     }).addTo(map);
     debugMap("Usando mapa alternativo");
-});
+}
+
+streetsLayer.on("tileerror", handleTileError);
+satelliteLayer.on("tileerror", handleTileError);
 
 map.zoomControl.setPosition("bottomright");
 map.attributionControl.setPrefix(false);
@@ -470,6 +499,29 @@ function renderSearchResults(unidades) {
 
 function centrarMapa() {
     map.setView(PARADERO, ZOOM_PARADERO);
+}
+
+function toggleBaseMap() {
+    if (fallbackApplied) {
+        return;
+    }
+
+    if (currentBaseMap === "streets") {
+        if (map.hasLayer(streetsLayer)) {
+            map.removeLayer(streetsLayer);
+        }
+        satelliteLayer.addTo(map);
+        currentBaseMap = "satellite";
+        debugMap("Mapa satelital");
+        return;
+    }
+
+    if (map.hasLayer(satelliteLayer)) {
+        map.removeLayer(satelliteLayer);
+    }
+    streetsLayer.addTo(map);
+    currentBaseMap = "streets";
+    debugMap("Mapa normal");
 }
 
 async function cargarMapaVivo() {
