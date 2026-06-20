@@ -941,6 +941,7 @@ class UbicacionVehiculo(models.Model):
 
     velocidad = models.FloatField(null=True, blank=True)
     precision = models.FloatField(null=True, blank=True)
+    rumbo = models.FloatField(default=0, null=True, blank=True)
     en_retorno = models.BooleanField(default=False)
     ultimo_punto_evento_codigo = models.CharField(max_length=10, null=True, blank=True)
     ultimo_punto_evento_orden = models.PositiveIntegerField(null=True, blank=True)

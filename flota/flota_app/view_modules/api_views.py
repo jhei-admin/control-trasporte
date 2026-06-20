@@ -698,6 +698,7 @@ def _serializar_unidades_mapa_gerencial(empresa):
             "longitud",
             "velocidad",
             "precision",
+            "rumbo",
             "updated_at",
         )
     )
@@ -723,6 +724,8 @@ def _serializar_unidades_mapa_gerencial(empresa):
             "lng": ubicacion["longitud"],
             "velocidad": ubicacion["velocidad"],
             "precision": ubicacion["precision"],
+            "direccion": ubicacion["rumbo"] or 0,
+            "rumbo": ubicacion["rumbo"] or 0,
             "estado": "ACTIVO" if ubicacion["vehiculo_id"] in salidas_activas else "INACTIVO",
             "estado_gps": estado_gps,
             "actualizado_en": actualizado_en.isoformat(),
@@ -819,7 +822,7 @@ def _resolver_vehiculo_por_codigo_placa(codigo, placa=None):
     return coincidencias[0], None
 
 
-def guardar_ubicacion_actual(sesion, ahora, lat, lng, velocidad=None, precision=None):
+def guardar_ubicacion_actual(sesion, ahora, lat, lng, velocidad=None, precision=None, rumbo=None):
     defaults = {
         "latitud": lat,
         "longitud": lng,
@@ -829,6 +832,8 @@ def guardar_ubicacion_actual(sesion, ahora, lat, lng, velocidad=None, precision=
         defaults["velocidad"] = velocidad
     if precision is not None:
         defaults["precision"] = precision
+    if rumbo is not None:
+        defaults["rumbo"] = rumbo
 
     actualizados = (
         UbicacionVehiculo.objects
@@ -1335,6 +1340,7 @@ def api_gps(request):
     velocidad = data.get("velocidad")
     precision = data.get("precision")
     bateria = data.get("bateria")
+    rumbo = data.get("rumbo", data.get("direccion", data.get("bearing")))
 
     try:
         velocidad = float(velocidad) if velocidad is not None else 0
@@ -1350,6 +1356,11 @@ def api_gps(request):
         bateria = int(bateria) if bateria is not None else None
     except (TypeError, ValueError):
         bateria = None
+
+    try:
+        rumbo = float(rumbo) if rumbo is not None else None
+    except (TypeError, ValueError):
+        rumbo = None
 
     ahora = timezone.now()
 
@@ -1380,6 +1391,7 @@ def api_gps(request):
         lng=lng,
         velocidad=velocidad,
         precision=precision,
+        rumbo=rumbo,
     )
 
     registrar_gps_historico_si_corresponde(
