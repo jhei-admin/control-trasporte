@@ -571,7 +571,7 @@
     return `${value.toFixed(1)} km/h`;
   }
 
-  function calcularAnguloSuavizado(tramo, index, span = 4) {
+  function calcularAnguloSuavizado(tramo, index, span = 6) {
     if (!Array.isArray(tramo) || tramo.length < 2) {
       return null;
     }
@@ -595,6 +595,38 @@
     ) * 180 / Math.PI;
   }
 
+  function construirAnclasFlechas(tramo) {
+    if (!Array.isArray(tramo) || tramo.length < 2) {
+      return [];
+    }
+
+    const anclas = [];
+    let acumulado = 0;
+    let ultimoIndice = 0;
+
+    const spacingMeters = tramo.length > 500 ? 28 : tramo.length > 250 ? 24 : 20;
+
+    for (let i = 1; i < tramo.length; i += 1) {
+      const anterior = tramo[i - 1];
+      const actual = tramo[i];
+      acumulado += distanciaMetros(anterior.lat, anterior.lng, actual.lat, actual.lng);
+
+      if (acumulado < spacingMeters && i < tramo.length - 1) {
+        continue;
+      }
+
+      if (i - ultimoIndice < 2 && i < tramo.length - 1) {
+        continue;
+      }
+
+      anclas.push({ punto: actual, index: i });
+      ultimoIndice = i;
+      acumulado = 0;
+    }
+
+    return anclas;
+  }
+
   async function fetchJson(url, fallbackMessage) {
     const res = await fetch(url);
     if (!res.ok) {
@@ -615,36 +647,21 @@
       className: "",
       html: `
         <div style="
-          position: relative;
-          width: 28px;
-          height: 14px;
+          width: 26px;
+          height: 18px;
           transform: rotate(${angulo}deg);
           transform-origin: 50% 50%;
         ">
-          <div style="
-            position: absolute;
-            left: 0;
-            top: 5px;
-            width: 14px;
-            height: 4px;
-            background: rgba(5, 5, 5, 0.98);
-            border-radius: 2px;
-          "></div>
-          <div style="
-            position: absolute;
-            left: 10px;
-            top: 0;
-            width: 0;
-            height: 0;
-            border-top: 7px solid transparent;
-            border-bottom: 7px solid transparent;
-            border-left: 18px solid rgba(5, 5, 5, 0.98);
-            filter: drop-shadow(0 1px 1px rgba(255,255,255,.10));
-          "></div>
+          <svg width="26" height="18" viewBox="0 0 26 18" xmlns="http://www.w3.org/2000/svg">
+            <path
+              d="M1 9 L12 1 L9 6 L25 6 L25 12 L9 12 L12 17 Z"
+              fill="rgba(5, 5, 5, 0.98)"
+            />
+          </svg>
         </div>
       `,
-      iconSize: [28, 14],
-      iconAnchor: [14, 7]
+      iconSize: [26, 18],
+      iconAnchor: [13, 9]
     });
 
     const vehiculoSelect = document.getElementById("vehiculo");
@@ -679,27 +696,16 @@
       return coords;
     }
 
-    const saltoFlecha = tramo.length > 700
-      ? 5
-      : tramo.length > 320
-        ? 4
-        : tramo.length > 180
-          ? 3
-          : 2;
+    const anclas = construirAnclasFlechas(tramo);
 
-    for (let i = 0; i < tramo.length; i += saltoFlecha) {
-      const actual = tramo[i];
-      if (!actual) {
-        continue;
-      }
-
-      const angulo = calcularAnguloSuavizado(tramo, i, Math.max(3, saltoFlecha));
+    anclas.forEach(({ punto, index }) => {
+      const angulo = calcularAnguloSuavizado(tramo, index, 7);
       if (angulo === null) {
-        continue;
+        return;
       }
 
-      crearFlecha(actual.lat, actual.lng, angulo, actual);
-    }
+      crearFlecha(punto.lat, punto.lng, angulo, punto);
+    });
 
     return coords;
   }
@@ -729,8 +735,8 @@
       coords.forEach((coord) => bounds.push(coord));
     });
 
-    const markerRadius = 1.1;
-    const markerOpacity = 0.08;
+    const markerRadius = 0.8;
+    const markerOpacity = 0.03;
 
     puntosInfo.forEach((punto) => {
       L.circleMarker([punto.lat, punto.lng], {
