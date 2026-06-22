@@ -117,9 +117,39 @@ def _resolver_ruta_panel(empresa, ruta_id):
     return None
 
 
+def _validar_hora_programada_disponible(salida, empresa, hora_fija_dt, fecha_operativa=None):
+    fecha_objetivo = fecha_operativa or salida.fecha or timezone.localdate()
+    conflicto = (
+        RegistroSalida.objects.for_empresa(empresa)
+        .select_related("vehiculo")
+        .filter(
+            ruta=salida.ruta,
+            fecha=fecha_objetivo,
+            activo=True,
+            hora_salida=hora_fija_dt,
+        )
+        .exclude(pk=salida.pk)
+        .first()
+    )
+    if not conflicto:
+        return
+
+    hora_conflicto = timezone.localtime(conflicto.hora_salida).strftime("%H:%M")
+    raise ValidationError(
+        f"La hora {hora_conflicto} ya esta asignada a la unidad {conflicto.vehiculo.codigo} en esta ruta."
+    )
+
+
 def _programar_salida(salida, empresa, hora_fija_dt, fecha_operativa=None):
     if salida.hora_real_salida:
         raise ValidationError("No se puede reprogramar la hora: la unidad ya inicio la ruta.")
+
+    _validar_hora_programada_disponible(
+        salida,
+        empresa,
+        hora_fija_dt,
+        fecha_operativa=fecha_operativa,
+    )
 
     salida.fecha = fecha_operativa or salida.fecha or timezone.localdate()
     salida.hora_fija = hora_fija_dt

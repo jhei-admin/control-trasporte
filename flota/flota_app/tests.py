@@ -1,6 +1,6 @@
 import json
 from io import StringIO
-from datetime import timedelta
+from datetime import datetime, timedelta
 from unittest.mock import patch
 from decimal import Decimal
 
@@ -3711,6 +3711,51 @@ class PanelDespachoRapidoTests(BaseFlotaTestCase):
         self.assertEqual(response.status_code, 200)
         salida.refresh_from_db()
         self.assertEqual(timezone.localtime(salida.hora_salida).strftime("%H:%M"), "09:45")
+
+    def test_flujo_rapido_bloquea_hora_duplicada_en_misma_ruta_y_fecha(self):
+        fecha_operativa = timezone.localdate()
+        salida_1 = RegistroSalida.objects.create(
+            vehiculo=self.vehiculo_1,
+            ruta=self.ruta_a,
+            fecha=fecha_operativa,
+            hora_llegada=timezone.now(),
+            activo=True,
+            en_cola=False,
+        )
+        salida_2 = RegistroSalida.objects.create(
+            vehiculo=self.vehiculo_2,
+            ruta=self.ruta_a,
+            fecha=fecha_operativa,
+            hora_llegada=timezone.now(),
+            activo=True,
+            en_cola=False,
+        )
+        salida_1.hora_salida = timezone.make_aware(
+            datetime.combine(fecha_operativa, datetime.strptime("10:20", "%H:%M").time()),
+            timezone.get_current_timezone(),
+        )
+        salida_1.hora_fija = salida_1.hora_salida
+        salida_1.bloqueado = True
+        salida_1.save(update_fields=["hora_salida", "hora_fija", "bloqueado"])
+
+        response = self.client.post(
+            reverse("buscar_unidad_panel"),
+            {
+                "codigo": self.vehiculo_2.codigo,
+                "ruta_id": self.ruta_a.id,
+                "hora_fija": "10:20",
+                "current_ruta_id": self.ruta_a.id,
+            },
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        salida_2.refresh_from_db()
+        self.assertIsNone(salida_2.hora_salida)
+        self.assertContains(
+            response,
+            f"La hora 10:20 ya esta asignada a la unidad {self.vehiculo_1.codigo} en esta ruta.",
+        )
 
     def test_flujo_rapido_permita_programar_fecha_siguiente(self):
         manana = timezone.localdate() + timedelta(days=1)
