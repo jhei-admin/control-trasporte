@@ -1209,6 +1209,26 @@ def api_gps_conductor(request):
         })
 
     if not marcacion:
+        marcacion_global_pendiente = salida.siguiente_marcacion()
+        if marcacion_global_pendiente is not None:
+            fase_global = getattr(
+                marcacion_global_pendiente.punto,
+                "fase",
+                PuntoControl.FASE_IDA,
+            )
+            if (
+                ubicacion_actual is not None
+                and bool(getattr(ubicacion_actual, "en_retorno", False))
+                and fase_global != PuntoControl.FASE_RETORNO
+            ):
+                UbicacionVehiculo.objects.filter(pk=ubicacion_actual.pk).update(
+                    en_retorno=False
+                )
+            return JsonResponse({
+                "accion": "ninguna",
+                "motivo": "pendiente_en_otra_fase",
+            })
+
         if not salida.hora_real_salida:
             return JsonResponse({"accion": "ninguna"})
 
