@@ -603,27 +603,16 @@
     }
 
     const anclas = [];
-    let acumulado = 0;
-    let ultimoIndice = 0;
+    const saltoIndices = tramo.length > 900
+      ? 2
+      : 1;
 
-    const spacingMeters = tramo.length > 500 ? 28 : tramo.length > 250 ? 24 : 20;
-
-    for (let i = 1; i < tramo.length; i += 1) {
-      const anterior = tramo[i - 1];
+    for (let i = 1; i < tramo.length; i += saltoIndices) {
       const actual = tramo[i];
-      acumulado += distanciaMetros(anterior.lat, anterior.lng, actual.lat, actual.lng);
-
-      if (acumulado < spacingMeters && i < tramo.length - 1) {
+      if (!actual) {
         continue;
       }
-
-      if (i - ultimoIndice < 2 && i < tramo.length - 1) {
-        continue;
-      }
-
       anclas.push({ punto: actual, index: i });
-      ultimoIndice = i;
-      acumulado = 0;
     }
 
     return anclas;
@@ -652,7 +641,7 @@
     for (let i = 1; i < suavizado.length; i += 1) {
       const ultimo = compactado[compactado.length - 1];
       const actual = suavizado[i];
-      if (distanciaMetros(ultimo.lat, ultimo.lng, actual.lat, actual.lng) >= 6 || i === suavizado.length - 1) {
+      if (distanciaMetros(ultimo.lat, ultimo.lng, actual.lat, actual.lng) >= 3 || i === suavizado.length - 1) {
         compactado.push(actual);
       }
     }
