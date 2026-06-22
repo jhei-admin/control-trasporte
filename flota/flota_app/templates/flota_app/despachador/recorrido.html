@@ -594,7 +594,7 @@
 
     // En pantalla el eje Y crece hacia abajo; por eso invertimos latitud
     // para que la flecha siga el sentido visual real del mapa.
-    return Math.atan2(-deltaLat, deltaLng) * 180 / Math.PI;
+    return (Math.atan2(-deltaLat, deltaLng) * 180 / Math.PI) + 180;
   }
 
   function construirAnclasFlechas(tramo) {
