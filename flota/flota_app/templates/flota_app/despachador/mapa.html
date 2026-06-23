@@ -87,6 +87,14 @@ background:#2563eb;
 background:#64748b;
 }
 
+.sentido-rumbo{
+background:#0ea5e9;
+}
+
+.sentido-detenido{
+background:#475569;
+}
+
 .sentido-chip{
 font-size:10px;
 font-weight:800;
@@ -538,44 +546,141 @@ const exactas=rutaId ? rutasGeometria.filter(r=>String(r.id)===rutaId) : []
 return exactas.length ? exactas : rutasGeometria
 }
 
-function detectarSentidoVehiculo(v){
-const direccion=Number(v.direccion)
-const posicion=[Number(v.lat),Number(v.lng)]
+function medirRuta(ruta){
+if(ruta._medicion) return ruta._medicion
 
-if(!Number.isFinite(direccion) || !esCoordValida(posicion)){
-return {codigo:"DESCONOCIDO",texto:"--",corto:"--",clase:"sentido-desconocido",angulo:0}
-}
-
-let mejor=null
-
-rutasCandidatasVehiculo(v).forEach(ruta=>{
 const coords=Array.isArray(ruta.geometria) ? ruta.geometria : []
+let total=0
+const segmentos=[]
 
 for(let idx=0; idx<coords.length-1; idx++){
 const a=coords[idx]
 const b=coords[idx+1]
 if(!esCoordValida(a) || !esCoordValida(b)) continue
 
-const distancia=distanciaPuntoSegmentoMetros(posicion,a,b)
-if(mejor && distancia>=mejor.distancia) continue
+const largo=distanciaMetrosEntre(a,b)
+if(largo<2) continue
+
+segmentos.push({
+a,
+b,
+inicio:total,
+largo,
+rumbo:calcularRumboSegmento(a,b)
+})
+total+=largo
+}
+
+ruta._medicion={total,segmentos}
+return ruta._medicion
+}
+
+function ubicarVehiculoEnRuta(v){
+const posicion=[Number(v.lat),Number(v.lng)]
+if(!esCoordValida(posicion)) return null
+
+let mejor=null
+
+rutasCandidatasVehiculo(v).forEach(ruta=>{
+const medicion=medirRuta(ruta)
+
+medicion.segmentos.forEach(segmento=>{
+const distancia=distanciaPuntoSegmentoMetros(posicion,segmento.a,segmento.b)
+if(mejor && distancia>=mejor.distancia) return
+
+const refLat=(Number(posicion[0])+Number(segmento.a[0])+Number(segmento.b[0]))/3
+const metrosLat=110540
+const metrosLng=111320 * Math.cos(refLat * Math.PI / 180)
+const px=Number(posicion[1]) * metrosLng
+const py=Number(posicion[0]) * metrosLat
+const ax=Number(segmento.a[1]) * metrosLng
+const ay=Number(segmento.a[0]) * metrosLat
+const bx=Number(segmento.b[1]) * metrosLng
+const by=Number(segmento.b[0]) * metrosLat
+const dx=bx-ax
+const dy=by-ay
+const largo2=dx*dx + dy*dy
+const t=largo2===0 ? 0 : Math.max(0,Math.min(1,((px-ax)*dx + (py-ay)*dy)/largo2))
 
 mejor={
+rutaId:String(ruta.id),
 distancia,
-rumbo:calcularRumboSegmento(a,b)
-}
+progreso:segmento.inicio + t * segmento.largo,
+total:medicion.total,
+rumboSegmento:segmento.rumbo
 }
 })
+})
 
-if(!mejor || mejor.distancia>350){
-return {codigo:"DESCONOCIDO",texto:"--",corto:"--",clase:"sentido-desconocido",angulo:direccion}
+return mejor
 }
 
-const diferencia=diferenciaAngular(direccion,mejor.rumbo)
-const esBajada=diferencia<=90
+function detectarSentidoVehiculo(v,markerAnterior=null){
+const direccion=Number(v.direccion)
+const posicion=[Number(v.lat),Number(v.lng)]
+const velocidad=Number(v.velocidad || 0)
 
-return esBajada
-? {codigo:"BAJADA",texto:"Bajada",corto:"B",clase:"sentido-bajada",angulo:direccion}
-: {codigo:"RETORNO",texto:"Retorno",corto:"R",clase:"sentido-retorno",angulo:direccion}
+if(!esCoordValida(posicion)){
+return {codigo:"DESCONOCIDO",texto:"Sin rumbo",corto:"--",clase:"sentido-desconocido",rumboVisual:markerAnterior?.rumboVisual || 0}
+}
+
+let rumboVisual=Number.isFinite(direccion) ? direccion : (markerAnterior?.rumboVisual || 0)
+let movimientoMetros=0
+let movimientoConfiable=false
+
+if(markerAnterior?.latUltima && markerAnterior?.lngUltima){
+const anterior=[markerAnterior.latUltima,markerAnterior.lngUltima]
+movimientoMetros=distanciaMetrosEntre(anterior,posicion)
+
+if(movimientoMetros>=8){
+rumboVisual=calcularRumboSegmento(anterior,posicion)
+movimientoConfiable=true
+}
+}
+
+const ubicacion=ubicarVehiculoEnRuta(v)
+const base={
+rumboVisual,
+progresoRuta:ubicacion?.progreso ?? markerAnterior?.progresoRuta ?? null,
+rutaDeteccion:ubicacion?.rutaId ?? markerAnterior?.rutaDeteccion ?? null,
+distanciaRuta:ubicacion?.distancia ?? null
+}
+
+if(markerAnterior?.sentidoInfo && !movimientoConfiable && velocidad<3){
+return {
+...markerAnterior.sentidoInfo,
+...base,
+texto:markerAnterior.sentidoInfo.texto,
+rumboVisual:markerAnterior.rumboVisual ?? rumboVisual
+}
+}
+
+if(!ubicacion || ubicacion.distancia>350){
+return {...base,codigo:"RUMBO",texto:"Rumbo GPS",corto:"GPS",clase:"sentido-rumbo"}
+}
+
+if(markerAnterior?.progresoRuta!=null && markerAnterior?.rutaDeteccion===ubicacion.rutaId && movimientoConfiable){
+let delta=ubicacion.progreso-markerAnterior.progresoRuta
+
+if(ubicacion.total && Math.abs(delta)>ubicacion.total/2){
+delta=delta>0 ? delta-ubicacion.total : delta+ubicacion.total
+}
+
+if(Math.abs(delta)>=6){
+return delta>=0
+? {...base,codigo:"BAJADA",texto:"Bajada",corto:"B",clase:"sentido-bajada"}
+: {...base,codigo:"RETORNO",texto:"Retorno",corto:"R",clase:"sentido-retorno"}
+}
+}
+
+if(movimientoConfiable){
+const diferencia=diferenciaAngular(rumboVisual,ubicacion.rumboSegmento)
+return diferencia<=90
+? {...base,codigo:"BAJADA_EST",texto:"Bajada est.",corto:"B",clase:"sentido-bajada"}
+: {...base,codigo:"RETORNO_EST",texto:"Retorno est.",corto:"R",clase:"sentido-retorno"}
+}
+
+return {...base,codigo:"CALCULANDO",texto:"Calculando",corto:"...",clase:"sentido-detenido"}
 }
 
 function poblarSelectorRutas(){
@@ -703,7 +808,7 @@ function construirPopupBus(v,estadoVisual,sentido){
 const ultimaSenal=v.fecha || "--"
 const velocidad=v.velocidad || 0
 const estadoGps=v.estado_gps || "--"
-const rumbo=Number.isFinite(Number(v.direccion)) ? Math.round(Number(v.direccion)) : "--"
+const rumbo=Number.isFinite(Number(sentido.rumboVisual)) ? Math.round(Number(sentido.rumboVisual)) : "--"
 
 return `
 <div style="min-width:180px">
@@ -727,7 +832,7 @@ Ver historial
 
 function crearIconoBus(v,sentido){
 
-let direccion=v.direccion||0
+let direccion=Number.isFinite(Number(sentido.rumboVisual)) ? Number(sentido.rumboVisual) : Number(v.direccion || 0)
 
 let estado=obtenerEstadoVisual(v)
 let vehiculo=v.vehiculo
@@ -772,7 +877,7 @@ listaBuses.innerHTML=""
 data.filter(v=>coincideRutaSeleccionada(v)).forEach(v=>{
 
 let estadoVisual=obtenerEstadoVisual(v)
-let sentido=detectarSentidoVehiculo(v)
+let sentido=markers[v.vehiculo]?.sentidoInfo || detectarSentidoVehiculo(v,markers[v.vehiculo])
 
 let color=
 estadoVisual==="ACTIVO"?"status-activo":
@@ -943,8 +1048,6 @@ delete markers[codigo]
 
 const dataFiltrada=data.filter(v=>coincideRutaSeleccionada(v))
 
-actualizarPanel(dataFiltrada)
-
 let a=0,i=0,o=0
 let bounds=[]
 
@@ -955,7 +1058,8 @@ if(!v.lat||!v.lng)return
 bounds.push([v.lat,v.lng])
 
 const estadoVisual=obtenerEstadoVisual(v)
-const sentido=detectarSentidoVehiculo(v)
+const markerActual=markers[v.vehiculo]
+const sentido=detectarSentidoVehiculo(v,markerActual)
 
 if(estadoVisual==="ACTIVO")a++
 else if(estadoVisual==="INACTIVO")i++
@@ -976,6 +1080,12 @@ m.placa=(v.placa || "").toLowerCase()
 m.busqueda=`${m.codigo} ${m.placa}`.trim()
 m.rutaId=String(v.ruta_id || "")
 m.sentido=sentido.codigo
+m.sentidoInfo=sentido
+m.latUltima=Number(v.lat)
+m.lngUltima=Number(v.lng)
+m.progresoRuta=sentido.progresoRuta
+m.rutaDeteccion=sentido.rutaDeteccion
+m.rumboVisual=sentido.rumboVisual
 
 markers[v.vehiculo]=m
 
@@ -990,10 +1100,18 @@ markers[v.vehiculo].placa=(v.placa || "").toLowerCase()
 markers[v.vehiculo].busqueda=`${markers[v.vehiculo].codigo} ${markers[v.vehiculo].placa}`.trim()
 markers[v.vehiculo].rutaId=String(v.ruta_id || "")
 markers[v.vehiculo].sentido=sentido.codigo
+markers[v.vehiculo].sentidoInfo=sentido
+markers[v.vehiculo].latUltima=Number(v.lat)
+markers[v.vehiculo].lngUltima=Number(v.lng)
+markers[v.vehiculo].progresoRuta=sentido.progresoRuta
+markers[v.vehiculo].rutaDeteccion=sentido.rutaDeteccion
+markers[v.vehiculo].rumboVisual=sentido.rumboVisual
 
 }
 
 })
+
+actualizarPanel(dataFiltrada)
 
 document.getElementById("cnt-activo").innerText=a
 document.getElementById("cnt-inactivo").innerText=i
