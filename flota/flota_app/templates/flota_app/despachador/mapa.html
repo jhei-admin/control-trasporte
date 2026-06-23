@@ -345,7 +345,7 @@ markerZoomAnimation:true
 }).setView(PARADERO,ZOOM_PARADERO)
 const listaBuses=document.getElementById("lista-buses")
 const filtroRuta=document.getElementById("filtro-ruta")
-let mapaCentrado=false
+let mapaCentrado=true
 let actualizando=false
 let mapaTimer=null
 const POLL_INTERVAL_MS=8000
@@ -676,6 +676,7 @@ encontrado.openPopup()
 
 window.centrarMapa=()=>{
 map.setView(PARADERO,ZOOM_PARADERO)
+mapaCentrado=true
 }
 
 window.toggleFullscreen=()=>{
