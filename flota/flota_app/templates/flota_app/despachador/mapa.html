@@ -49,6 +49,63 @@ transition:transform .4s linear;
 filter:drop-shadow(0 3px 4px rgba(0,0,0,.6));
 }
 
+.bus-sentido-indicator{
+position:absolute;
+right:-34px;
+top:-18px;
+display:flex;
+align-items:center;
+gap:4px;
+padding:3px 6px;
+border-radius:999px;
+font-size:10px;
+font-weight:900;
+letter-spacing:.02em;
+color:#fff;
+border:1px solid rgba(255,255,255,.7);
+box-shadow:0 2px 8px rgba(0,0,0,.45);
+}
+
+.bus-sentido-arrow{
+width:0;
+height:0;
+border-left:5px solid transparent;
+border-right:5px solid transparent;
+border-bottom:12px solid currentColor;
+transform-origin:50% 60%;
+}
+
+.sentido-bajada{
+background:#f59e0b;
+}
+
+.sentido-retorno{
+background:#2563eb;
+}
+
+.sentido-desconocido{
+background:#64748b;
+}
+
+.sentido-chip{
+font-size:10px;
+font-weight:800;
+padding:2px 6px;
+border-radius:999px;
+color:#fff;
+white-space:nowrap;
+}
+
+.ruta-direction-arrow{
+width:0;
+height:0;
+border-left:7px solid transparent;
+border-right:7px solid transparent;
+border-bottom:18px solid #ffffff;
+filter:drop-shadow(0 0 3px #00e5ff) drop-shadow(0 2px 4px rgba(0,0,0,.65));
+transform-origin:50% 60%;
+}
+
 /* ESTADOS */
 
 .bus-activo{
@@ -399,6 +456,128 @@ L.marker(PARADERO,{icon:paraderoIcon})
 
 const rutasGeometria = {{ rutas_geometria_json|default:"[]"|safe }}
 
+function esCoordValida(coord){
+return Array.isArray(coord) && coord.length===2 && Number.isFinite(Number(coord[0])) && Number.isFinite(Number(coord[1]))
+}
+
+function distanciaMetrosEntre(a,b){
+const lat1=Number(a[0]) * Math.PI / 180
+const lat2=Number(b[0]) * Math.PI / 180
+const dLat=(Number(b[0])-Number(a[0])) * Math.PI / 180
+const dLng=(Number(b[1])-Number(a[1])) * Math.PI / 180
+const h=Math.sin(dLat/2)**2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng/2)**2
+return 6371000 * 2 * Math.atan2(Math.sqrt(h),Math.sqrt(1-h))
+}
+
+function calcularRumboSegmento(a,b){
+const lat1=Number(a[0]) * Math.PI / 180
+const lat2=Number(b[0]) * Math.PI / 180
+const dLng=(Number(b[1])-Number(a[1])) * Math.PI / 180
+const y=Math.sin(dLng) * Math.cos(lat2)
+const x=Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLng)
+return (Math.atan2(y,x) * 180 / Math.PI + 360) % 360
+}
+
+function diferenciaAngular(a,b){
+return Math.abs(((Number(a)-Number(b)+540) % 360) - 180)
+}
+
+function distanciaPuntoSegmentoMetros(p,a,b){
+const refLat=(Number(p[0])+Number(a[0])+Number(b[0]))/3
+const metrosLat=110540
+const metrosLng=111320 * Math.cos(refLat * Math.PI / 180)
+const px=Number(p[1]) * metrosLng
+const py=Number(p[0]) * metrosLat
+const ax=Number(a[1]) * metrosLng
+const ay=Number(a[0]) * metrosLat
+const bx=Number(b[1]) * metrosLng
+const by=Number(b[0]) * metrosLat
+const dx=bx-ax
+const dy=by-ay
+const largo2=dx*dx + dy*dy
+const t=largo2===0 ? 0 : Math.max(0,Math.min(1,((px-ax)*dx + (py-ay)*dy)/largo2))
+const cx=ax + t*dx
+const cy=ay + t*dy
+return Math.hypot(px-cx,py-cy)
+}
+
+function crearIconoFlechaRuta(angulo){
+return L.divIcon({
+className:"",
+html:`<div class="ruta-direction-arrow" style="transform:rotate(${angulo}deg)"></div>`,
+iconSize:[18,18],
+iconAnchor:[9,9]
+})
+}
+
+function dibujarFlechasRuta(coords){
+let acumulado=0
+
+for(let idx=0; idx<coords.length-1; idx++){
+const a=coords[idx]
+const b=coords[idx+1]
+if(!esCoordValida(a) || !esCoordValida(b)) continue
+
+const distancia=distanciaMetrosEntre(a,b)
+if(distancia<20) continue
+
+acumulado+=distancia
+
+if(acumulado<450) continue
+
+const puntoMedio=[(Number(a[0])+Number(b[0]))/2,(Number(a[1])+Number(b[1]))/2]
+const rumbo=calcularRumboSegmento(a,b)
+L.marker(puntoMedio,{icon:crearIconoFlechaRuta(rumbo),interactive:false}).addTo(capaRutas)
+acumulado=0
+}
+}
+
+function rutasCandidatasVehiculo(v){
+const rutaId=String(v.ruta_id || "")
+const exactas=rutaId ? rutasGeometria.filter(r=>String(r.id)===rutaId) : []
+return exactas.length ? exactas : rutasGeometria
+}
+
+function detectarSentidoVehiculo(v){
+const direccion=Number(v.direccion)
+const posicion=[Number(v.lat),Number(v.lng)]
+
+if(!Number.isFinite(direccion) || !esCoordValida(posicion)){
+return {codigo:"DESCONOCIDO",texto:"--",corto:"--",clase:"sentido-desconocido",angulo:0}
+}
+
+let mejor=null
+
+rutasCandidatasVehiculo(v).forEach(ruta=>{
+const coords=Array.isArray(ruta.geometria) ? ruta.geometria : []
+
+for(let idx=0; idx<coords.length-1; idx++){
+const a=coords[idx]
+const b=coords[idx+1]
+if(!esCoordValida(a) || !esCoordValida(b)) continue
+
+const distancia=distanciaPuntoSegmentoMetros(posicion,a,b)
+if(mejor && distancia>=mejor.distancia) continue
+
+mejor={
+distancia,
+rumbo:calcularRumboSegmento(a,b)
+}
+}
+})
+
+if(!mejor || mejor.distancia>350){
+return {codigo:"DESCONOCIDO",texto:"--",corto:"--",clase:"sentido-desconocido",angulo:direccion}
+}
+
+const diferencia=diferenciaAngular(direccion,mejor.rumbo)
+const esBajada=diferencia<=90
+
+return esBajada
+? {codigo:"BAJADA",texto:"Bajada",corto:"B",clase:"sentido-bajada",angulo:direccion}
+: {codigo:"RETORNO",texto:"Retorno",corto:"R",clase:"sentido-retorno",angulo:direccion}
+}
+
 function poblarSelectorRutas(){
 filtroRuta.innerHTML = '<option value="">Todas las rutas</option>'
 rutasGeometria.forEach(ruta=>{
@@ -436,6 +615,8 @@ opacity:.9,
 lineCap:"round",
 lineJoin:"round"
 }).addTo(capaRutas)
+
+dibujarFlechasRuta(coords)
 }
 
 function renderizarRutas(){
@@ -518,18 +699,21 @@ return "OFFLINE"
 return v.estado==="ACTIVO" ? "ACTIVO" : "INACTIVO"
 }
 
-function construirPopupBus(v,estadoVisual){
+function construirPopupBus(v,estadoVisual,sentido){
 const ultimaSenal=v.fecha || "--"
 const velocidad=v.velocidad || 0
 const estadoGps=v.estado_gps || "--"
+const rumbo=Number.isFinite(Number(v.direccion)) ? Math.round(Number(v.direccion)) : "--"
 
 return `
 <div style="min-width:180px">
 
 <b>Vehiculo:</b> ${v.vehiculo}<br>
 <b>Estado:</b> ${estadoVisual}<br>
+<b>Sentido:</b> <span class="sentido-chip ${sentido.clase}">${sentido.texto}</span><br>
 <b>GPS:</b> ${estadoGps}<br>
 <b>Velocidad:</b> ${velocidad} km/h<br>
+<b>Rumbo:</b> ${rumbo}&deg;<br>
 <b>Ultima senal:</b> ${ultimaSenal}<br><br>
 
 <a href="/sistema/despachador/historial/${v.vehiculo_id}/"
@@ -541,7 +725,7 @@ Ver historial
 `
 }
 
-function crearIconoBus(v){
+function crearIconoBus(v,sentido){
 
 let direccion=v.direccion||0
 
@@ -554,6 +738,12 @@ estado==="INACTIVO"?"bus-inactivo":
 "bus-offline"
 
 let live=estado==="ACTIVO"?`<span class="live-dot"></span>`:""
+let indicadorSentido=sentido.codigo==="DESCONOCIDO" ? "" : `
+<div class="bus-sentido-indicator ${sentido.clase}">
+<span class="bus-sentido-arrow" style="transform:rotate(${direccion}deg)"></span>
+<span>${sentido.corto}</span>
+</div>
+`
 
 return L.divIcon({
 
@@ -562,6 +752,7 @@ className:"",
 html:`
 <div class="bus-marker ${clase}">
 ${live}
+${indicadorSentido}
 <div class="bus-numero">${vehiculo}</div>
 <img src="${ICON_BUS[estado]}" style="transform:rotate(${direccion}deg)">
 </div>
@@ -581,6 +772,7 @@ listaBuses.innerHTML=""
 data.filter(v=>coincideRutaSeleccionada(v)).forEach(v=>{
 
 let estadoVisual=obtenerEstadoVisual(v)
+let sentido=detectarSentidoVehiculo(v)
 
 let color=
 estadoVisual==="ACTIVO"?"status-activo":
@@ -595,6 +787,7 @@ item.innerHTML=`
 <span class="bus-status ${color}"></span>
 Bus ${v.vehiculo}
 ${v.placa ? `<span style="font-size:11px;opacity:.7">${v.placa}</span>` : ""}
+<span class="sentido-chip ${sentido.clase}">${sentido.texto}</span>
 <span style="margin-left:auto;font-size:11px;opacity:.7">${estadoVisual}</span>
 `
 
@@ -762,13 +955,14 @@ if(!v.lat||!v.lng)return
 bounds.push([v.lat,v.lng])
 
 const estadoVisual=obtenerEstadoVisual(v)
+const sentido=detectarSentidoVehiculo(v)
 
 if(estadoVisual==="ACTIVO")a++
 else if(estadoVisual==="INACTIVO")i++
 else o++
 
-const icono=crearIconoBus(v)
-const popupHtml=construirPopupBus(v,estadoVisual)
+const icono=crearIconoBus(v,sentido)
+const popupHtml=construirPopupBus(v,estadoVisual,sentido)
 
 if(!markers[v.vehiculo]){
 
@@ -781,6 +975,7 @@ m.codigo=String(v.vehiculo).toLowerCase()
 m.placa=(v.placa || "").toLowerCase()
 m.busqueda=`${m.codigo} ${m.placa}`.trim()
 m.rutaId=String(v.ruta_id || "")
+m.sentido=sentido.codigo
 
 markers[v.vehiculo]=m
 
@@ -794,6 +989,7 @@ markers[v.vehiculo].codigo=String(v.vehiculo).toLowerCase()
 markers[v.vehiculo].placa=(v.placa || "").toLowerCase()
 markers[v.vehiculo].busqueda=`${markers[v.vehiculo].codigo} ${markers[v.vehiculo].placa}`.trim()
 markers[v.vehiculo].rutaId=String(v.ruta_id || "")
+markers[v.vehiculo].sentido=sentido.codigo
 
 }
 
