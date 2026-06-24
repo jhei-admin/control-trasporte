@@ -98,6 +98,18 @@ class Vehiculo(models.Model):
 
     activo = models.BooleanField(default=True)
 
+    servicio_suspendido = models.BooleanField(
+        default=False,
+        help_text="Suspende la APK operativa sin cerrar la sesion."
+    )
+
+    mensaje_suspension = models.CharField(
+        max_length=160,
+        blank=True,
+        default="Servicio suspendido. Comuniquese con administracion.",
+        help_text="Mensaje visible en la APK cuando el servicio esta suspendido."
+    )
+
     fecha_alta = models.DateField(auto_now_add=True)
     fecha_baja = models.DateField(null=True, blank=True)
 
@@ -109,6 +121,7 @@ class Vehiculo(models.Model):
             models.Index(fields=["empresa", "codigo"]),
             models.Index(fields=["empresa", "activo"]),
             models.Index(fields=["activo"]),
+            models.Index(fields=["servicio_suspendido"]),
         ]
 
         constraints = [

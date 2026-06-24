@@ -1073,6 +1073,16 @@ def api_gps_conductor(request):
             "mensaje": "Sesion invalida o reemplazada",
         })
 
+    if sesion.vehiculo.servicio_suspendido:
+        actualizar_heartbeat(sesion, timezone.now())
+        return JsonResponse({
+            "ok": True,
+            "accion": "servicio_suspendido",
+            "estado": "SUSPENDIDO_PAGO",
+            "bloqueado": True,
+            "mensaje": _mensaje_servicio_suspendido(sesion.vehiculo),
+        })
+
     hoy = timezone.localdate()
 
     RegistroSalida.objects.for_empresa(sesion.vehiculo.empresa).filter(
@@ -1340,6 +1350,16 @@ def api_gps(request):
     sesion = validar_sesion(token)
     if not sesion:
         return JsonResponse({"error": "Sesion invalida o reemplazada"}, status=401)
+
+    if sesion.vehiculo.servicio_suspendido:
+        actualizar_heartbeat(sesion, timezone.now())
+        return JsonResponse({
+            "ok": True,
+            "accion": "servicio_suspendido",
+            "estado": "SUSPENDIDO_PAGO",
+            "bloqueado": True,
+            "mensaje": _mensaje_servicio_suspendido(sesion.vehiculo),
+        })
 
     try:
         data = json.loads(request.body or "{}")
@@ -2365,6 +2385,15 @@ def api_heartbeat(request):
     ahora = timezone.now()
     sesion.last_heartbeat = ahora
     sesion.save(update_fields=["last_heartbeat"])
+
+    if sesion.vehiculo.servicio_suspendido:
+        respuesta_suspendida = _payload_servicio_suspendido(sesion.vehiculo)
+        respuesta_suspendida.update({
+            "ok": True,
+            "timestamp": ahora.isoformat(),
+        })
+        return _disable_cache(JsonResponse(respuesta_suspendida))
+
     hoy = timezone.localdate()
 
     mensaje = (
@@ -2382,6 +2411,7 @@ def api_heartbeat(request):
     respuesta = {
         "ok": True,
         "estado": "ACTIVO",
+        "bloqueado": False,
         "timestamp": ahora.isoformat(),
         "mensaje": None,
     }
@@ -2430,6 +2460,24 @@ def _as_optional_datetime(value):
     if timezone.is_naive(parsed):
         parsed = timezone.make_aware(parsed, timezone.get_current_timezone())
     return parsed
+
+
+def _mensaje_servicio_suspendido(vehiculo):
+    mensaje = str(getattr(vehiculo, "mensaje_suspension", "") or "").strip()
+    return mensaje or "Servicio suspendido. Comuniquese con administracion."
+
+
+def _payload_servicio_suspendido(vehiculo, estado_gps="SUSPENDIDO"):
+    return {
+        "autorizado": False,
+        "estado": "SUSPENDIDO_PAGO",
+        "estado_gps": estado_gps,
+        "bloqueado": True,
+        "hora_salida": None,
+        "minutos": None,
+        "unidad": vehiculo.codigo,
+        "mensaje": _mensaje_servicio_suspendido(vehiculo),
+    }
 
 
 @csrf_exempt
@@ -2758,6 +2806,9 @@ def api_app_estado(request):
         })
 
     estado_gps = calcular_estado_sesion(sesion)
+    if sesion.vehiculo.servicio_suspendido:
+        return JsonResponse(_payload_servicio_suspendido(sesion.vehiculo, estado_gps))
+
     hoy = timezone.localdate()
     salida = (
         RegistroSalida.objects.for_empresa(sesion.vehiculo.empresa)

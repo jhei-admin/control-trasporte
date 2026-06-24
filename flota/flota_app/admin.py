@@ -112,18 +112,47 @@ class VehiculoAdmin(admin.ModelAdmin):
         "codigo",
         "placa",
         "activo",
+        "servicio_app",
         "fecha_alta",
         "fecha_baja",
     )
 
-    list_filter = ("activo",)
+    list_filter = ("activo", "servicio_suspendido")
 
     search_fields = (
         "codigo",
         "placa",
+        "empresa__nombre",
     )
 
     ordering = ("codigo",)
+    actions = ("suspender_servicio_pago", "reactivar_servicio_pago")
+
+    @admin.display(description="Servicio APK")
+    def servicio_app(self, obj):
+        if obj.servicio_suspendido:
+            return format_html(
+                '<span style="background:#991b1b;color:white;padding:3px 8px;border-radius:999px;font-weight:700;">SUSPENDIDO</span>'
+            )
+        return format_html(
+            '<span style="background:#166534;color:white;padding:3px 8px;border-radius:999px;font-weight:700;">ACTIVO</span>'
+        )
+
+    @admin.action(description="Suspender servicio APK por pago")
+    def suspender_servicio_pago(self, request, queryset):
+        total = queryset.update(
+            servicio_suspendido=True,
+            mensaje_suspension="Servicio suspendido. Comuniquese con administracion.",
+        )
+        self.message_user(request, f"Servicio suspendido en {total} unidad(es).")
+
+    @admin.action(description="Reactivar servicio APK")
+    def reactivar_servicio_pago(self, request, queryset):
+        total = queryset.update(
+            servicio_suspendido=False,
+            mensaje_suspension="",
+        )
+        self.message_user(request, f"Servicio reactivado en {total} unidad(es).")
 
 
 # =================================================
@@ -357,6 +386,7 @@ class EstadoDispositivoAdmin(admin.ModelAdmin):
         "unidad",
         "empresa",
         "estado_general",
+        "servicio_app_badge",
         "estado_operacion_badge",
         "estado_admin_badge",
         "operativa_rollout_badge",
@@ -374,6 +404,7 @@ class EstadoDispositivoAdmin(admin.ModelAdmin):
         "wifi_conectado",
         "internet_disponible",
         "gps_activo",
+        "vehiculo__servicio_suspendido",
         DeviceOwnerFilter,
         OperativaActualizacionFilter,
         AdminActualizacionFilter,
@@ -397,6 +428,8 @@ class EstadoDispositivoAdmin(admin.ModelAdmin):
         "encolar_actualizacion_admin_pendientes",
         "encolar_aplicar_modo_dedicado",
         "encolar_abrir_wifi_tecnico",
+        "suspender_servicio_pago",
+        "reactivar_servicio_pago",
     )
     readonly_fields = (
         "vehiculo",
@@ -644,6 +677,11 @@ class EstadoDispositivoAdmin(admin.ModelAdmin):
             return self._badge("ADMIN SIN OWNER", "#d97706")
         return self._badge("SIN ADMIN", "#6b7280")
 
+    def servicio_app_badge(self, obj):
+        if obj.vehiculo.servicio_suspendido:
+            return self._badge("SUSPENDIDO", "#991b1b")
+        return self._badge("ACTIVO", "#1f9d55")
+
     def version_admin(self, obj):
         version = obj.admin_app_version or "Sin version"
         code = obj.admin_app_version_code or "-"
@@ -774,12 +812,31 @@ class EstadoDispositivoAdmin(admin.ModelAdmin):
         )
         self.message_user(request, f"Se encolaron {created} aperturas de WiFi tecnico.")
 
+    @admin.action(description="Suspender servicio APK por pago")
+    def suspender_servicio_pago(self, request, queryset):
+        vehiculo_ids = queryset.values_list("vehiculo_id", flat=True)
+        total = Vehiculo.objects.filter(id__in=vehiculo_ids).update(
+            servicio_suspendido=True,
+            mensaje_suspension="Servicio suspendido. Comuniquese con administracion.",
+        )
+        self.message_user(request, f"Servicio suspendido en {total} unidad(es).")
+
+    @admin.action(description="Reactivar servicio APK")
+    def reactivar_servicio_pago(self, request, queryset):
+        vehiculo_ids = queryset.values_list("vehiculo_id", flat=True)
+        total = Vehiculo.objects.filter(id__in=vehiculo_ids).update(
+            servicio_suspendido=False,
+            mensaje_suspension="",
+        )
+        self.message_user(request, f"Servicio reactivado en {total} unidad(es).")
+
     def has_add_permission(self, request):
         return False
 
     empresa.short_description = "Empresa"
     unidad.short_description = "Unidad"
     estado_operacion_badge.short_description = "Estado app"
+    servicio_app_badge.short_description = "Servicio"
     estado_admin_badge.short_description = "Estado admin"
     operativa_rollout_badge.short_description = "Rollout operativa"
     admin_rollout_badge.short_description = "Rollout admin"
