@@ -912,7 +912,12 @@
 
   document.addEventListener("DOMContentLoaded", () => {
     const fechaInput = document.getElementById("fecha");
-    const hoy = new Date().toISOString().slice(0, 10);
+    const ahora = new Date();
+    const hoy = [
+      ahora.getFullYear(),
+      String(ahora.getMonth() + 1).padStart(2, "0"),
+      String(ahora.getDate()).padStart(2, "0"),
+    ].join("-");
 
     if (fechaInput && !fechaInput.value) {
       fechaInput.value = fechaInput.dataset.initialDate || hoy;

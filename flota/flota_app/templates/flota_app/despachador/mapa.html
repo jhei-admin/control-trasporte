@@ -607,7 +607,15 @@ const capaFlota=L.layerGroup().addTo(map)
 const capaParadero=L.layerGroup().addTo(map)
 const capaRutas=L.layerGroup().addTo(map)
 const capaPuntosControl=L.layerGroup().addTo(map)
-const capaEtiquetasSentido=L.layerGroup().addTo(map)
+const SENTIDO_STORAGE_KEY="despachadorMapaSentidoVisible"
+const capaEtiquetasSentido=L.layerGroup()
+const mostrarEtiquetasSentido=localStorage.getItem(SENTIDO_STORAGE_KEY)!=="0"
+
+if(mostrarEtiquetasSentido){
+capaEtiquetasSentido.addTo(map)
+}else{
+map.getContainer().classList.add("ocultar-etiquetas-sentido")
+}
 
 const controlCapas=L.control.layers(null,{
 "🚌 Flota":capaFlota,
@@ -620,12 +628,14 @@ controlCapas.addOverlay(capaEtiquetasSentido,"Sentido B/R")
 
 map.on("overlayadd",e=>{
 if(e.layer===capaEtiquetasSentido){
+localStorage.setItem(SENTIDO_STORAGE_KEY,"1")
 map.getContainer().classList.remove("ocultar-etiquetas-sentido")
 }
 })
 
 map.on("overlayremove",e=>{
 if(e.layer===capaEtiquetasSentido){
+localStorage.setItem(SENTIDO_STORAGE_KEY,"0")
 map.getContainer().classList.add("ocultar-etiquetas-sentido")
 }
 })
@@ -1014,6 +1024,13 @@ second:"2-digit"
 })
 }
 
+function obtenerFechaLocalISO(fecha=new Date()){
+const anio=fecha.getFullYear()
+const mes=String(fecha.getMonth()+1).padStart(2,"0")
+const dia=String(fecha.getDate()).padStart(2,"0")
+return `${anio}-${mes}-${dia}`
+}
+
 function calcularVelocidadVisual(v,markerAnterior=null){
 const velocidadGps=Number(v.velocidad)
 
@@ -1065,7 +1082,8 @@ const estadoTexto=escaparHtml(estadoVisual)
 const gpsTexto=escaparHtml(estadoGps)
 const sentidoTexto=escaparHtml(sentido.texto)
 const velocidadNota=fuenteVelocidad==="Estimado" ? "estimada por movimiento" : "reportada por GPS"
-const recorridoUrl=`/sistema/despachador/recorrido/?vehiculo=${encodeURIComponent(v.vehiculo_id || "")}`
+const fechaRecorrido=obtenerFechaLocalISO()
+const recorridoUrl=`/sistema/despachador/recorrido/?vehiculo=${encodeURIComponent(v.vehiculo_id || "")}&fecha=${fechaRecorrido}`
 
 return `
 <div class="bus-popup">
