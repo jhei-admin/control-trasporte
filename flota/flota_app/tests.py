@@ -1648,6 +1648,114 @@ class ApiSecurityAndIsolationTests(BaseFlotaTestCase):
         self.assertEqual(data["adelante"][0]["unidad"], self.vehiculo_2.codigo)
         self.assertEqual(data["adelante"][0]["punto_referencia_codigo"], punto_llam.codigo)
 
+    def test_api_cola_contexto_no_reordena_por_evento_de_vecino_sin_senal(self):
+        hora_base = timezone.now().replace(hour=9, minute=20, second=0, microsecond=0)
+        salida_actual = RegistroSalida.objects.create(
+            vehiculo=self.vehiculo_1,
+            ruta=self.ruta_a,
+            fecha=timezone.localdate(),
+            hora_salida=hora_base,
+            hora_real_salida=hora_base,
+            activo=True,
+            en_cola=False,
+        )
+        salida_vecino = RegistroSalida.objects.create(
+            vehiculo=self.vehiculo_2,
+            ruta=self.ruta_a,
+            fecha=timezone.localdate(),
+            hora_salida=hora_base + timedelta(minutes=3),
+            hora_real_salida=hora_base + timedelta(minutes=3),
+            activo=True,
+            en_cola=False,
+        )
+        salida_siguiente = RegistroSalida.objects.create(
+            vehiculo=self.vehiculo_3,
+            ruta=self.ruta_a,
+            fecha=timezone.localdate(),
+            hora_salida=hora_base + timedelta(minutes=6),
+            hora_real_salida=hora_base + timedelta(minutes=6),
+            activo=True,
+            en_cola=False,
+        )
+
+        punto_muni = self.punto_control
+        punto_muni.codigo = "MUNI"
+        punto_muni.nombre = "Entrada Municipal"
+        punto_muni.orden = 2
+        punto_muni.requiere_marcacion = False
+        punto_muni.confirma_avance = True
+        punto_muni.fase = PuntoControl.FASE_IDA
+        punto_muni.save(update_fields=[
+            "codigo",
+            "nombre",
+            "orden",
+            "requiere_marcacion",
+            "confirma_avance",
+            "fase",
+        ])
+
+        for salida, minutos in ((salida_actual, 0), (salida_vecino, 3), (salida_siguiente, 6)):
+            MarcacionPunto.objects.create(
+                registro_salida=salida,
+                punto=self.punto_salida,
+                hora_marcada=hora_base + timedelta(minutes=minutos),
+                hora_programada=hora_base + timedelta(minutes=minutos),
+            )
+
+        UbicacionVehiculo.objects.create(
+            vehiculo=self.vehiculo_1,
+            latitud=Decimal(str(self.punto_salida.latitud)),
+            longitud=Decimal(str(self.punto_salida.longitud)),
+            velocidad=10,
+            precision=10,
+        )
+        UbicacionVehiculo.objects.create(
+            vehiculo=self.vehiculo_2,
+            latitud=Decimal(str(punto_muni.latitud)),
+            longitud=Decimal(str(punto_muni.longitud)),
+            velocidad=10,
+            precision=10,
+            ultimo_punto_evento_codigo=punto_muni.codigo,
+            ultimo_punto_evento_orden=punto_muni.orden,
+            ultimo_punto_evento_at=timezone.now(),
+        )
+        UbicacionVehiculo.objects.create(
+            vehiculo=self.vehiculo_3,
+            latitud=Decimal(str(self.punto_salida.latitud)),
+            longitud=Decimal(str(self.punto_salida.longitud)),
+            velocidad=10,
+            precision=10,
+        )
+
+        self.sesion.salida = salida_actual
+        self.sesion.save(update_fields=["salida"])
+        SesionUnidad.objects.create(
+            vehiculo=self.vehiculo_2,
+            activa=True,
+            last_heartbeat=timezone.now() - timedelta(minutes=5),
+            salida=salida_vecino,
+        )
+        SesionUnidad.objects.create(
+            vehiculo=self.vehiculo_3,
+            activa=True,
+            last_heartbeat=timezone.now(),
+            salida=salida_siguiente,
+        )
+
+        response = self.client.get(
+            reverse("api_app_cola_contexto"),
+            HTTP_AUTHORIZATION=f"Bearer {self.sesion.token}",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data["ok"])
+        self.assertEqual(data["actual"]["punto_referencia_codigo"], self.punto_salida.codigo)
+        self.assertEqual(data["adelante"], [])
+        self.assertEqual(data["atras"][0]["unidad"], self.vehiculo_3.codigo)
+        self.assertEqual(data["atras"][0]["punto_referencia_codigo"], self.punto_salida.codigo)
+        self.assertNotIn(self.vehiculo_2.codigo, [item["unidad"] for item in data["atras"]])
+
     def test_api_cola_contexto_primero_que_marca_mismo_punto_sigue_adelante_hasta_siguiente_referencia(self):
         hora_base = timezone.now() - timedelta(minutes=20)
         salida_actual = RegistroSalida.objects.create(

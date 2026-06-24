@@ -38,7 +38,7 @@ from ..models import (
     UbicacionVehiculo,
     Vehiculo,
 )
-from ..services import calcular_estado_sesion, validar_sesion, validar_sesion_staff
+from ..services import HEARTBEAT_TIMEOUT, calcular_estado_sesion, validar_sesion, validar_sesion_staff
 from ..utils import distancia_metros
 from .despacho_views import (
     _calcular_detalle_salida,
@@ -2193,6 +2193,13 @@ def _construir_cola_contexto_payload(sesion, ahora=None):
             vehiculo__in=[salida.vehiculo for salida in cola]
         )
     }
+    sesiones_activas_map = {
+        sesion_activa.vehiculo_id: sesion_activa
+        for sesion_activa in SesionUnidad.objects.filter(
+            vehiculo__in=[salida.vehiculo for salida in cola],
+            activa=True,
+        ).only("vehiculo_id", "last_heartbeat")
+    }
     ultimo_punto_map = {}
     ultimo_punto_orden_map = {}
     ultimo_punto_hora_map = {}
@@ -2211,7 +2218,20 @@ def _construir_cola_contexto_payload(sesion, ahora=None):
     def salida_tiene_inicio_confirmado(salida):
         return (ultimo_punto_orden_map.get(salida.id) or 0) >= 1
 
+    def sesion_con_senal_para_contexto(salida):
+        if salida.vehiculo_id == sesion.vehiculo_id:
+            return True
+
+        sesion_activa = sesiones_activas_map.get(salida.vehiculo_id)
+        if not sesion_activa:
+            return True
+        if not sesion_activa.last_heartbeat:
+            return False
+        return ahora - sesion_activa.last_heartbeat <= HEARTBEAT_TIMEOUT
+
     def ubicacion_fresca(salida):
+        if not sesion_con_senal_para_contexto(salida):
+            return None
         ubicacion = ubicaciones_map.get(salida.vehiculo.id)
         if not ubicacion or ahora - ubicacion.updated_at > gps_max_delay:
             return None
@@ -2319,14 +2339,25 @@ def _construir_cola_contexto_payload(sesion, ahora=None):
     cola_ordenada = sorted(cola, key=calcular_avance_confirmado)
     index_actual = cola_ordenada.index(salida_actual)
 
-    adelante = cola_ordenada[:index_actual][-2:]
-    atras = cola_ordenada[index_actual + 1:index_actual + 3]
+    def salida_disponible_para_vecinos(salida):
+        return sesion_con_senal_para_contexto(salida)
+
+    adelante = [
+        salida
+        for salida in reversed(cola_ordenada[:index_actual])
+        if salida_disponible_para_vecinos(salida)
+    ][:2]
+    atras = [
+        salida
+        for salida in cola_ordenada[index_actual + 1:]
+        if salida_disponible_para_vecinos(salida)
+    ][:2]
 
     def calcular_minutos(salida):
         if not ub_actual:
             return None
-        ubicacion = ubicaciones_map.get(salida.vehiculo.id)
-        if not ubicacion or ahora - ubicacion.updated_at > gps_max_delay:
+        ubicacion = ubicacion_fresca(salida)
+        if not ubicacion:
             return None
         distancia = distancia_metros(
             ub_actual.latitud,
@@ -2359,7 +2390,7 @@ def _construir_cola_contexto_payload(sesion, ahora=None):
             "punto_referencia_codigo": referencias_map.get(salida_actual.id, {}).get("codigo"),
             "punto_audio_referencia_codigo": referencias_map.get(salida_actual.id, {}).get("audio_codigo"),
         },
-        "adelante": [serializar(salida) for salida in reversed(adelante)],
+        "adelante": [serializar(salida) for salida in adelante],
         "atras": [serializar(salida) for salida in atras],
     }
 
