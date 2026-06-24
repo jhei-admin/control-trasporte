@@ -66,6 +66,10 @@ border:1px solid rgba(255,255,255,.7);
 box-shadow:0 2px 8px rgba(0,0,0,.45);
 }
 
+.ocultar-etiquetas-sentido .bus-sentido-indicator{
+display:none;
+}
+
 .bus-sentido-arrow{
 width:0;
 height:0;
@@ -440,13 +444,28 @@ const capaFlota=L.layerGroup().addTo(map)
 const capaParadero=L.layerGroup().addTo(map)
 const capaRutas=L.layerGroup().addTo(map)
 const capaPuntosControl=L.layerGroup().addTo(map)
+const capaEtiquetasSentido=L.layerGroup().addTo(map)
 
-L.control.layers(null,{
+const controlCapas=L.control.layers(null,{
 "🚌 Flota":capaFlota,
 "🏁 Paradero":capaParadero,
 "🛣️ Ruta":capaRutas,
 "📍 Puntos de control":capaPuntosControl
 }).addTo(map)
+
+controlCapas.addOverlay(capaEtiquetasSentido,"Sentido B/R")
+
+map.on("overlayadd",e=>{
+if(e.layer===capaEtiquetasSentido){
+map.getContainer().classList.remove("ocultar-etiquetas-sentido")
+}
+})
+
+map.on("overlayremove",e=>{
+if(e.layer===capaEtiquetasSentido){
+map.getContainer().classList.add("ocultar-etiquetas-sentido")
+}
+})
 
 /* PARADERO */
 
