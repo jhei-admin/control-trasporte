@@ -61,6 +61,184 @@ font-weight:700;
 font-size:13px;
 }
 
+.gps-alert-widget{
+position:relative;
+}
+
+.gps-alert-btn{
+position:relative;
+width:38px;
+height:38px;
+border-radius:999px;
+border:1px solid rgba(255,255,255,.24);
+background:rgba(15,23,42,.32);
+color:#fff;
+display:inline-flex;
+align-items:center;
+justify-content:center;
+font-size:18px;
+box-shadow:0 10px 22px rgba(15,23,42,.18);
+}
+
+.gps-alert-btn.has-alert{
+background:#f59e0b;
+color:#111827;
+animation:gpsPulse 1.2s ease-in-out infinite;
+}
+
+.gps-alert-badge{
+position:absolute;
+top:-5px;
+right:-5px;
+min-width:18px;
+height:18px;
+padding:0 5px;
+border-radius:999px;
+background:#ef4444;
+color:#fff;
+font-size:11px;
+font-weight:800;
+line-height:18px;
+border:2px solid #1f2937;
+}
+
+.gps-alert-panel{
+position:absolute;
+right:0;
+top:48px;
+width:360px;
+max-width:calc(100vw - 32px);
+background:#fff;
+color:#0f172a;
+border:1px solid #e2e8f0;
+border-radius:10px;
+box-shadow:0 22px 55px rgba(15,23,42,.28);
+z-index:80;
+overflow:hidden;
+}
+
+.gps-alert-panel.d-none{
+display:none;
+}
+
+.gps-alert-head{
+display:flex;
+justify-content:space-between;
+align-items:center;
+gap:12px;
+padding:12px 14px;
+background:#0f172a;
+color:#fff;
+}
+
+.gps-alert-title{
+font-weight:800;
+font-size:14px;
+}
+
+.gps-alert-subtitle{
+font-size:12px;
+color:#cbd5e1;
+}
+
+.gps-alert-clear{
+border:0;
+background:rgba(255,255,255,.12);
+color:#fff;
+border-radius:7px;
+padding:5px 8px;
+font-size:12px;
+}
+
+.gps-alert-list{
+max-height:360px;
+overflow:auto;
+padding:8px;
+}
+
+.gps-alert-empty{
+padding:18px 14px;
+font-size:13px;
+color:#64748b;
+text-align:center;
+}
+
+.gps-alert-item{
+border:1px solid #e2e8f0;
+border-left:4px solid #f59e0b;
+border-radius:8px;
+padding:10px;
+margin-bottom:8px;
+background:#f8fafc;
+}
+
+.gps-alert-item.offline{
+border-left-color:#ef4444;
+}
+
+.gps-alert-row{
+display:flex;
+justify-content:space-between;
+align-items:flex-start;
+gap:10px;
+}
+
+.gps-alert-unit{
+font-weight:900;
+font-size:15px;
+}
+
+.gps-alert-state{
+font-size:11px;
+font-weight:900;
+border-radius:999px;
+padding:3px 7px;
+background:#fef3c7;
+color:#92400e;
+white-space:nowrap;
+}
+
+.gps-alert-state.offline{
+background:#fee2e2;
+color:#991b1b;
+}
+
+.gps-alert-meta{
+font-size:12px;
+color:#475569;
+margin-top:5px;
+line-height:1.35;
+}
+
+.gps-alert-actions{
+display:flex;
+gap:8px;
+margin-top:8px;
+}
+
+.gps-alert-actions a{
+font-size:12px;
+font-weight:800;
+text-decoration:none;
+border-radius:7px;
+padding:6px 8px;
+}
+
+.gps-alert-map{
+background:#2563eb;
+color:#fff;
+}
+
+.gps-alert-coord{
+background:#e2e8f0;
+color:#0f172a;
+}
+
+@keyframes gpsPulse{
+0%,100%{transform:scale(1);}
+50%{transform:scale(1.07);}
+}
+
 .ops-hero{
 display:grid;
 grid-template-columns:minmax(0,1.62fr) minmax(250px,.7fr);
@@ -630,6 +808,24 @@ width:100%;
 
     <div class="ops-meta">
       <span class="pill-live">Sistema activo</span>
+      <div class="gps-alert-widget">
+        <button type="button" id="gpsAlertBtn" class="gps-alert-btn" title="Alertas de GPS">
+          &#128276;
+          <span id="gpsAlertBadge" class="gps-alert-badge d-none">0</span>
+        </button>
+        <div id="gpsAlertPanel" class="gps-alert-panel d-none">
+          <div class="gps-alert-head">
+            <div>
+              <div class="gps-alert-title">Alertas de senal GPS</div>
+              <div class="gps-alert-subtitle">Unidades activas que pierden conexion</div>
+            </div>
+            <button type="button" id="gpsAlertClear" class="gps-alert-clear">Limpiar</button>
+          </div>
+          <div id="gpsAlertList" class="gps-alert-list">
+            <div class="gps-alert-empty">Sin desconexiones nuevas.</div>
+          </div>
+        </div>
+      </div>
       <a href="{% url 'logout' %}" class="btn btn-danger btn-sm">Cerrar sesion</a>
     </div>
   </section>
@@ -884,6 +1080,17 @@ const PANEL_AUTO_REFRESH_MS = 15000
 let panelRefreshTimer = null
 const dispatcherPanel = document.getElementById("dispatcherPanel")
 const panelRefreshUrl = dispatcherPanel?.dataset.refreshUrl || ""
+const gpsMapaUrl = "{% url 'api_despachador_mapa' %}"
+const GPS_ALERT_POLL_MS = 12000
+const GPS_ALERTS_STORAGE_KEY = "panelDespachadorRutaGpsAlerts"
+const GPS_STATUS_STORAGE_KEY = "panelDespachadorRutaGpsStatus"
+const gpsAlertBtn = document.getElementById("gpsAlertBtn")
+const gpsAlertBadge = document.getElementById("gpsAlertBadge")
+const gpsAlertPanel = document.getElementById("gpsAlertPanel")
+const gpsAlertList = document.getElementById("gpsAlertList")
+const gpsAlertClear = document.getElementById("gpsAlertClear")
+let gpsAlerts = leerJsonLocal(GPS_ALERTS_STORAGE_KEY, [])
+let gpsStatusByUnit = leerJsonLocal(GPS_STATUS_STORAGE_KEY, {})
 
 function obtenerCsrfToken(){
   const csrfInput = document.querySelector('#quickDispatchForm input[name="csrfmiddlewaretoken"]')
@@ -1110,6 +1317,182 @@ async function refrescarPanelSiCorresponde(){
   }
 }
 
+function leerJsonLocal(clave, respaldo){
+  try{
+    const valor = localStorage.getItem(clave)
+    return valor ? JSON.parse(valor) : respaldo
+  }catch(error){
+    return respaldo
+  }
+}
+
+function guardarGpsAlertas(){
+  localStorage.setItem(GPS_ALERTS_STORAGE_KEY, JSON.stringify(gpsAlerts.slice(0, 12)))
+}
+
+function guardarGpsEstados(){
+  localStorage.setItem(GPS_STATUS_STORAGE_KEY, JSON.stringify(gpsStatusByUnit))
+}
+
+function formatearHoraGps(valor){
+  if(!valor){
+    return "--"
+  }
+
+  const fecha = new Date(valor)
+  if(Number.isNaN(fecha.getTime())){
+    return "--"
+  }
+
+  return fecha.toLocaleTimeString("es-PE", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit"
+  })
+}
+
+function formatearCoordenada(valor){
+  const numero = Number(valor)
+  return Number.isFinite(numero) ? numero.toFixed(6) : "--"
+}
+
+function etiquetaEstadoGps(estado){
+  if(estado === "OFFLINE"){
+    return "Sin senal"
+  }
+
+  if(estado === "LENTO"){
+    return "Senal lenta"
+  }
+
+  return estado || "GPS"
+}
+
+function renderGpsAlertas(){
+  if(!gpsAlertBtn || !gpsAlertBadge || !gpsAlertList){
+    return
+  }
+
+  const total = gpsAlerts.length
+  gpsAlertBadge.textContent = total
+  gpsAlertBadge.classList.toggle("d-none", total === 0)
+  gpsAlertBtn.classList.toggle("has-alert", total > 0)
+
+  if(total === 0){
+    gpsAlertList.innerHTML = '<div class="gps-alert-empty">Sin desconexiones nuevas.</div>'
+    return
+  }
+
+  gpsAlertList.innerHTML = gpsAlerts.map(alerta => {
+    const clase = alerta.estado === "OFFLINE" ? "offline" : ""
+    const unidad = escapeHtml(alerta.unidad)
+    const placa = escapeHtml(alerta.placa || "Sin placa")
+    const ruta = escapeHtml(alerta.ruta || "Sin ruta asignada")
+    const hora = escapeHtml(alerta.hora || "--")
+    const lat = escapeHtml(alerta.latTexto || "--")
+    const lng = escapeHtml(alerta.lngTexto || "--")
+    const mapaUrl = `/sistema/despachador/mapa/?unidad=${encodeURIComponent(alerta.unidad)}`
+    const mapsUrl = Number.isFinite(Number(alerta.lat)) && Number.isFinite(Number(alerta.lng))
+      ? `https://www.google.com/maps?q=${encodeURIComponent(alerta.lat)},${encodeURIComponent(alerta.lng)}`
+      : ""
+    const coordenadasHtml = mapsUrl
+      ? `<a class="gps-alert-coord" href="${mapsUrl}" target="_blank" rel="noopener">Abrir coordenadas</a>`
+      : ""
+
+    return `
+      <div class="gps-alert-item ${clase}">
+        <div class="gps-alert-row">
+          <div>
+            <div class="gps-alert-unit">Unidad ${unidad}</div>
+            <div class="gps-alert-meta">${placa} - ${ruta}</div>
+          </div>
+          <span class="gps-alert-state ${clase}">${etiquetaEstadoGps(alerta.estado)}</span>
+        </div>
+        <div class="gps-alert-meta">
+          Ultima senal: ${hora}<br>
+          Coordenadas: ${lat}, ${lng}
+        </div>
+        <div class="gps-alert-actions">
+          <a class="gps-alert-map" href="${mapaUrl}">Ver en mapa</a>
+          ${coordenadasHtml}
+        </div>
+      </div>
+    `
+  }).join("")
+}
+
+function registrarAlertaGps(unidad){
+  const alertaId = `${unidad.vehiculo}-${unidad.estado_gps}-${unidad.actualizado_en || ""}`
+  if(gpsAlerts.some(alerta => alerta.alertaId === alertaId)){
+    return
+  }
+
+  gpsAlerts.unshift({
+    alertaId,
+    unidad: String(unidad.vehiculo || ""),
+    placa: unidad.placa || "",
+    ruta: unidad.ruta_nombre || "",
+    estado: unidad.estado_gps || "",
+    hora: formatearHoraGps(unidad.actualizado_en),
+    lat: unidad.lat,
+    lng: unidad.lng,
+    latTexto: formatearCoordenada(unidad.lat),
+    lngTexto: formatearCoordenada(unidad.lng),
+    creadoEn: Date.now()
+  })
+
+  gpsAlerts = gpsAlerts.slice(0, 12)
+  guardarGpsAlertas()
+  renderGpsAlertas()
+
+  if(navigator.vibrate){
+    navigator.vibrate(160)
+  }
+}
+
+async function monitorearGpsUnidades(){
+  if(!gpsMapaUrl){
+    return
+  }
+
+  try{
+    const response = await fetch(gpsMapaUrl, {
+      cache: "no-store",
+      credentials: "same-origin"
+    })
+
+    if(!response.ok){
+      return
+    }
+
+    const unidades = await response.json()
+    if(!Array.isArray(unidades)){
+      return
+    }
+
+    unidades
+      .filter(unidad => unidad.estado === "ACTIVO")
+      .forEach(unidad => {
+        const codigo = String(unidad.vehiculo || "")
+        if(!codigo){
+          return
+        }
+
+        const estadoAnterior = gpsStatusByUnit[codigo]
+        const estadoActual = unidad.estado_gps || ""
+        if(estadoAnterior === "ONLINE" && (estadoActual === "LENTO" || estadoActual === "OFFLINE")){
+          registrarAlertaGps(unidad)
+        }
+
+        gpsStatusByUnit[codigo] = estadoActual
+      })
+
+    guardarGpsEstados()
+  }catch(error){
+    console.warn("No se pudo monitorear el GPS de las unidades.", error)
+  }
+}
+
 function iniciarAutoRefreshPanel(){
   if(panelRefreshTimer){
     clearInterval(panelRefreshTimer)
@@ -1134,9 +1517,33 @@ document.getElementById("horaRapida").addEventListener("keydown", function(event
 document.addEventListener("visibilitychange", function(){
   if(!document.hidden){
     refrescarPanelSiCorresponde()
+    monitorearGpsUnidades()
   }
 })
 
+if(gpsAlertBtn && gpsAlertPanel){
+  gpsAlertBtn.addEventListener("click", function(){
+    gpsAlertPanel.classList.toggle("d-none")
+  })
+}
+
+if(gpsAlertClear){
+  gpsAlertClear.addEventListener("click", function(){
+    gpsAlerts = []
+    guardarGpsAlertas()
+    renderGpsAlertas()
+  })
+}
+
+document.addEventListener("click", function(event){
+  if(gpsAlertPanel && !gpsAlertPanel.classList.contains("d-none") && !event.target.closest(".gps-alert-widget")){
+    gpsAlertPanel.classList.add("d-none")
+  }
+})
+
+renderGpsAlertas()
+monitorearGpsUnidades()
+setInterval(monitorearGpsUnidades, GPS_ALERT_POLL_MS)
 iniciarAutoRefreshPanel()
 </script>
 {% endblock %}
