@@ -1170,7 +1170,14 @@ function actualizarPanel(data){
 
 listaBuses.innerHTML=""
 
-data.filter(v=>coincideRutaSeleccionada(v)).forEach(v=>{
+const texto=textoBusquedaActual()
+const dataRuta=data.filter(v=>coincideRutaSeleccionada(v))
+const usarCoincidenciaExacta=hayCoincidenciaExactaCodigo(dataRuta,texto)
+
+dataRuta
+.filter(v=>filtros[obtenerEstadoVisual(v)])
+.filter(v=>coincideBusquedaUnidad(v,texto,usarCoincidenciaExacta))
+.forEach(v=>{
 
 let estadoVisual=obtenerEstadoVisual(v)
 let sentido=markers[v.vehiculo]?.sentidoInfo || detectarSentidoVehiculo(v,markers[v.vehiculo])
@@ -1216,10 +1223,59 @@ listaBuses.appendChild(item)
 
 const markers={}
 const filtros={ACTIVO:true,INACTIVO:true,OFFLINE:true}
+let ultimaDataMapa=[]
 
 function coincideRutaSeleccionada(v){
 if(!rutaSeleccionada) return true
 return String(v.ruta_id || "")===rutaSeleccionada
+}
+
+function textoBusquedaActual(){
+return document.getElementById("busqueda").value.trim().toLowerCase()
+}
+
+function normalizarCodigoUnidad(valor){
+const codigo=String(valor ?? "").trim().toLowerCase()
+return /^\d+$/.test(codigo) ? String(Number(codigo)) : codigo
+}
+
+function coincideCodigoUnidad(valor,texto){
+if(!texto) return false
+const codigo=String(valor ?? "").trim().toLowerCase()
+const busqueda=String(texto ?? "").trim().toLowerCase()
+
+if(codigo===busqueda){
+return true
+}
+
+if(/^\d+$/.test(codigo) && /^\d+$/.test(busqueda)){
+return normalizarCodigoUnidad(codigo)===normalizarCodigoUnidad(busqueda)
+}
+
+return false
+}
+
+function coincideBusquedaUnidad(v,texto,soloCodigoExacto=false){
+if(!texto) return true
+
+const codigo=v.vehiculo ?? v.codigoOriginal ?? v.codigo ?? ""
+
+if(coincideCodigoUnidad(codigo,texto)){
+return true
+}
+
+if(soloCodigoExacto){
+return false
+}
+
+const codigoTexto=String(codigo).toLowerCase()
+const placaTexto=String(v.placa || "").toLowerCase()
+
+return codigoTexto.includes(texto) || placaTexto.includes(texto)
+}
+
+function hayCoincidenciaExactaCodigo(data,texto){
+return Boolean(texto) && data.some(v=>coincideCodigoUnidad(v.vehiculo ?? v.codigoOriginal ?? v.codigo,texto))
 }
 
 window.toggleFiltro=e=>{
@@ -1237,17 +1293,23 @@ cargar()
 
 window.aplicarFiltros=()=>{
 
-const texto=document.getElementById("busqueda").value.toLowerCase()
+const texto=textoBusquedaActual()
+const candidatos=Object.values(markers).filter(m=>
+filtros[m.estado] && (!rutaSeleccionada || m.rutaId===rutaSeleccionada)
+)
+const usarCoincidenciaExacta=hayCoincidenciaExactaCodigo(candidatos,texto)
 
 let encontrado=null
 
 Object.values(markers).forEach(m=>{
 
-const visible=filtros[m.estado] && m.busqueda.includes(texto) && (!rutaSeleccionada || m.rutaId===rutaSeleccionada)
+const visible=filtros[m.estado] &&
+coincideBusquedaUnidad(m,texto,usarCoincidenciaExacta) &&
+(!rutaSeleccionada || m.rutaId===rutaSeleccionada)
 
 visible ? capaFlota.addLayer(m) : capaFlota.removeLayer(m)
 
-if(texto && m.busqueda.includes(texto)){
+if(visible && texto && !encontrado){
 encontrado=m
 }
 
@@ -1264,7 +1326,13 @@ duration:1
 
 encontrado.openPopup()
 
+}else if(texto){
+
+map.closePopup()
+
 }
+
+actualizarPanel(ultimaDataMapa)
 
 }
 
@@ -1343,6 +1411,7 @@ delete markers[codigo]
 })
 
 const dataFiltrada=data.filter(v=>coincideRutaSeleccionada(v))
+ultimaDataMapa=dataFiltrada
 
 let a=0,i=0,o=0
 let bounds=[]
@@ -1372,6 +1441,7 @@ const m=L.marker([v.lat,v.lng],{icon:icono})
 .addTo(capaFlota)
 
 m.estado=estadoVisual
+m.codigoOriginal=String(v.vehiculo)
 m.codigo=String(v.vehiculo).toLowerCase()
 m.placa=(v.placa || "").toLowerCase()
 m.busqueda=`${m.codigo} ${m.placa}`.trim()
@@ -1395,6 +1465,7 @@ animarMovimiento(markers[v.vehiculo],[v.lat,v.lng])
 markers[v.vehiculo].setIcon(icono)
 markers[v.vehiculo].setPopupContent(popupHtml)
 markers[v.vehiculo].estado=estadoVisual
+markers[v.vehiculo].codigoOriginal=String(v.vehiculo)
 markers[v.vehiculo].codigo=String(v.vehiculo).toLowerCase()
 markers[v.vehiculo].placa=(v.placa || "").toLowerCase()
 markers[v.vehiculo].busqueda=`${markers[v.vehiculo].codigo} ${markers[v.vehiculo].placa}`.trim()
