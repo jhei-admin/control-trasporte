@@ -412,6 +412,8 @@ def _serializar_salida_panel(salida, ruta_actual_id, fecha_operativa_iso, hora_a
         "hora_salida": _format_hora(salida.hora_salida),
         "estado_label": salida.estado_panel_label,
         "estado_class": salida.estado_panel_class,
+        "servicio_suspendido": bool(getattr(salida.vehiculo, "servicio_suspendido", False)),
+        "permite_confirmar": bool(getattr(salida, "permite_confirmar", True)),
         "urls": {
             "asignar_hora": reverse("asignar_hora_fija", args=[salida.id]),
             "control_ruta": reverse("control_ruta", args=[salida.id]),

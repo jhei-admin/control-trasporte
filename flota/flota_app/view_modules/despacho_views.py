@@ -140,9 +140,20 @@ def _validar_hora_programada_disponible(salida, empresa, hora_fija_dt, fecha_ope
     )
 
 
+def _mensaje_unidad_suspendida(vehiculo):
+    return f"Unidad {vehiculo.codigo} suspendida por pago. No se puede programar hora de salida."
+
+
+def _validar_unidad_no_suspendida(vehiculo):
+    if getattr(vehiculo, "servicio_suspendido", False):
+        raise ValidationError(_mensaje_unidad_suspendida(vehiculo))
+
+
 def _programar_salida(salida, empresa, hora_fija_dt, fecha_operativa=None):
     if salida.hora_real_salida:
         raise ValidationError("No se puede reprogramar la hora: la unidad ya inicio la ruta.")
+
+    _validar_unidad_no_suspendida(salida.vehiculo)
 
     _validar_hora_programada_disponible(
         salida,
@@ -228,6 +239,13 @@ def _construir_panel_despachador_contexto(empresa, fecha_operativa, ruta_id="", 
         salida.estado_panel_label = "Sin hora"
         salida.estado_panel_class = "sin-hora"
         salida.permite_confirmar = True
+
+        if salida.vehiculo.servicio_suspendido:
+            salida.estado_panel = "suspendida"
+            salida.estado_panel_label = "Suspendida por pago"
+            salida.estado_panel_class = "suspendida"
+            salida.permite_confirmar = False
+            continue
 
         if not salida.hora_salida:
             stats["sin_hora"] += 1
@@ -553,6 +571,13 @@ def buscar_unidad_panel(request):
         fecha=fecha_operativa,
         activo=True,
     ).select_related("ruta").first()
+
+    if vehiculo.servicio_suspendido:
+        messages.error(request, _mensaje_unidad_suspendida(vehiculo))
+        return redirect_panel_despachador(
+            request,
+            ruta_id=salida_existente.ruta_id if salida_existente else request.POST.get("ruta_id", "").strip(),
+        )
 
     if salida_existente:
         if not hora_str:

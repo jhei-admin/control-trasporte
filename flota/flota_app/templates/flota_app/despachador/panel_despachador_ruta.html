@@ -497,6 +497,15 @@ color:#b91c1c;
 background:#ef4444;
 }
 
+.status-pill.suspendida{
+background:#fff1f2;
+color:#be123c;
+}
+
+.status-pill.suspendida .status-dot{
+background:#e11d48;
+}
+
 .row-actions{
 display:flex;
 justify-content:flex-end;
@@ -795,6 +804,9 @@ width:100%;
               <td>
                 <div class="route-text">{{ s.ruta.nombre }}</div>
                 <div class="subtle-text">Llegada registrada {{ s.hora_llegada|date:"H:i" }}</div>
+                {% if not s.permite_confirmar %}
+                  <div class="subtle-text text-danger fw-bold">Unidad suspendida por pago</div>
+                {% endif %}
               </td>
               <td class="fw-semibold">{{ s.hora_llegada|date:"H:i" }}</td>
               <td>
@@ -813,8 +825,8 @@ width:100%;
                     {% csrf_token %}
                     <input type="hidden" name="current_ruta_id" value="{% if ruta_actual_id %}{{ ruta_actual_id }}{% else %}{{ s.ruta.id }}{% endif %}">
                     <input type="hidden" name="current_fecha" value="{{ fecha_operativa_iso }}">
-                    <input type="time" name="hora_fija" value="{% if s.hora_salida %}{{ s.hora_salida|date:'H:i' }}{% else %}{{ hora_actual_hhmm }}{% endif %}" class="form-control form-control-sm" required>
-                    <button class="btn btn-warning btn-sm" type="submit">{% if s.hora_salida %}Actualizar{% else %}Confirmar{% endif %}</button>
+                    <input type="time" name="hora_fija" value="{% if s.hora_salida %}{{ s.hora_salida|date:'H:i' }}{% else %}{{ hora_actual_hhmm }}{% endif %}" class="form-control form-control-sm" required{% if not s.permite_confirmar %} disabled{% endif %}>
+                    <button class="btn {% if s.permite_confirmar %}btn-warning{% else %}btn-outline-danger{% endif %} btn-sm" type="submit"{% if not s.permite_confirmar %} disabled{% endif %}>{% if not s.permite_confirmar %}Suspendida{% elif s.hora_salida %}Actualizar{% else %}Confirmar{% endif %}</button>
                   </form>
 
                   <div class="dropdown">
@@ -920,7 +932,13 @@ function aplicarFiltroUnidad(){
 function construirFilaSalida(salida, index, csrfToken){
   const horaSalida = salida.hora_salida || "--:--"
   const subtituloSalida = salida.hora_salida ? "Hora programada" : "Pendiente de fijar"
-  const botonHora = salida.hora_salida ? "Actualizar" : "Confirmar"
+  const puedeConfirmar = salida.permite_confirmar !== false
+  const botonHora = !puedeConfirmar ? "Suspendida" : (salida.hora_salida ? "Actualizar" : "Confirmar")
+  const disabledHora = puedeConfirmar ? "" : " disabled"
+  const botonClase = puedeConfirmar ? "btn-warning" : "btn-outline-danger"
+  const suspensionHtml = puedeConfirmar ? "" : `
+        <div class="subtle-text text-danger fw-bold">Unidad suspendida por pago</div>
+  `
   const quitarHoraHtml = salida.hora_salida ? `
     <form method="post" action="${escapeHtml(salida.urls.desbloquear_hora)}">
       <input type="hidden" name="csrfmiddlewaretoken" value="${csrfToken}">
@@ -938,6 +956,7 @@ function construirFilaSalida(salida, index, csrfToken){
       <td>
         <div class="route-text">${escapeHtml(salida.ruta_nombre)}</div>
         <div class="subtle-text">Llegada registrada ${escapeHtml(salida.hora_llegada)}</div>
+        ${suspensionHtml}
       </td>
       <td class="fw-semibold">${escapeHtml(salida.hora_llegada)}</td>
       <td>
@@ -956,8 +975,8 @@ function construirFilaSalida(salida, index, csrfToken){
             <input type="hidden" name="csrfmiddlewaretoken" value="${csrfToken}">
             <input type="hidden" name="current_ruta_id" value="${escapeHtml(salida.form.current_ruta_id)}">
             <input type="hidden" name="current_fecha" value="${escapeHtml(salida.form.current_fecha)}">
-            <input type="time" name="hora_fija" value="${escapeHtml(salida.form.hora_fija)}" class="form-control form-control-sm" required>
-            <button class="btn btn-warning btn-sm" type="submit">${botonHora}</button>
+            <input type="time" name="hora_fija" value="${escapeHtml(salida.form.hora_fija)}" class="form-control form-control-sm" required${disabledHora}>
+            <button class="btn ${botonClase} btn-sm" type="submit"${disabledHora}>${botonHora}</button>
           </form>
 
           <div class="dropdown">
