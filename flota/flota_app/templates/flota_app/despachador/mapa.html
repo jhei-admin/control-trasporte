@@ -577,6 +577,14 @@ markerZoomAnimation:true
 }).setView(PARADERO,ZOOM_PARADERO)
 const listaBuses=document.getElementById("lista-buses")
 const filtroRuta=document.getElementById("filtro-ruta")
+const busquedaInput=document.getElementById("busqueda")
+const paramsMapa=new URLSearchParams(window.location.search)
+const busquedaInicial=paramsMapa.get("unidad") || paramsMapa.get("buscar") || ""
+
+if(busquedaInicial){
+busquedaInput.value=busquedaInicial
+}
+
 let mapaCentrado=true
 let actualizando=false
 let mapaTimer=null
@@ -1231,7 +1239,7 @@ return String(v.ruta_id || "")===rutaSeleccionada
 }
 
 function textoBusquedaActual(){
-return document.getElementById("busqueda").value.trim().toLowerCase()
+return busquedaInput.value.trim().toLowerCase()
 }
 
 function normalizarCodigoUnidad(valor){
