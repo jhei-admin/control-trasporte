@@ -142,7 +142,7 @@ class VehiculoAdmin(admin.ModelAdmin):
     def suspender_servicio_pago(self, request, queryset):
         total = queryset.update(
             servicio_suspendido=True,
-            mensaje_suspension="Servicio suspendido. Comuniquese con administracion.",
+            mensaje_suspension="Servicio suspendido. Comuníquese con administración.",
         )
         self.message_user(request, f"Servicio suspendido en {total} unidad(es).")
 
@@ -817,7 +817,7 @@ class EstadoDispositivoAdmin(admin.ModelAdmin):
         vehiculo_ids = queryset.values_list("vehiculo_id", flat=True)
         total = Vehiculo.objects.filter(id__in=vehiculo_ids).update(
             servicio_suspendido=True,
-            mensaje_suspension="Servicio suspendido. Comuniquese con administracion.",
+            mensaje_suspension="Servicio suspendido. Comuníquese con administración.",
         )
         self.message_user(request, f"Servicio suspendido en {total} unidad(es).")
 

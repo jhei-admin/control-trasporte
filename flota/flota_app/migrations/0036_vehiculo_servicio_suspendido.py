@@ -13,7 +13,7 @@ class Migration(migrations.Migration):
             name="mensaje_suspension",
             field=models.CharField(
                 blank=True,
-                default="Servicio suspendido. Comuniquese con administracion.",
+                default="Servicio suspendido. Comuníquese con administración.",
                 help_text="Mensaje visible en la APK cuando el servicio esta suspendido.",
                 max_length=160,
             ),

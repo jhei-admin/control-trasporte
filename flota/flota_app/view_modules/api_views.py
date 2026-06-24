@@ -2464,7 +2464,7 @@ def _as_optional_datetime(value):
 
 def _mensaje_servicio_suspendido(vehiculo):
     mensaje = str(getattr(vehiculo, "mensaje_suspension", "") or "").strip()
-    return mensaje or "Servicio suspendido. Comuniquese con administracion."
+    return mensaje or "Servicio suspendido. Comuníquese con administración."
 
 
 def _payload_servicio_suspendido(vehiculo, estado_gps="SUSPENDIDO"):

@@ -106,7 +106,7 @@ class Vehiculo(models.Model):
     mensaje_suspension = models.CharField(
         max_length=160,
         blank=True,
-        default="Servicio suspendido. Comuniquese con administracion.",
+        default="Servicio suspendido. Comuníquese con administración.",
         help_text="Mensaje visible en la APK cuando el servicio esta suspendido."
     )
 
