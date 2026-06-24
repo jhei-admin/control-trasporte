@@ -108,6 +108,169 @@ color:#fff;
 white-space:nowrap;
 }
 
+/* POPUP UNIDAD */
+
+.bus-popup-leaflet .leaflet-popup-content-wrapper{
+padding:0;
+border-radius:8px;
+overflow:hidden;
+box-shadow:0 18px 45px rgba(2,6,23,.38);
+}
+
+.bus-popup-leaflet .leaflet-popup-content{
+margin:0;
+width:286px !important;
+}
+
+.bus-popup-leaflet .leaflet-popup-tip{
+background:#f8fafc;
+}
+
+.bus-popup-leaflet a.leaflet-popup-close-button{
+top:8px;
+right:8px;
+color:#e2e8f0 !important;
+font-size:18px;
+}
+
+.bus-popup{
+font-family:inherit;
+color:#0f172a;
+background:#f8fafc;
+}
+
+.bus-popup-head{
+display:flex;
+justify-content:space-between;
+gap:14px;
+align-items:flex-start;
+padding:14px 16px 12px;
+background:linear-gradient(135deg,#0f172a,#1e3a5f);
+color:#fff;
+}
+
+.bus-popup-kicker{
+display:block;
+font-size:10px;
+font-weight:800;
+letter-spacing:.08em;
+text-transform:uppercase;
+color:#93c5fd;
+}
+
+.bus-popup-title{
+font-size:24px;
+font-weight:900;
+line-height:1;
+margin-top:4px;
+}
+
+.bus-popup-sub{
+font-size:12px;
+color:#cbd5e1;
+margin-top:5px;
+}
+
+.bus-popup-badge{
+font-size:10px;
+font-weight:900;
+padding:5px 8px;
+border-radius:999px;
+white-space:nowrap;
+border:1px solid rgba(255,255,255,.26);
+}
+
+.bus-popup-badge.activo{
+background:#16a34a;
+}
+
+.bus-popup-badge.inactivo{
+background:#f59e0b;
+color:#111827;
+}
+
+.bus-popup-badge.offline{
+background:#dc2626;
+}
+
+.bus-popup-body{
+padding:12px 14px 14px;
+}
+
+.bus-popup-route{
+font-size:12px;
+font-weight:800;
+color:#334155;
+background:#e2e8f0;
+border-radius:8px;
+padding:8px 10px;
+margin-bottom:10px;
+}
+
+.bus-popup-grid{
+display:grid;
+grid-template-columns:1fr 1fr;
+gap:8px;
+}
+
+.bus-popup-item{
+background:#fff;
+border:1px solid #e2e8f0;
+border-radius:8px;
+padding:8px 9px;
+min-height:58px;
+}
+
+.bus-popup-item.popup-wide{
+grid-column:1 / -1;
+min-height:auto;
+}
+
+.bus-popup-label{
+display:block;
+font-size:10px;
+font-weight:900;
+letter-spacing:.06em;
+text-transform:uppercase;
+color:#64748b;
+}
+
+.bus-popup-value{
+display:block;
+font-size:15px;
+font-weight:900;
+color:#0f172a;
+margin-top:4px;
+}
+
+.bus-popup-note{
+display:block;
+font-size:10px;
+color:#64748b;
+margin-top:2px;
+}
+
+.bus-popup-action{
+display:flex;
+align-items:center;
+justify-content:center;
+margin-top:12px;
+width:100%;
+border-radius:8px;
+padding:10px 12px;
+background:#2563eb;
+color:#fff !important;
+font-size:13px;
+font-weight:900;
+text-decoration:none !important;
+box-shadow:0 8px 18px rgba(37,99,235,.26);
+}
+
+.bus-popup-action:hover{
+background:#1d4ed8;
+color:#fff !important;
+}
+
 .ruta-direction-arrow{
 width:0;
 height:0;
@@ -823,28 +986,124 @@ return "OFFLINE"
 return v.estado==="ACTIVO" ? "ACTIVO" : "INACTIVO"
 }
 
-function construirPopupBus(v,estadoVisual,sentido){
-const ultimaSenal=v.fecha || "--"
-const velocidad=v.velocidad || 0
+function escaparHtml(valor){
+return String(valor ?? "").replace(/[&<>"']/g,caracter=>({
+"&":"&amp;",
+"<":"&lt;",
+">":"&gt;",
+"\"":"&quot;",
+"'":"&#039;"
+}[caracter]))
+}
+
+function obtenerMsSenal(v){
+const valor=v.actualizado_en || v.fecha
+if(!valor) return null
+const ms=Date.parse(valor)
+return Number.isFinite(ms) ? ms : null
+}
+
+function formatearHoraMapa(valor){
+if(!valor) return "--"
+const fecha=new Date(valor)
+if(Number.isNaN(fecha.getTime())) return escaparHtml(valor)
+return fecha.toLocaleTimeString("es-PE",{
+hour:"2-digit",
+minute:"2-digit",
+second:"2-digit"
+})
+}
+
+function calcularVelocidadVisual(v,markerAnterior=null){
+const velocidadGps=Number(v.velocidad)
+
+if(Number.isFinite(velocidadGps) && velocidadGps>1){
+return {valor:Math.round(velocidadGps),fuente:"GPS"}
+}
+
+if(markerAnterior?.latUltima && markerAnterior?.lngUltima && v.lat && v.lng){
+const posicionAnterior=[markerAnterior.latUltima,markerAnterior.lngUltima]
+const posicionActual=[Number(v.lat),Number(v.lng)]
+const distancia=distanciaMetrosEntre(posicionAnterior,posicionActual)
+const msActual=obtenerMsSenal(v)
+const msAnterior=markerAnterior.actualizadoMs
+const segundos=msActual && msAnterior && msActual>msAnterior ? (msActual-msAnterior)/1000 : null
+
+if(segundos && segundos>=3 && segundos<=180){
+if(distancia<5){
+return {valor:0,fuente:"Estimado"}
+}
+
+const calculada=(distancia/segundos)*3.6
+if(Number.isFinite(calculada) && calculada>=1 && calculada<=120){
+return {valor:Math.round(calculada),fuente:"Estimado"}
+}
+}
+}
+
+if(markerAnterior?.velocidadVisual!=null){
+return {
+valor:markerAnterior.velocidadVisual,
+fuente:markerAnterior.velocidadFuente || "Estimado"
+}
+}
+
+return {valor:0,fuente:Number.isFinite(velocidadGps) ? "GPS" : "--"}
+}
+
+function construirPopupBus(v,estadoVisual,sentido,velocidadInfo){
+const ultimaSenal=formatearHoraMapa(v.actualizado_en || v.fecha)
+const velocidad=Number.isFinite(Number(velocidadInfo?.valor)) ? Math.round(Number(velocidadInfo.valor)) : 0
+const fuenteVelocidad=velocidadInfo?.fuente || "GPS"
 const estadoGps=v.estado_gps || "--"
 const rumbo=Number.isFinite(Number(sentido.rumboVisual)) ? Math.round(Number(sentido.rumboVisual)) : "--"
+const estadoClase=estadoVisual.toLowerCase()
+const vehiculo=escaparHtml(v.vehiculo || "--")
+const placa=escaparHtml(v.placa || "Sin placa")
+const ruta=escaparHtml(v.ruta_nombre || "Sin ruta asignada")
+const estadoTexto=escaparHtml(estadoVisual)
+const gpsTexto=escaparHtml(estadoGps)
+const sentidoTexto=escaparHtml(sentido.texto)
+const velocidadNota=fuenteVelocidad==="Estimado" ? "estimada por movimiento" : "reportada por GPS"
+const recorridoUrl=`/sistema/despachador/recorrido/?vehiculo=${encodeURIComponent(v.vehiculo_id || "")}`
 
 return `
-<div style="min-width:180px">
-
-<b>Vehiculo:</b> ${v.vehiculo}<br>
-<b>Estado:</b> ${estadoVisual}<br>
-<b>Sentido:</b> <span class="sentido-chip ${sentido.clase}">${sentido.texto}</span><br>
-<b>GPS:</b> ${estadoGps}<br>
-<b>Velocidad:</b> ${velocidad} km/h<br>
-<b>Rumbo:</b> ${rumbo}&deg;<br>
-<b>Ultima senal:</b> ${ultimaSenal}<br><br>
-
-<a href="/sistema/despachador/historial/${v.vehiculo_id}/"
-class="btn btn-sm btn-primary">
-Ver historial
-</a>
-
+<div class="bus-popup">
+<div class="bus-popup-head">
+<div>
+<span class="bus-popup-kicker">Unidad</span>
+<div class="bus-popup-title">${vehiculo}</div>
+<div class="bus-popup-sub">${placa}</div>
+</div>
+<span class="bus-popup-badge ${estadoClase}">${estadoTexto}</span>
+</div>
+<div class="bus-popup-body">
+<div class="bus-popup-route">${ruta}</div>
+<div class="bus-popup-grid">
+<div class="bus-popup-item">
+<span class="bus-popup-label">Sentido</span>
+<span class="bus-popup-value"><span class="sentido-chip ${sentido.clase}">${sentidoTexto}</span></span>
+</div>
+<div class="bus-popup-item">
+<span class="bus-popup-label">GPS</span>
+<span class="bus-popup-value">${gpsTexto}</span>
+</div>
+<div class="bus-popup-item">
+<span class="bus-popup-label">Velocidad</span>
+<span class="bus-popup-value">${velocidad} km/h</span>
+<span class="bus-popup-note">${velocidadNota}</span>
+</div>
+<div class="bus-popup-item">
+<span class="bus-popup-label">Rumbo</span>
+<span class="bus-popup-value">${rumbo}&deg;</span>
+</div>
+<div class="bus-popup-item popup-wide">
+<span class="bus-popup-label">Ultima senal</span>
+<span class="bus-popup-value">${ultimaSenal}</span>
+</div>
+</div>
+<a href="${recorridoUrl}" class="bus-popup-action">Ver recorrido</a>
+</div>
 </div>
 `
 }
@@ -1079,18 +1338,19 @@ bounds.push([v.lat,v.lng])
 const estadoVisual=obtenerEstadoVisual(v)
 const markerActual=markers[v.vehiculo]
 const sentido=detectarSentidoVehiculo(v,markerActual)
+const velocidadInfo=calcularVelocidadVisual(v,markerActual)
 
 if(estadoVisual==="ACTIVO")a++
 else if(estadoVisual==="INACTIVO")i++
 else o++
 
 const icono=crearIconoBus(v,sentido)
-const popupHtml=construirPopupBus(v,estadoVisual,sentido)
+const popupHtml=construirPopupBus(v,estadoVisual,sentido,velocidadInfo)
 
 if(!markers[v.vehiculo]){
 
 const m=L.marker([v.lat,v.lng],{icon:icono})
-.bindPopup(popupHtml)
+.bindPopup(popupHtml,{className:"bus-popup-leaflet"})
 .addTo(capaFlota)
 
 m.estado=estadoVisual
@@ -1102,6 +1362,9 @@ m.sentido=sentido.codigo
 m.sentidoInfo=sentido
 m.latUltima=Number(v.lat)
 m.lngUltima=Number(v.lng)
+m.actualizadoMs=obtenerMsSenal(v) || Date.now()
+m.velocidadVisual=velocidadInfo.valor
+m.velocidadFuente=velocidadInfo.fuente
 m.progresoRuta=sentido.progresoRuta
 m.rutaDeteccion=sentido.rutaDeteccion
 m.rumboVisual=sentido.rumboVisual
@@ -1122,6 +1385,9 @@ markers[v.vehiculo].sentido=sentido.codigo
 markers[v.vehiculo].sentidoInfo=sentido
 markers[v.vehiculo].latUltima=Number(v.lat)
 markers[v.vehiculo].lngUltima=Number(v.lng)
+markers[v.vehiculo].actualizadoMs=obtenerMsSenal(v) || markers[v.vehiculo].actualizadoMs || Date.now()
+markers[v.vehiculo].velocidadVisual=velocidadInfo.valor
+markers[v.vehiculo].velocidadFuente=velocidadInfo.fuente
 markers[v.vehiculo].progresoRuta=sentido.progresoRuta
 markers[v.vehiculo].rutaDeteccion=sentido.rutaDeteccion
 markers[v.vehiculo].rumboVisual=sentido.rumboVisual
