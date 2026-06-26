@@ -61,6 +61,7 @@ __all__ = [
     "api_app_gerencia_mapa",
     "api_app_gerencia_salidas",
     "api_app_gerencia_salidas_dia",
+    "api_app_gerencia_salida_detalle",
     "app_gerencia_mapa_vivo",
     "api_app_ganancias",
     "api_app_ganancias_movimiento",
@@ -1697,6 +1698,63 @@ def api_app_gerencia_salidas_dia(request):
         item["placa"] = salida.vehiculo.placa
 
     return JsonResponse(payload)
+
+
+@require_GET
+def api_app_gerencia_salida_detalle(request, salida_id):
+    auth = request.headers.get("Authorization", "")
+    if not auth.startswith("Bearer "):
+        return JsonResponse({"ok": False, "mensaje": "Token no enviado."}, status=401)
+
+    token = auth.replace("Bearer ", "").strip()
+    sesion = validar_sesion_staff(token)
+    if not sesion:
+        return JsonResponse({"ok": False, "mensaje": "Sesion gerencial invalida o expirada."}, status=403)
+
+    ahora = timezone.now()
+    SesionStaffApp.objects.filter(pk=sesion.pk).update(ultimo_acceso=ahora)
+    salida = get_object_or_404(
+        RegistroSalida.objects.for_empresa(sesion.empresa).select_related("vehiculo", "ruta"),
+        id=salida_id,
+    )
+    contexto = _calcular_detalle_salida(salida)
+    ruta_nombre = salida.ruta.nombre if salida.ruta else ""
+    ruta_letra = "".join(part[0] for part in ruta_nombre.split()[:2]).upper() or ruta_nombre[:2].upper()
+
+    return JsonResponse(
+        {
+            "ok": True,
+            "salida": {
+                "salida_id": salida.id,
+                "vehiculo_id": salida.vehiculo_id,
+                "unidad": salida.vehiculo.codigo,
+                "placa": salida.vehiculo.placa,
+                "ruta": ruta_nombre,
+                "ruta_letra": ruta_letra,
+                "hora_salida": _format_hora(salida.hora_salida),
+                "fecha": salida.fecha.isoformat() if salida.fecha else None,
+                "vuelta": getattr(salida, "vuelta", 1) or 1,
+            },
+            "resumen": {
+                "total_puntos": contexto["resumen"]["total"],
+                "marcados": contexto["resumen"]["completados"],
+                "pendientes": contexto["resumen"]["pendientes"],
+                "porcentaje": contexto["resumen"]["porcentaje"],
+            },
+            "detalle": [
+                {
+                    "orden": index + 1,
+                    "codigo": item["punto"].codigo,
+                    "nombre": item["punto"].nombre,
+                    "hora_programada": _format_hora(item["hora_programada"]),
+                    "hora_marcada": _format_hora(item["hora_marcada"]),
+                    "diferencia": item["diferencia"],
+                    "estado": item["estado"],
+                }
+                for index, item in enumerate(contexto["detalle"])
+            ],
+        }
+    )
 
 
 @login_required
