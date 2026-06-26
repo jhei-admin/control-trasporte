@@ -60,6 +60,7 @@ __all__ = [
     "api_app_gerencia_login",
     "api_app_gerencia_mapa",
     "api_app_gerencia_salidas",
+    "api_app_gerencia_salidas_dia",
     "app_gerencia_mapa_vivo",
     "api_app_ganancias",
     "api_app_ganancias_movimiento",
@@ -1655,6 +1656,47 @@ def api_app_gerencia_salidas(request, vehiculo_id):
             "salidas": [_serializar_reporte_item(item) for item in context["salidas"]],
         }
     )
+
+
+@require_GET
+def api_app_gerencia_salidas_dia(request):
+    auth = request.headers.get("Authorization", "")
+    if not auth.startswith("Bearer "):
+        return JsonResponse({"ok": False, "mensaje": "Token no enviado."}, status=401)
+
+    token = auth.replace("Bearer ", "").strip()
+    sesion = validar_sesion_staff(token)
+    if not sesion:
+        return JsonResponse({"ok": False, "mensaje": "Sesion gerencial invalida o expirada."}, status=403)
+
+    try:
+        fecha_operativa = _parse_fecha_panel(request.GET.get("fecha"))
+    except ValueError as exc:
+        return JsonResponse({"ok": False, "mensaje": str(exc)}, status=400)
+
+    ahora = timezone.now()
+    SesionStaffApp.objects.filter(pk=sesion.pk).update(ultimo_acceso=ahora)
+    contexto = _construir_panel_despachador_contexto(
+        empresa=sesion.empresa,
+        fecha_operativa=fecha_operativa,
+        ruta_id=request.GET.get("ruta", ""),
+        ahora=ahora,
+    )
+    payload = _serializar_panel_despachador(contexto)
+
+    for item in payload["salidas"]:
+        try:
+            salida = next(
+                salida_obj
+                for salida_obj in contexto["salidas"]
+                if salida_obj.id == item["id"]
+            )
+        except StopIteration:
+            continue
+        item["vehiculo_id"] = salida.vehiculo_id
+        item["placa"] = salida.vehiculo.placa
+
+    return JsonResponse(payload)
 
 
 @login_required
