@@ -59,6 +59,9 @@
         .salida-card.anulada:after{background:linear-gradient(180deg,#94a3b8 0%,#64748b 100%)}
         .salida-card.anulada .hora-chip,.salida-card.anulada .ruta-title,.salida-card.anulada .progress-shell,.salida-card.anulada .salida-footer,.salida-card.anulada .salida-meta,.salida-card.anulada .vuelta-chip{position:relative;z-index:2}
         .salida-card.anulada .vuelta-chip{background:#e2e8f0;color:#475569}
+        .salida-card.sin-hora{border-color:rgba(245,158,11,.24);background:linear-gradient(180deg,#ffffff 0%,#fff7ed 100%)}
+        .salida-card.sin-hora:after{background:linear-gradient(180deg,#f59e0b 0%,#d97706 100%)}
+        .salida-card.sin-hora .vuelta-chip{background:#ffedd5;color:#9a3412}
         .anulada-watermark{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:64px;font-weight:900;letter-spacing:.10em;color:#dc2626;opacity:.18;transform:rotate(-16deg);z-index:4;pointer-events:none;text-shadow:0 1px 0 rgba(255,255,255,.45)}
         .salida-top{display:flex;justify-content:space-between;gap:10px;align-items:center}
         .hora-chip{font-size:32px;font-weight:900;letter-spacing:-.03em;position:relative;z-index:1}
@@ -172,11 +175,11 @@
 
     <section class="cards-grid" id="reportCards">
         {% for s in salidas %}
-            <a href="{% url 'detalle_salida' s.salida_id %}" class="salida-card {% if s.anulada %}anulada{% endif %}">
+            <a href="{% url 'detalle_salida' s.salida_id %}" class="salida-card {% if s.anulada %}anulada{% elif s.sin_hora %}sin-hora{% endif %}">
                 {% if s.anulada %}<div class="anulada-watermark">ANULADA</div>{% endif %}
                 <div class="salida-top">
                     <div class="hora-chip">{{ s.hora|date:"H:i" }}</div>
-                    <div class="vuelta-chip">{% if s.anulada %}Anulada{% else %}Vuelta {{ s.vuelta }}{% endif %}</div>
+                    <div class="vuelta-chip">{% if s.anulada %}Anulada{% elif s.sin_hora %}Sin hora{% else %}Vuelta {{ s.vuelta }}{% endif %}</div>
                 </div>
                 <div class="ruta-title">{{ s.ruta }}</div>
                 <div class="salida-meta">
@@ -233,11 +236,11 @@ function renderReporte(data){
     }
 
     cards.innerHTML = data.salidas.map(item => `
-        <a href="${item.detalle_url}" class="salida-card ${item.anulada ? "anulada" : ""}">
+        <a href="${item.detalle_url}" class="salida-card ${item.anulada ? "anulada" : (item.sin_hora ? "sin-hora" : "")}">
             ${item.anulada ? '<div class="anulada-watermark">ANULADA</div>' : ""}
             <div class="salida-top">
                 <div class="hora-chip">${item.hora || "--:--"}</div>
-                <div class="vuelta-chip">${item.anulada ? "Anulada" : `Vuelta ${item.vuelta}`}</div>
+                <div class="vuelta-chip">${item.anulada ? "Anulada" : (item.sin_hora ? "Sin hora" : `Vuelta ${item.vuelta}`)}</div>
             </div>
             <div class="ruta-title">${item.ruta}</div>
             <div class="salida-meta">

@@ -46,7 +46,10 @@ def _construir_reporte_salidas_diarias_contexto(empresa, vehiculo_id, fecha_para
             and puntos_marcados_por_salida.get(salida.id, 0) == 0
         )
 
-    salidas_validas = [salida for salida in salidas if not salida_anulada(salida)]
+    def salida_contable(salida):
+        return not salida_anulada(salida) and bool(salida.hora_salida)
+
+    salidas_validas = [salida for salida in salidas if salida_contable(salida)]
     siguiente_salida_valida = {
         salida.id: (
             salidas_validas[index + 1].hora_salida
@@ -61,7 +64,9 @@ def _construir_reporte_salidas_diarias_contexto(empresa, vehiculo_id, fecha_para
 
     for salida in salidas:
         anulada = salida_anulada(salida)
-        if anulada:
+        sin_hora = not salida.hora_salida and not anulada
+        contable = not anulada and not sin_hora
+        if not contable:
             vuelta = None
         else:
             vuelta_actual += 1
@@ -80,7 +85,7 @@ def _construir_reporte_salidas_diarias_contexto(empresa, vehiculo_id, fecha_para
 
         porcentaje = (
             int((puntos_marcados / total_puntos) * 100)
-            if total_puntos > 0 and not anulada
+            if total_puntos > 0 and contable
             else 0
         )
 
@@ -89,7 +94,7 @@ def _construir_reporte_salidas_diarias_contexto(empresa, vehiculo_id, fecha_para
 
         minutos = 0
 
-        if inicio and fin and not anulada:
+        if inicio and fin and contable:
             paradas = Parada.objects.for_empresa(empresa).filter(
                 vehiculo=vehiculo,
                 es_prolongada=True,
@@ -106,13 +111,15 @@ def _construir_reporte_salidas_diarias_contexto(empresa, vehiculo_id, fecha_para
                 "ruta": salida.ruta.nombre if salida.ruta else "SIN RUTA",
                 "vuelta": vuelta,
                 "anulada": anulada,
+                "sin_hora": sin_hora,
+                "contable": contable,
                 "porcentaje": porcentaje,
                 "minutos": minutos,
                 "salida_id": salida.id,
             }
         )
 
-    salidas_contables = [salida for salida in resultado if not salida["anulada"]]
+    salidas_contables = [salida for salida in resultado if salida["contable"]]
     total_vueltas = len(salidas_contables)
     promedio_marcacion = (
         int(sum(s["porcentaje"] for s in salidas_contables) / total_vueltas)
