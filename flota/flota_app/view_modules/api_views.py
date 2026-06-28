@@ -479,7 +479,11 @@ def _serializar_salidas_historicas_app(empresa, fecha_operativa, ruta_id=""):
         "sin_hora": 0,
     }
 
+    vueltas_por_unidad = {}
+
     for salida in salidas:
+        vuelta = vueltas_por_unidad.get(salida.vehiculo_id, 0) + 1
+        vueltas_por_unidad[salida.vehiculo_id] = vuelta
         estado_label = "Registrada" if salida.hora_real_salida or not salida.activo else "Programada"
         estado_class = "programada" if salida.hora_real_salida or not salida.activo else "atrasada"
         stats["programadas"] += 1
@@ -496,6 +500,7 @@ def _serializar_salidas_historicas_app(empresa, fecha_operativa, ruta_id=""):
             "estado_label": estado_label,
             "estado_class": estado_class,
             "servicio_suspendido": bool(getattr(salida.vehiculo, "servicio_suspendido", False)),
+            "vuelta": vuelta,
         })
 
     return items, stats
@@ -1746,6 +1751,15 @@ def api_app_gerencia_salidas_dia(request):
             continue
         item["vehiculo_id"] = salida.vehiculo_id
         item["placa"] = salida.vehiculo.placa
+
+    vueltas_por_unidad = {}
+    for item in payload["salidas"]:
+        vehiculo_id = item.get("vehiculo_id")
+        if not vehiculo_id:
+            continue
+        vuelta = vueltas_por_unidad.get(vehiculo_id, 0) + 1
+        vueltas_por_unidad[vehiculo_id] = vuelta
+        item.setdefault("vuelta", vuelta)
 
     return JsonResponse(payload)
 
