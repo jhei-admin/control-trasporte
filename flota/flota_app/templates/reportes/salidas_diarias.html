@@ -54,6 +54,12 @@
         .salida-card:after{content:"";position:absolute;left:0;top:0;bottom:0;width:5px;background:linear-gradient(180deg,var(--accent) 0%,var(--accent-2) 100%);opacity:.9}
         .salida-card:hover{transform:translateY(-2px);border-color:rgba(251,146,60,.22)}
         .salida-card:hover:before{opacity:1}
+        .salida-card.anulada{background:linear-gradient(180deg,#f8fafc 0%,#f1f5f9 100%);border-color:rgba(100,116,139,.24);opacity:.82}
+        .salida-card.anulada:before{opacity:0}
+        .salida-card.anulada:after{background:linear-gradient(180deg,#94a3b8 0%,#64748b 100%)}
+        .salida-card.anulada .hora-chip,.salida-card.anulada .ruta-title,.salida-card.anulada .progress-shell,.salida-card.anulada .salida-footer,.salida-card.anulada .salida-meta{position:relative;z-index:2}
+        .salida-card.anulada .vuelta-chip{background:#e2e8f0;color:#475569}
+        .anulada-watermark{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:54px;font-weight:900;letter-spacing:.10em;color:#dc2626;opacity:.12;transform:rotate(-16deg);z-index:1;pointer-events:none}
         .salida-top{display:flex;justify-content:space-between;gap:10px;align-items:center}
         .hora-chip{font-size:32px;font-weight:900;letter-spacing:-.03em;position:relative;z-index:1}
         .vuelta-chip{padding:8px 12px;border-radius:999px;background:#fff7ed;color:#b45309;font-size:12px;font-weight:800;position:relative;z-index:1}
@@ -166,10 +172,11 @@
 
     <section class="cards-grid" id="reportCards">
         {% for s in salidas %}
-            <a href="{% url 'detalle_salida' s.salida_id %}" class="salida-card">
+            <a href="{% url 'detalle_salida' s.salida_id %}" class="salida-card {% if s.anulada %}anulada{% endif %}">
+                {% if s.anulada %}<div class="anulada-watermark">ANULADA</div>{% endif %}
                 <div class="salida-top">
                     <div class="hora-chip">{{ s.hora|date:"H:i" }}</div>
-                    <div class="vuelta-chip">Vuelta {{ s.vuelta }}</div>
+                    <div class="vuelta-chip">{% if s.anulada %}Anulada{% else %}Vuelta {{ s.vuelta }}{% endif %}</div>
                 </div>
                 <div class="ruta-title">{{ s.ruta }}</div>
                 <div class="salida-meta">
@@ -226,10 +233,11 @@ function renderReporte(data){
     }
 
     cards.innerHTML = data.salidas.map(item => `
-        <a href="${item.detalle_url}" class="salida-card">
+        <a href="${item.detalle_url}" class="salida-card ${item.anulada ? "anulada" : ""}">
+            ${item.anulada ? '<div class="anulada-watermark">ANULADA</div>' : ""}
             <div class="salida-top">
                 <div class="hora-chip">${item.hora || "--:--"}</div>
-                <div class="vuelta-chip">Vuelta ${item.vuelta}</div>
+                <div class="vuelta-chip">${item.anulada ? "Anulada" : `Vuelta ${item.vuelta}`}</div>
             </div>
             <div class="ruta-title">${item.ruta}</div>
             <div class="salida-meta">

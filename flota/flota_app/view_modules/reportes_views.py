@@ -34,11 +34,38 @@ def _construir_reporte_salidas_diarias_contexto(empresa, vehiculo_id, fecha_para
         .order_by("hora_salida", "creado_en")
     )
 
-    resultado = []
-    total_salidas = len(salidas)
+    puntos_marcados_por_salida = {
+        salida.id: salida.marcaciones.exclude(hora_marcada__isnull=True).count()
+        for salida in salidas
+    }
 
-    for index, salida in enumerate(salidas):
-        vuelta = index + 1
+    def salida_anulada(salida):
+        return (
+            not salida.activo
+            and not salida.hora_real_salida
+            and puntos_marcados_por_salida.get(salida.id, 0) == 0
+        )
+
+    salidas_validas = [salida for salida in salidas if not salida_anulada(salida)]
+    siguiente_salida_valida = {
+        salida.id: (
+            salidas_validas[index + 1].hora_salida
+            if index + 1 < len(salidas_validas)
+            else None
+        )
+        for index, salida in enumerate(salidas_validas)
+    }
+
+    resultado = []
+    vuelta_actual = 0
+
+    for salida in salidas:
+        anulada = salida_anulada(salida)
+        if anulada:
+            vuelta = None
+        else:
+            vuelta_actual += 1
+            vuelta = vuelta_actual
 
         if not salida.ruta:
             total_puntos = 0
@@ -49,26 +76,20 @@ def _construir_reporte_salidas_diarias_contexto(empresa, vehiculo_id, fecha_para
                 requiere_marcacion=True,
             ).count()
 
-        puntos_marcados = salida.marcaciones.exclude(
-            hora_marcada__isnull=True
-        ).count()
+        puntos_marcados = puntos_marcados_por_salida.get(salida.id, 0)
 
         porcentaje = (
             int((puntos_marcados / total_puntos) * 100)
-            if total_puntos > 0
+            if total_puntos > 0 and not anulada
             else 0
         )
 
         inicio = salida.hora_salida
-
-        if index + 1 < total_salidas:
-            fin = salidas[index + 1].hora_salida
-        else:
-            fin = salida.hora_real_salida or timezone.now()
+        fin = siguiente_salida_valida.get(salida.id) or salida.hora_real_salida or timezone.now()
 
         minutos = 0
 
-        if inicio and fin:
+        if inicio and fin and not anulada:
             paradas = Parada.objects.for_empresa(empresa).filter(
                 vehiculo=vehiculo,
                 es_prolongada=True,
@@ -84,19 +105,21 @@ def _construir_reporte_salidas_diarias_contexto(empresa, vehiculo_id, fecha_para
                 "hora": salida.hora_salida,
                 "ruta": salida.ruta.nombre if salida.ruta else "SIN RUTA",
                 "vuelta": vuelta,
+                "anulada": anulada,
                 "porcentaje": porcentaje,
                 "minutos": minutos,
                 "salida_id": salida.id,
             }
         )
 
-    total_vueltas = len(resultado)
+    salidas_contables = [salida for salida in resultado if not salida["anulada"]]
+    total_vueltas = len(salidas_contables)
     promedio_marcacion = (
-        int(sum(s["porcentaje"] for s in resultado) / total_vueltas)
+        int(sum(s["porcentaje"] for s in salidas_contables) / total_vueltas)
         if total_vueltas > 0
         else 0
     )
-    minutos_totales = sum(s["minutos"] for s in resultado)
+    minutos_totales = sum(s["minutos"] for s in salidas_contables)
 
     alertas = []
     if total_vueltas > 0 and promedio_marcacion < 90:

@@ -536,6 +536,7 @@ def _serializar_reporte_item(item):
         "hora": _format_hora(item["hora"]),
         "ruta": item["ruta"],
         "vuelta": item["vuelta"],
+        "anulada": item.get("anulada", False),
         "porcentaje": item["porcentaje"],
         "minutos": item["minutos"],
         "salida_id": item["salida_id"],
