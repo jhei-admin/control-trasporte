@@ -461,6 +461,51 @@ def _serializar_panel_despachador(contexto):
     }
 
 
+def _serializar_salidas_historicas_app(empresa, fecha_operativa, ruta_id=""):
+    salidas_qs = (
+        RegistroSalida.objects.for_empresa(empresa)
+        .select_related("vehiculo", "ruta")
+        .filter(fecha=fecha_operativa, ruta__isnull=False)
+    )
+    if ruta_id:
+        salidas_qs = salidas_qs.filter(ruta_id=ruta_id)
+
+    salidas = list(salidas_qs.order_by("hora_salida", "hora_llegada", "id"))
+    items = []
+    stats = {
+        "activas": len(salidas),
+        "programadas": 0,
+        "atrasadas": 0,
+        "sin_hora": 0,
+    }
+
+    for salida in salidas:
+        if salida.hora_salida:
+            estado_label = "Registrada" if salida.hora_real_salida or not salida.activo else "Programada"
+            estado_class = "programada" if salida.hora_real_salida or not salida.activo else "atrasada"
+            stats["programadas"] += 1
+        else:
+            estado_label = "Sin hora"
+            estado_class = "sin-hora"
+            stats["sin_hora"] += 1
+
+        items.append({
+            "id": salida.id,
+            "vehiculo_id": salida.vehiculo_id,
+            "unidad": salida.vehiculo.codigo,
+            "placa": salida.vehiculo.placa,
+            "ruta_id": salida.ruta_id,
+            "ruta_nombre": salida.ruta.nombre if salida.ruta else "",
+            "hora_llegada": _format_hora(salida.hora_llegada),
+            "hora_salida": _format_hora(salida.hora_salida),
+            "estado_label": estado_label,
+            "estado_class": estado_class,
+            "servicio_suspendido": bool(getattr(salida.vehiculo, "servicio_suspendido", False)),
+        })
+
+    return items, stats
+
+
 def _serializar_historial_item(item):
     return {
         "unidad": item["salida"].vehiculo.codigo,
@@ -1684,6 +1729,16 @@ def api_app_gerencia_salidas_dia(request):
         ahora=ahora,
     )
     payload = _serializar_panel_despachador(contexto)
+
+    if not payload.get("salidas"):
+        salidas_historicas, stats_historicas = _serializar_salidas_historicas_app(
+            empresa=sesion.empresa,
+            fecha_operativa=fecha_operativa,
+            ruta_id=request.GET.get("ruta", ""),
+        )
+        if salidas_historicas:
+            payload["salidas"] = salidas_historicas
+            payload["stats"] = stats_historicas
 
     for item in payload["salidas"]:
         try:
