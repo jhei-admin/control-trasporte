@@ -8,6 +8,13 @@ from ..decorators import empresa_required
 from ..models import Parada, PuntoControl, RegistroSalida, Vehiculo
 
 
+def _clave_orden_vehiculo(vehiculo):
+    codigo = str(vehiculo.codigo or vehiculo.numero or "").strip()
+    if codigo.isdigit():
+        return (0, int(codigo), codigo)
+    return (1, codigo.upper(), codigo)
+
+
 def _construir_reporte_salidas_diarias_contexto(empresa, vehiculo_id, fecha_param):
     if fecha_param:
         try:
@@ -23,7 +30,7 @@ def _construir_reporte_salidas_diarias_contexto(empresa, vehiculo_id, fecha_para
         empresa=empresa,
     )
 
-    vehiculos = Vehiculo.objects.for_empresa(empresa)
+    vehiculos = sorted(Vehiculo.objects.for_empresa(empresa), key=_clave_orden_vehiculo)
 
     salidas = list(
         RegistroSalida.objects.for_empresa(empresa)

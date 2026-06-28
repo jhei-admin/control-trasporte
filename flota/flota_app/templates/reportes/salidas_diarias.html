@@ -41,12 +41,14 @@
         .report-panel{padding:18px}
         .report-toolbar{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;align-items:end}
         .toolbar-actions{display:flex;gap:10px;flex-wrap:wrap}
-        .report-filters{display:grid;grid-template-columns:170px 220px minmax(160px,220px) 150px;gap:12px;align-items:end}
+        .report-filters{display:grid;grid-template-columns:150px 190px 170px 120px minmax(170px,1fr) 150px;gap:12px;align-items:end;width:100%}
         .report-filters label{display:block;margin-bottom:6px;font-size:12px;letter-spacing:.05em;text-transform:uppercase;font-weight:800;color:var(--muted)}
         .report-filters input,.report-filters select,.report-filters button,.toolbar-actions a{height:50px;border-radius:16px}
         .report-filters input,.report-filters select{border:1px solid rgba(148,163,184,.24);padding:0 14px}
         .toolbar-actions a,.report-filters button{font-weight:800}
         .report-filters button{background:linear-gradient(135deg,var(--accent) 0%,var(--accent-2) 100%);border:none;color:#111827}
+        .quick-search-button{background:#162238!important;color:#fff!important;border:1px solid rgba(15,23,42,.08)!important}
+        .panel-back-button{display:inline-flex;align-items:center;justify-content:center;text-decoration:none;color:#fff;background:#111827;padding:0 18px;white-space:nowrap}
         .cards-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:16px}
         .salida-card{padding:20px;text-decoration:none;color:inherit;display:grid;gap:14px;position:relative;overflow:hidden;background:
             linear-gradient(180deg,#ffffff 0%,#fffaf5 100%)}
@@ -124,12 +126,19 @@
                     <label for="reportVehiculo">Unidad</label>
                     <select id="reportVehiculo" onchange="location.href='/sistema/reportes/salidas/' + this.value + '/?fecha=' + document.getElementById('reportFecha').value">
                         {% for v in vehiculos %}
-                            <option value="{{ v.id }}" {% if v.id == vehiculo.id %}selected{% endif %}>Unidad {{ v.codigo|default:v.numero }}</option>
+                            <option value="{{ v.id }}" data-codigo="{{ v.codigo|default:v.numero }}" {% if v.id == vehiculo.id %}selected{% endif %}>Unidad {{ v.codigo|default:v.numero }}</option>
                         {% endfor %}
                     </select>
                 </div>
+                <div>
+                    <label for="reportBuscarCodigo">Buscar codigo</label>
+                    <input id="reportBuscarCodigo" type="search" inputmode="numeric" autocomplete="off" placeholder="01, 23, 95">
+                </div>
+                <div>
+                    <button class="quick-search-button" id="reportBuscarBtn" type="button">Buscar</button>
+                </div>
                 <div class="toolbar-actions">
-                    <a href="{% url 'panel_despachador' %}" class="btn btn-dark" style="display:inline-flex;align-items:center;justify-content:center;text-decoration:none;color:#fff;padding:0 18px;">Volver al panel</a>
+                    <a href="{% url 'panel_despachador' %}" class="panel-back-button">Volver al panel principal</a>
                 </div>
                 <div>
                     <button class="btn btn-warning w-100" type="submit">Aplicar filtros</button>
@@ -190,6 +199,50 @@ function reporteUsuarioInteractuando(){
     const tag = (activo.tagName || "").toLowerCase()
     return tag === "input" || tag === "select" || tag === "textarea"
 }
+
+function normalizarCodigoUnidad(valor){
+    return String(valor || "").trim().toUpperCase()
+}
+
+function codigoNumerico(valor){
+    const limpio = normalizarCodigoUnidad(valor)
+    return /^\d+$/.test(limpio) ? Number(limpio) : null
+}
+
+function irAUnidadPorCodigo(){
+    const input = document.getElementById("reportBuscarCodigo")
+    const buscado = normalizarCodigoUnidad(input.value)
+    const buscadoNumero = codigoNumerico(buscado)
+    if(!buscado){
+        input.focus()
+        return
+    }
+
+    const select = document.getElementById("reportVehiculo")
+    const encontrado = Array.from(select.options).find(option => {
+        const codigo = normalizarCodigoUnidad(option.dataset.codigo)
+        const codigoNumero = codigoNumerico(codigo)
+        return codigo === buscado || (buscadoNumero !== null && codigoNumero === buscadoNumero)
+    })
+
+    if(!encontrado){
+        input.value = ""
+        input.placeholder = "Codigo no encontrado"
+        input.focus()
+        return
+    }
+
+    const fecha = document.getElementById("reportFecha").value
+    location.href = `/sistema/reportes/salidas/${encontrado.value}/?fecha=${encodeURIComponent(fecha)}`
+}
+
+document.getElementById("reportBuscarBtn").addEventListener("click", irAUnidadPorCodigo)
+document.getElementById("reportBuscarCodigo").addEventListener("keydown", function(event){
+    if(event.key === "Enter"){
+        event.preventDefault()
+        irAUnidadPorCodigo()
+    }
+})
 
 function renderReporte(data){
     document.getElementById("heroVueltas").textContent = data.resumen.total_vueltas
