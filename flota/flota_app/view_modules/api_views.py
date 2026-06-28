@@ -579,9 +579,17 @@ def _serializar_control_web(contexto):
 
 
 def _serializar_detalle_web(contexto):
+    minutos_tarde = sum(
+        max(int(item["diferencia"] or 0), 0)
+        for item in contexto["detalle"]
+        if item["diferencia"] is not None
+    )
     return {
         "ok": True,
-        "resumen": contexto["resumen"],
+        "resumen": {
+            **contexto["resumen"],
+            "minutos_tarde": minutos_tarde,
+        },
         "detalle": [
             {
                 "orden": index + 1,
@@ -1795,6 +1803,11 @@ def api_app_gerencia_salida_detalle(request, salida_id):
         id=salida_id,
     )
     contexto = _calcular_detalle_salida(salida)
+    minutos_tarde = sum(
+        max(int(item["diferencia"] or 0), 0)
+        for item in contexto["detalle"]
+        if item["diferencia"] is not None
+    )
     ruta_nombre = salida.ruta.nombre if salida.ruta else ""
     ruta_letra = "".join(part[0] for part in ruta_nombre.split()[:2]).upper() or ruta_nombre[:2].upper()
 
@@ -1817,6 +1830,7 @@ def api_app_gerencia_salida_detalle(request, salida_id):
                 "marcados": contexto["resumen"]["completados"],
                 "pendientes": contexto["resumen"]["pendientes"],
                 "porcentaje": contexto["resumen"]["porcentaje"],
+                "minutos_tarde": minutos_tarde,
             },
             "detalle": [
                 {
