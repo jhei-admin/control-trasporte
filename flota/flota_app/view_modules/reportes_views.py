@@ -38,12 +38,29 @@ def _construir_reporte_salidas_diarias_contexto(empresa, vehiculo_id, fecha_para
         salida.id: salida.marcaciones.exclude(hora_marcada__isnull=True).count()
         for salida in salidas
     }
+    total_puntos_por_ruta = {}
+
+    def total_puntos_salida(salida):
+        if not salida.ruta_id:
+            return 0
+
+        if salida.ruta_id not in total_puntos_por_ruta:
+            total_puntos_por_ruta[salida.ruta_id] = PuntoControl.objects.for_empresa(empresa).filter(
+                ruta=salida.ruta,
+                activo=True,
+                requiere_marcacion=True,
+            ).count()
+
+        return total_puntos_por_ruta[salida.ruta_id]
 
     def salida_anulada(salida):
+        total_puntos = total_puntos_salida(salida)
+        puntos_marcados = puntos_marcados_por_salida.get(salida.id, 0)
+
         return (
             not salida.activo
             and not salida.hora_real_salida
-            and puntos_marcados_por_salida.get(salida.id, 0) == 0
+            and (total_puntos == 0 or puntos_marcados < total_puntos)
         )
 
     def salida_contable(salida):
@@ -72,20 +89,12 @@ def _construir_reporte_salidas_diarias_contexto(empresa, vehiculo_id, fecha_para
             vuelta_actual += 1
             vuelta = vuelta_actual
 
-        if not salida.ruta:
-            total_puntos = 0
-        else:
-            total_puntos = PuntoControl.objects.for_empresa(empresa).filter(
-                ruta=salida.ruta,
-                activo=True,
-                requiere_marcacion=True,
-            ).count()
-
+        total_puntos = total_puntos_salida(salida)
         puntos_marcados = puntos_marcados_por_salida.get(salida.id, 0)
 
         porcentaje = (
             int((puntos_marcados / total_puntos) * 100)
-            if total_puntos > 0 and contable
+            if total_puntos > 0
             else 0
         )
 
