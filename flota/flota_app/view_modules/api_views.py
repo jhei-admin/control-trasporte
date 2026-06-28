@@ -465,7 +465,7 @@ def _serializar_salidas_historicas_app(empresa, fecha_operativa, ruta_id=""):
     salidas_qs = (
         RegistroSalida.objects.for_empresa(empresa)
         .select_related("vehiculo", "ruta")
-        .filter(fecha=fecha_operativa, ruta__isnull=False)
+        .filter(fecha=fecha_operativa, ruta__isnull=False, hora_salida__isnull=False)
     )
     if ruta_id:
         salidas_qs = salidas_qs.filter(ruta_id=ruta_id)
@@ -480,14 +480,9 @@ def _serializar_salidas_historicas_app(empresa, fecha_operativa, ruta_id=""):
     }
 
     for salida in salidas:
-        if salida.hora_salida:
-            estado_label = "Registrada" if salida.hora_real_salida or not salida.activo else "Programada"
-            estado_class = "programada" if salida.hora_real_salida or not salida.activo else "atrasada"
-            stats["programadas"] += 1
-        else:
-            estado_label = "Sin hora"
-            estado_class = "sin-hora"
-            stats["sin_hora"] += 1
+        estado_label = "Registrada" if salida.hora_real_salida or not salida.activo else "Programada"
+        estado_class = "programada" if salida.hora_real_salida or not salida.activo else "atrasada"
+        stats["programadas"] += 1
 
         items.append({
             "id": salida.id,
