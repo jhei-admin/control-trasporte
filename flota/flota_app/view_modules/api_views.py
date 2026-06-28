@@ -404,6 +404,7 @@ def api_admin_provisioning_qr(request):
 
 def _serializar_salida_panel(salida, ruta_actual_id, fecha_operativa_iso, hora_actual_hhmm):
     ruta_contexto = ruta_actual_id or str(salida.ruta_id)
+    porcentaje_marcacion = _porcentaje_marcacion_salida(salida)
 
     return {
         "id": salida.id,
@@ -416,6 +417,7 @@ def _serializar_salida_panel(salida, ruta_actual_id, fecha_operativa_iso, hora_a
         "estado_class": salida.estado_panel_class,
         "servicio_suspendido": bool(getattr(salida.vehiculo, "servicio_suspendido", False)),
         "permite_confirmar": bool(getattr(salida, "permite_confirmar", True)),
+        "porcentaje": porcentaje_marcacion,
         "urls": {
             "asignar_hora": reverse("asignar_hora_fija", args=[salida.id]),
             "control_ruta": reverse("control_ruta", args=[salida.id]),
@@ -429,6 +431,15 @@ def _serializar_salida_panel(salida, ruta_actual_id, fecha_operativa_iso, hora_a
             "hora_fija": _format_hora(salida.hora_salida) or hora_actual_hhmm,
         },
     }
+
+
+def _porcentaje_marcacion_salida(salida):
+    if not salida.ruta_id:
+        return 0
+    try:
+        return int(_calcular_detalle_salida(salida)["resumen"]["porcentaje"])
+    except Exception:
+        return 0
 
 
 def _serializar_panel_despachador(contexto):
@@ -484,6 +495,7 @@ def _serializar_salidas_historicas_app(empresa, fecha_operativa, ruta_id=""):
     for salida in salidas:
         vuelta = vueltas_por_unidad.get(salida.vehiculo_id, 0) + 1
         vueltas_por_unidad[salida.vehiculo_id] = vuelta
+        porcentaje_marcacion = _porcentaje_marcacion_salida(salida)
         estado_label = "Registrada" if salida.hora_real_salida or not salida.activo else "Programada"
         estado_class = "programada" if salida.hora_real_salida or not salida.activo else "atrasada"
         stats["programadas"] += 1
@@ -501,6 +513,7 @@ def _serializar_salidas_historicas_app(empresa, fecha_operativa, ruta_id=""):
             "estado_class": estado_class,
             "servicio_suspendido": bool(getattr(salida.vehiculo, "servicio_suspendido", False)),
             "vuelta": vuelta,
+            "porcentaje": porcentaje_marcacion,
         })
 
     return items, stats
