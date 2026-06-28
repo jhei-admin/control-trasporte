@@ -442,6 +442,25 @@ def _porcentaje_marcacion_salida(salida):
         return 0
 
 
+def _es_salida_anulada_app(salida, total_puntos_por_ruta=None):
+    if salida.activo or salida.hora_real_salida:
+        return False
+
+    total_puntos_por_ruta = total_puntos_por_ruta if total_puntos_por_ruta is not None else {}
+    if salida.ruta_id not in total_puntos_por_ruta:
+        total_puntos_por_ruta[salida.ruta_id] = PuntoControl.objects.for_empresa(
+            salida.vehiculo.empresa
+        ).filter(
+            ruta=salida.ruta,
+            activo=True,
+            requiere_marcacion=True,
+        ).count()
+
+    total_puntos = total_puntos_por_ruta.get(salida.ruta_id, 0)
+    puntos_marcados = salida.marcaciones.exclude(hora_marcada__isnull=True).count()
+    return total_puntos == 0 or puntos_marcados < total_puntos
+
+
 def _serializar_panel_despachador(contexto):
     fecha_operativa_iso = contexto["fecha_operativa_iso"]
     ruta_actual_id = contexto["ruta_actual_id"]
@@ -488,17 +507,27 @@ def _serializar_salidas_historicas_app(empresa, fecha_operativa, ruta_id=""):
         "programadas": 0,
         "atrasadas": 0,
         "sin_hora": 0,
+        "anuladas": 0,
     }
 
     vueltas_por_unidad = {}
+    total_puntos_por_ruta = {}
 
     for salida in salidas:
-        vuelta = vueltas_por_unidad.get(salida.vehiculo_id, 0) + 1
-        vueltas_por_unidad[salida.vehiculo_id] = vuelta
+        anulada = _es_salida_anulada_app(salida, total_puntos_por_ruta)
+        if anulada:
+            vuelta = None
+            estado_label = "Anulada"
+            estado_class = "anulada"
+            stats["anuladas"] += 1
+        else:
+            vuelta = vueltas_por_unidad.get(salida.vehiculo_id, 0) + 1
+            vueltas_por_unidad[salida.vehiculo_id] = vuelta
+            estado_label = "Registrada" if salida.hora_real_salida or not salida.activo else "Programada"
+            estado_class = "programada" if salida.hora_real_salida or not salida.activo else "atrasada"
+            stats["programadas"] += 1
+
         porcentaje_marcacion = _porcentaje_marcacion_salida(salida)
-        estado_label = "Registrada" if salida.hora_real_salida or not salida.activo else "Programada"
-        estado_class = "programada" if salida.hora_real_salida or not salida.activo else "atrasada"
-        stats["programadas"] += 1
 
         items.append({
             "id": salida.id,
@@ -514,6 +543,7 @@ def _serializar_salidas_historicas_app(empresa, fecha_operativa, ruta_id=""):
             "servicio_suspendido": bool(getattr(salida.vehiculo, "servicio_suspendido", False)),
             "vuelta": vuelta,
             "porcentaje": porcentaje_marcacion,
+            "anulada": anulada,
         })
 
     return items, stats
