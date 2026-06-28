@@ -1212,6 +1212,12 @@ def api_gps_conductor(request):
     if not salida:
         return JsonResponse({"accion": "ninguna"})
 
+    if not salida.hora_salida:
+        return JsonResponse({
+            "accion": "ninguna",
+            "motivo": "sin_hora_programada",
+        })
+
     _asegurar_marcaciones_salida(salida)
 
     if salida.finalizar_por_inactividad(ahora=ahora):

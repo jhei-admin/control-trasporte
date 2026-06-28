@@ -35,6 +35,9 @@
 .state-adelantado{background:#eff6ff;color:#1d4ed8}.state-adelantado .state-dot{background:#3b82f6}
 .state-a_tiempo{background:#ecfdf5;color:#166534}.state-a_tiempo .state-dot{background:#22c55e}
 .state-tarde{background:#fef2f2;color:#b91c1c}.state-tarde .state-dot{background:#ef4444}
+.state-sin_hora{background:#fff7ed;color:#9a3412}.state-sin_hora .state-dot{background:#f59e0b}
+.detail-warning{padding:14px 16px;border-radius:16px;background:#fff7ed;border:1px solid rgba(245,158,11,.28);color:#9a3412;font-weight:800}
+.detail-warning.d-none{display:none}
 .empty-box{text-align:center;padding:44px 18px;color:#64748b}
 @media (max-width: 980px){.detail-summary{grid-template-columns:repeat(2,minmax(0,1fr))}.detail-head{flex-direction:column}}
 @media (max-width: 640px){.detail-summary{grid-template-columns:1fr}.detail-title{font-size:28px}}
@@ -64,6 +67,10 @@
       <div class="detail-subvalue">Hora base: {{ salida.hora_salida|date:"H:i"|default:"--:--" }}. <span id="detallePendientes">{{ resumen.pendientes }}</span> puntos pendientes</div>
     </article>
   </section>
+
+  <div id="sinHoraBaseAviso" class="detail-warning {% if not resumen.sin_hora_base %}d-none{% endif %}">
+    Esta salida no tiene hora programada. Las marcaciones antiguas se muestran como SIN_HORA porque no se puede calcular diferencia ni estado de puntualidad.
+  </div>
 
   <section class="detail-panel">
     <div class="detail-head">
@@ -125,6 +132,10 @@ function renderDetalle(data){
   document.getElementById("detalleTotal").textContent = data.resumen.total
   document.getElementById("detallePendientes").textContent = data.resumen.pendientes
   document.getElementById("detallePorcentaje").textContent = `${data.resumen.porcentaje} %`
+  const avisoSinHora = document.getElementById("sinHoraBaseAviso")
+  if(avisoSinHora){
+    avisoSinHora.classList.toggle("d-none", !data.resumen.sin_hora_base)
+  }
 
   const body = document.getElementById("detalleSalidaBody")
   if(!data.detalle.length){

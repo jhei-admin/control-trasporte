@@ -307,6 +307,7 @@ def _calcular_detalle_salida(salida):
     detalle = []
     completados = 0
     pendiente_count = 0
+    sin_hora_base = not bool(salida.hora_salida)
 
     for marcacion in marcaciones_qs:
         punto = marcacion.punto
@@ -319,7 +320,9 @@ def _calcular_detalle_salida(salida):
         estado = marcacion.estado or "pendiente"
         diferencia = None
 
-        if marcacion.estado == "omitido":
+        if marcacion.hora_marcada and not hora_programada:
+            estado = "sin_hora"
+        elif marcacion.estado == "omitido":
             diferencia = marcacion.diferencia_minutos
         elif marcacion.hora_marcada and hora_programada:
             diferencia = int((marcacion.hora_marcada - hora_programada).total_seconds() / 60)
@@ -353,6 +356,7 @@ def _calcular_detalle_salida(salida):
             "completados": completados,
             "pendientes": pendiente_count,
             "porcentaje": int((completados / total) * 100) if total else 0,
+            "sin_hora_base": sin_hora_base,
         },
     }
 
