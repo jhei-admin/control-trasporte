@@ -28,7 +28,7 @@
             <div class="chips">
                 <span>{{ etiqueta }}</span>
                 <span>{{ inicio|date:"Y-m-d" }} a {{ fin|date:"Y-m-d" }}</span>
-                <span>Vueltas validas desde 50% de marcacion</span>
+                <span>Basado en salidas reales, marcacion, puntualidad y paradas</span>
             </div>
         </div>
         <div class="hero-card">
@@ -81,7 +81,7 @@
         <div class="summary-card"><div class="summary-label">Con movimiento</div><div class="summary-value">{{ resumen.unidades_con_movimiento }}</div><div class="summary-sub">En el periodo</div></div>
         <div class="summary-card"><div class="summary-label">Vueltas validas</div><div class="summary-value">{{ resumen.vueltas_validas }}</div><div class="summary-sub">Sin anuladas</div></div>
         <div class="summary-card"><div class="summary-label">Marcacion</div><div class="summary-value">{{ resumen.promedio_marcacion }}%</div><div class="summary-sub">Promedio unidades activas</div></div>
-        <div class="summary-card"><div class="summary-label">No validadas</div><div class="summary-value">{{ resumen.no_validadas }}</div><div class="summary-sub">Menos de 50%</div></div>
+        <div class="summary-card"><div class="summary-label">Anuladas</div><div class="summary-value">{{ resumen.anuladas }}</div><div class="summary-sub">No cuentan como vuelta</div></div>
     </section>
 
     <section class="panel">
@@ -124,9 +124,8 @@
                         <td>
                             {% if item.anuladas %}<span class="pill bad">{{ item.anuladas }} anulada(s)</span>{% endif %}
                             {% if item.sin_hora %}<span class="pill">{{ item.sin_hora }} sin hora</span>{% endif %}
-                            {% if item.no_validadas %}<span class="pill bad">{{ item.no_validadas }} no validada(s)</span>{% endif %}
                             {% if item.minutos_parada %}<span class="pill bad">{{ item.minutos_parada }} min parada</span>{% endif %}
-                            {% if not item.anuladas and not item.sin_hora and not item.no_validadas and not item.minutos_parada %}<span class="pill good">Sin alertas</span>{% endif %}
+                            {% if not item.anuladas and not item.sin_hora and not item.minutos_parada %}<span class="pill good">Sin alertas</span>{% endif %}
                         </td>
                     </tr>
                 {% empty %}

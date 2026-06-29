@@ -10,7 +10,6 @@ from django.utils import timezone
 from ..decorators import empresa_required
 from ..models import MarcacionPunto, Parada, PuntoControl, RegistroSalida, Vehiculo
 
-MIN_PORCENTAJE_VUELTA_VALIDA = 50
 
 
 def _clave_orden_vehiculo(vehiculo):
@@ -122,7 +121,6 @@ def _resumen_salidas_periodo(empresa, inicio, fin):
             "vueltas_validas": 0,
             "anuladas": 0,
             "sin_hora": 0,
-            "no_validadas": 0,
             "puntos_total": 0,
             "puntos_marcados": 0,
             "a_tiempo": 0,
@@ -138,15 +136,13 @@ def _resumen_salidas_periodo(empresa, inicio, fin):
     for salida in salidas:
         total_puntos = total_puntos_por_ruta.get(salida.ruta_id, 0)
         puntos_marcados = marcados_por_salida.get(salida.id, 0)
-        porcentaje = int((puntos_marcados / total_puntos) * 100) if total_puntos else 0
         anulada = (
             not salida.activo
             and not salida.hora_real_salida
             and (total_puntos == 0 or puntos_marcados < total_puntos)
         )
         sin_hora = not salida.hora_salida and not anulada
-        no_validada = not anulada and not sin_hora and porcentaje < MIN_PORCENTAJE_VUELTA_VALIDA
-        contable = not anulada and not sin_hora and not no_validada
+        contable = not anulada and not sin_hora
 
         item = acumulado.get(salida.vehiculo_id)
         if not item:
@@ -157,9 +153,6 @@ def _resumen_salidas_periodo(empresa, inicio, fin):
             continue
         if sin_hora:
             item["sin_hora"] += 1
-            continue
-        if no_validada:
-            item["no_validadas"] += 1
             continue
         if not contable:
             continue
@@ -185,12 +178,11 @@ def _resumen_salidas_periodo(empresa, inicio, fin):
         evaluadas = item["a_tiempo"] + item["tarde"] + item["adelantado"] + item["omitido"]
         puntualidad = int((item["a_tiempo"] / evaluadas) * 100) if evaluadas else 0
         dias_trabajados = len(item["dias_trabajados_set"])
-        actividad = item["vueltas_validas"] + item["anuladas"] + item["sin_hora"] + item["no_validadas"]
+        actividad = item["vueltas_validas"] + item["anuladas"] + item["sin_hora"]
         vueltas_score = int((item["vueltas_validas"] / max_vueltas_validas) * 100) if max_vueltas_validas else 0
         dias_score = int((dias_trabajados / max_dias_trabajados) * 100) if max_dias_trabajados else 0
         constancia = int((vueltas_score * 0.75) + (dias_score * 0.25)) if actividad else 0
         descuento_anuladas = min(25, item["anuladas"] * 5)
-        descuento_no_validadas = min(20, item["no_validadas"] * 3)
         descuento_paradas = min(20, item["minutos_parada"] // 5)
         puntaje = 0
         if actividad > 0:
@@ -201,7 +193,6 @@ def _resumen_salidas_periodo(empresa, inicio, fin):
                 + (dias_score * 0.10)
                 + 5
                 - descuento_anuladas
-                - descuento_no_validadas
                 - descuento_paradas,
                 1,
             )
@@ -229,7 +220,6 @@ def _resumen_salidas_periodo(empresa, inicio, fin):
         "unidades_con_movimiento": len(activos),
         "vueltas_validas": sum(item["vueltas_validas"] for item in ranking),
         "anuladas": sum(item["anuladas"] for item in ranking),
-        "no_validadas": sum(item["no_validadas"] for item in ranking),
         "promedio_puntaje": round(sum(item["puntaje"] for item in activos) / len(activos), 1) if activos else 0,
         "promedio_marcacion": int(sum(item["marcacion"] for item in activos) / len(activos)) if activos else 0,
     }
@@ -295,15 +285,8 @@ def _construir_reporte_salidas_diarias_contexto(empresa, vehiculo_id, fecha_para
         puntos_marcados = puntos_marcados_por_salida.get(salida.id, 0)
         return int((puntos_marcados / total_puntos) * 100) if total_puntos else 0
 
-    def salida_no_validada(salida):
-        return (
-            not salida_anulada(salida)
-            and bool(salida.hora_salida)
-            and porcentaje_salida(salida) < MIN_PORCENTAJE_VUELTA_VALIDA
-        )
-
     def salida_contable(salida):
-        return not salida_anulada(salida) and bool(salida.hora_salida) and not salida_no_validada(salida)
+        return not salida_anulada(salida) and bool(salida.hora_salida)
 
     salidas_validas = [salida for salida in salidas if salida_contable(salida)]
     siguiente_salida_valida = {
@@ -322,8 +305,7 @@ def _construir_reporte_salidas_diarias_contexto(empresa, vehiculo_id, fecha_para
         anulada = salida_anulada(salida)
         sin_hora = not salida.hora_salida and not anulada
         porcentaje = porcentaje_salida(salida)
-        no_validada = salida_no_validada(salida)
-        contable = not anulada and not sin_hora and not no_validada
+        contable = not anulada and not sin_hora
         if not contable:
             vuelta = None
         else:
