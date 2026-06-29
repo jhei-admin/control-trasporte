@@ -28,7 +28,7 @@
             <div class="chips">
                 <span>{{ etiqueta }}</span>
                 <span>{{ inicio|date:"Y-m-d" }} a {{ fin|date:"Y-m-d" }}</span>
-                <span>Basado en salidas reales, marcacion, puntualidad y paradas</span>
+                <span>Basado en vueltas, marcacion y puntualidad</span>
             </div>
         </div>
         <div class="hero-card">
@@ -92,7 +92,7 @@
                     <th>Unidad</th>
                     <th>Puntaje</th>
                     <th>Vueltas</th>
-                    <th>Constancia</th>
+                    <th>Dias trabajados</th>
                     <th>Marcacion</th>
                     <th>Puntualidad</th>
                     <th>Alertas</th>
@@ -109,8 +109,8 @@
                         <td><div class="score">{{ item.puntaje }}</div><div class="muted">puntos</div></td>
                         <td><span class="pill good">{{ item.vueltas_validas }} validas</span></td>
                         <td>
-                            <strong>{{ item.constancia }}%</strong>
-                            <div class="muted">{{ item.dias_trabajados }} dia(s)</div>
+                            <strong>{{ item.dias_trabajados }}</strong>
+                            <div class="muted">dia(s) trabajados</div>
                         </td>
                         <td>
                             <strong>{{ item.marcacion }}%</strong>

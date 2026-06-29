@@ -182,18 +182,12 @@ def _resumen_salidas_periodo(empresa, inicio, fin):
         vueltas_score = int((item["vueltas_validas"] / max_vueltas_validas) * 100) if max_vueltas_validas else 0
         dias_score = int((dias_trabajados / max_dias_trabajados) * 100) if max_dias_trabajados else 0
         constancia = int((vueltas_score * 0.75) + (dias_score * 0.25)) if actividad else 0
-        descuento_anuladas = min(25, item["anuladas"] * 5)
-        descuento_paradas = min(20, item["minutos_parada"] // 5)
         puntaje = 0
         if actividad > 0:
             puntaje = round(
-                (vueltas_score * 0.40)
-                + (marcacion * 0.30)
-                + (puntualidad * 0.15)
-                + (dias_score * 0.10)
-                + 5
-                - descuento_anuladas
-                - descuento_paradas,
+                (vueltas_score * 0.60)
+                + (marcacion * 0.25)
+                + (puntualidad * 0.15),
                 1,
             )
             puntaje = max(0, min(100, puntaje))
