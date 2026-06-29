@@ -160,11 +160,11 @@
 
     <section class="cards-grid" id="reportCards">
         {% for s in salidas %}
-            <a href="{% url 'detalle_salida' s.salida_id %}" class="salida-card {% if s.anulada %}anulada{% elif s.sin_hora %}sin-hora{% endif %}">
+            <a href="{% url 'detalle_salida' s.salida_id %}" class="salida-card {% if s.anulada %}anulada{% elif s.sin_hora %}sin-hora{% elif s.no_validada %}no-validada{% endif %}">
                 {% if s.anulada %}<div class="anulada-watermark">ANULADA</div>{% endif %}
                 <div class="salida-top">
                     <div class="hora-chip">{{ s.hora|date:"H:i" }}</div>
-                    <div class="vuelta-chip">{% if s.anulada %}Anulada{% elif s.sin_hora %}Sin hora{% else %}Vuelta {{ s.vuelta }}{% endif %}</div>
+                    <div class="vuelta-chip">{% if s.anulada %}Anulada{% elif s.sin_hora %}Sin hora{% elif s.no_validada %}No validada{% else %}Vuelta {{ s.vuelta }}{% endif %}</div>
                 </div>
                 <div class="ruta-title">{{ s.ruta }}</div>
                 <div class="salida-meta">
@@ -262,11 +262,11 @@ function renderReporte(data){
     }
 
     cards.innerHTML = data.salidas.map(item => `
-        <a href="${item.detalle_url}" class="salida-card ${item.anulada ? "anulada" : (item.sin_hora ? "sin-hora" : "")}">
+        <a href="${item.detalle_url}" class="salida-card ${item.anulada ? "anulada" : (item.sin_hora ? "sin-hora" : (item.no_validada ? "no-validada" : ""))}">
             ${item.anulada ? '<div class="anulada-watermark">ANULADA</div>' : ""}
             <div class="salida-top">
                 <div class="hora-chip">${item.hora || "--:--"}</div>
-                <div class="vuelta-chip">${item.anulada ? "Anulada" : (item.sin_hora ? "Sin hora" : `Vuelta ${item.vuelta}`)}</div>
+                <div class="vuelta-chip">${item.anulada ? "Anulada" : (item.sin_hora ? "Sin hora" : (item.no_validada ? "No validada" : `Vuelta ${item.vuelta}`))}</div>
             </div>
             <div class="ruta-title">${item.ruta}</div>
             <div class="salida-meta">

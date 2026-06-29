@@ -568,6 +568,7 @@ def _serializar_reporte_item(item):
         "vuelta": item["vuelta"],
         "anulada": item.get("anulada", False),
         "sin_hora": item.get("sin_hora", False),
+        "no_validada": item.get("no_validada", False),
         "contable": item.get("contable", True),
         "porcentaje": item["porcentaje"],
         "minutos": item["minutos"],
