@@ -1,139 +1,162 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
     <title>Ranking de unidades</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <style>
-        :root{--bg:#eef3f9;--ink:#0f172a;--muted:#64748b;--card:#fff;--line:rgba(148,163,184,.22);--shadow:0 18px 38px rgba(15,23,42,.08);--navy:#142033;--navy2:#26364f;--accent:#f59e0b;--green:#16a34a;--red:#dc2626;--blue:#2563eb}
+        :root{--bg:#f4f8f5;--ink:#092016;--muted:#657483;--card:#fff;--line:rgba(15,23,42,.10);--shadow:0 18px 42px rgba(15,23,42,.10);--green:#14532d;--green2:#1f7a39;--gold:#d99a12;--silver:#7b8794;--bronze:#a85512;--navy:#111827;--blue:#2563eb;--red:#dc2626}
         *{box-sizing:border-box}
-        body{margin:0;font-family:"Segoe UI",Tahoma,Geneva,Verdana,sans-serif;background:radial-gradient(circle at top left,rgba(245,158,11,.10),transparent 30%),radial-gradient(circle at top right,rgba(37,99,235,.08),transparent 30%),linear-gradient(180deg,#eef3f9 0%,#f8fafc 100%);color:var(--ink)}
-        .rank-shell{max-width:1240px;margin:0 auto;padding:22px 24px;display:grid;gap:16px}
-        .rank-hero{background:linear-gradient(135deg,var(--navy) 0%,var(--navy2) 100%);color:#fff;border-radius:24px;padding:24px 28px;box-shadow:var(--shadow);display:grid;grid-template-columns:minmax(0,1.25fr) minmax(300px,.65fr);gap:18px;align-items:center}
-        .kicker{font-size:12px;letter-spacing:.13em;text-transform:uppercase;color:#cbd5e1;font-weight:800}.title{font-size:38px;font-weight:900;line-height:1;margin-top:8px}.chips{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}.chips span{padding:8px 13px;border-radius:999px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.10);color:#dbeafe}
-        .hero-card{background:rgba(255,255,255,.09);border:1px solid rgba(255,255,255,.12);border-radius:20px;padding:16px}.hero-value{font-size:34px;font-weight:900;margin-top:6px}.hero-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:12px}.hero-mini{background:rgba(12,18,31,.22);border-radius:16px;padding:12px}.hero-mini b{display:block;font-size:24px;margin-top:5px}
-        .panel{background:#fff;border:1px solid var(--line);border-radius:22px;box-shadow:var(--shadow);padding:18px}.filters{display:grid;grid-template-columns:150px 150px 150px 150px minmax(180px,1fr) 160px;gap:12px;align-items:end}.filters label{display:block;margin-bottom:6px;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:800}.filters input,.filters select,.filters button,.back-btn{height:48px;border-radius:15px}.filters input,.filters select{width:100%;border:1px solid rgba(148,163,184,.28);padding:0 13px;background:#fff}.filters button{border:0;background:linear-gradient(135deg,#f59e0b 0%,#fb923c 100%);font-weight:900;color:#111827}.back-btn{display:inline-flex;align-items:center;justify-content:center;text-decoration:none;background:#111827;color:#fff;font-weight:900;padding:0 16px;white-space:nowrap}
-        .summary{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px}.summary-card{background:#fff;border:1px solid var(--line);border-radius:18px;padding:15px;box-shadow:0 10px 24px rgba(15,23,42,.06)}.summary-label{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#64748b;font-weight:900}.summary-value{font-size:28px;font-weight:900;margin-top:7px}.summary-sub{font-size:12px;color:#64748b;margin-top:5px}
-        .rank-table{width:100%;border-collapse:separate;border-spacing:0 10px}.rank-table th{background:#1e293b;color:#e2e8f0;text-transform:uppercase;letter-spacing:.08em;font-size:12px;padding:13px 12px}.rank-table th:first-child{border-radius:14px 0 0 14px}.rank-table th:last-child{border-radius:0 14px 14px 0}.rank-table td{background:#fff;padding:14px 12px;border-top:1px solid rgba(148,163,184,.16);border-bottom:1px solid rgba(148,163,184,.16);vertical-align:middle}.rank-table td:first-child{border-left:1px solid rgba(148,163,184,.16);border-radius:16px 0 0 16px}.rank-table td:last-child{border-right:1px solid rgba(148,163,184,.16);border-radius:0 16px 16px 0}.place{display:inline-flex;align-items:center;justify-content:center;width:42px;height:42px;border-radius:14px;background:#eff6ff;color:#1d4ed8;font-size:20px;font-weight:900}.place.top{background:#fff7ed;color:#b45309}.unit{font-size:22px;font-weight:900}.muted{color:#64748b;font-size:12px}.score{font-size:24px;font-weight:900}.bar{height:10px;background:#e2e8f0;border-radius:999px;overflow:hidden;margin-top:8px}.bar span{display:block;height:100%;background:linear-gradient(90deg,#22c55e,#16a34a)}.bar.warn span{background:linear-gradient(90deg,#f59e0b,#ef4444)}.pill{display:inline-flex;padding:7px 10px;border-radius:999px;background:#f8fafc;border:1px solid rgba(148,163,184,.16);font-size:12px;font-weight:800;color:#475569}.pill.bad{background:#fef2f2;color:#991b1b}.pill.good{background:#ecfdf5;color:#166534}.empty{padding:38px;text-align:center;color:#64748b}
-        @media (max-width:1000px){.rank-hero,.filters,.summary{grid-template-columns:1fr 1fr}.title{font-size:32px}.rank-table{font-size:13px}}
-        @media (max-width:700px){.rank-shell{padding:14px}.rank-hero,.filters,.summary,.hero-grid{grid-template-columns:1fr}.rank-table{display:block;overflow:auto}.title{font-size:28px}}
+        html{scroll-behavior:smooth}
+        body{margin:0;font-family:"Segoe UI",Tahoma,Geneva,Verdana,sans-serif;background:radial-gradient(circle at top left,rgba(20,83,45,.08),transparent 34%),radial-gradient(circle at bottom right,rgba(217,154,18,.10),transparent 36%),linear-gradient(180deg,#fbfdfb 0%,#eef5f0 100%);color:var(--ink)}
+        .screen{min-height:100vh;display:grid;grid-template-rows:auto 1fr auto;gap:18px;padding:28px 36px 22px}
+        .topbar{display:grid;grid-template-columns:minmax(0,1fr) 430px;gap:24px;align-items:start}
+        .brand{display:grid;grid-template-columns:118px minmax(0,1fr);gap:22px;align-items:center}.medal-icon{width:110px;height:110px;border-radius:50%;background:radial-gradient(circle at 35% 28%,#2d7d3f,#0f4d25 72%);box-shadow:0 18px 28px rgba(20,83,45,.22);display:grid;place-items:center;position:relative}.medal-icon:before{content:"";width:46px;height:38px;border:7px solid #fff;border-top:0;border-radius:0 0 24px 24px;display:block}.medal-icon:after{content:"";position:absolute;width:54px;height:8px;background:#fff;border-radius:999px;bottom:28px}
+        .kicker{font-size:13px;letter-spacing:.12em;text-transform:uppercase;color:#5f6f7b;font-weight:900}.title{font-size:48px;line-height:.98;font-weight:950;letter-spacing:0;margin:4px 0 6px}.subtitle{font-size:24px;text-transform:uppercase;color:var(--green);font-weight:900}.period{display:flex;align-items:center;gap:10px;color:#637083;font-size:18px;font-weight:800;margin-top:12px}.calendar{width:22px;height:22px;border:3px solid var(--green);border-radius:5px;position:relative}.calendar:before{content:"";position:absolute;left:3px;right:3px;top:5px;border-top:3px solid var(--green)}
+        .score-card{background:#fff;border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow);padding:22px 26px;display:grid;grid-template-columns:92px minmax(0,1fr);gap:18px;align-items:center}.trend{width:84px;height:84px;border:2px solid var(--green);border-radius:50%;display:grid;place-items:center;color:var(--green);font-size:42px;font-weight:900}.score-label{font-size:16px;text-transform:uppercase;color:#6b7280;font-weight:900}.score-number{font-size:58px;line-height:.95;color:var(--green);font-weight:950}.score-card small{display:block;font-size:20px;color:#6b7280;font-weight:800;margin-top:4px}
+        .actions{display:flex;gap:12px;justify-content:flex-end;align-items:center}.btn{height:48px;border-radius:14px;padding:0 18px;border:0;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;font-weight:950;white-space:nowrap}.btn-dark{background:#111827;color:#fff}.btn-green{background:linear-gradient(135deg,#14532d,#1f7a39);color:#fff}.btn-ghost{background:#fff;color:#14532d;border:1px solid rgba(20,83,45,.22)}.refresh-pill{height:48px;border-radius:999px;background:rgba(20,83,45,.08);color:#14532d;border:1px solid rgba(20,83,45,.14);display:inline-flex;align-items:center;padding:0 16px;font-weight:900}
+        .podium-wrap{display:grid;align-items:end;justify-content:center;grid-template-columns:minmax(240px,310px) minmax(300px,360px) minmax(240px,310px);gap:32px;margin:8px auto 0;width:min(1120px,100%)}
+        .podium-card{background:#fff;border:1px solid var(--line);border-radius:14px 14px 4px 4px;min-height:300px;padding:70px 28px 24px;text-align:center;box-shadow:var(--shadow);position:relative;display:grid;align-content:center}.podium-card.first{min-height:390px;padding-top:92px}.rank-badge{position:absolute;top:-38px;left:50%;transform:translateX(-50%);width:88px;height:78px;border-radius:12px 12px 22px 22px;color:#fff;font-size:42px;font-weight:950;display:grid;place-items:center;box-shadow:0 12px 22px rgba(0,0,0,.22)}.first .rank-badge{background:linear-gradient(180deg,#f7c84c,#c98308)}.second .rank-badge{background:linear-gradient(180deg,#c9d0d8,#65717e)}.third .rank-badge{background:linear-gradient(180deg,#d68635,#8b3f0e)}
+        .avatar{width:96px;height:96px;border-radius:50%;margin:0 auto 16px;background:#e8f2e8;display:grid;place-items:center;position:relative}.avatar:before{content:"";width:32px;height:32px;border:5px solid currentColor;border-radius:50%;display:block;position:absolute;top:22px}.avatar:after{content:"";width:54px;height:31px;border:5px solid currentColor;border-top:0;border-radius:0 0 36px 36px;display:block;position:absolute;bottom:20px}.first .avatar{color:#14532d}.second .avatar{color:#4b5563;background:#eef1f4}.third .avatar{color:#7c2d12;background:#f5eadf}.podium-unit{font-size:31px;font-weight:950;text-transform:uppercase}.first .podium-unit{font-size:34px}.podium-line{height:2px;background:currentColor;opacity:.72;margin:14px auto 16px;width:86%}.podium-score-label{font-size:13px;color:#697386;text-transform:uppercase;font-weight:900}.podium-score{font-size:52px;line-height:1;font-weight:950;color:#14532d}.second .podium-score{color:#3f4a56}.third .podium-score{color:#8b3f0e}.podium-data{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:18px}.mini{border:1px solid rgba(148,163,184,.20);border-radius:12px;padding:8px;background:#f8fafc}.mini b{display:block;font-size:18px}.mini span{font-size:11px;color:#64748b;font-weight:800;text-transform:uppercase}
+        .base-row{display:grid;grid-template-columns:minmax(240px,310px) minmax(300px,360px) minmax(240px,310px);gap:32px;width:min(1120px,100%);margin:0 auto}.base{height:92px;border-radius:5px 5px 0 0;box-shadow:inset 0 12px 20px rgba(255,255,255,.18),0 16px 28px rgba(15,23,42,.18);position:relative}.base:after{content:"\\2605";position:absolute;left:50%;top:24px;transform:translateX(-50%);color:#fff;font-size:34px}.base.second{background:linear-gradient(135deg,#909aa4,#46515d)}.base.first{height:116px;background:linear-gradient(135deg,#17612f,#0e401f);border-top:10px solid #eab12b}.base.third{background:linear-gradient(135deg,#b7681f,#7c360e)}
+        .metrics-strip{width:min(1100px,100%);margin:4px auto 0;background:#fff;border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow);display:grid;grid-template-columns:repeat(3,1fr)}.metric{padding:22px 28px;display:grid;grid-template-columns:70px minmax(0,1fr);gap:18px;align-items:center}.metric+.metric{border-left:1px dashed rgba(100,116,139,.32)}.metric-icon{width:66px;height:66px;border-radius:50%;border:2px solid var(--green);display:grid;place-items:center;color:var(--green);font-size:28px;font-weight:950}.metric-title{font-size:24px;font-weight:950;text-transform:uppercase}.metric-value{font-size:36px;font-weight:950;color:var(--green)}.metric-value span{color:#6b7280}.progress{height:10px;border-radius:999px;background:#dfe5e8;overflow:hidden;margin-top:8px}.progress i{display:block;height:100%;background:linear-gradient(90deg,#14532d,#22c55e)}
+        .filters-panel,.table-panel{width:min(1240px,calc(100% - 48px));margin:0 auto 18px;background:#fff;border:1px solid var(--line);border-radius:22px;box-shadow:var(--shadow);padding:18px}.filters{display:grid;grid-template-columns:150px 150px 150px 150px minmax(180px,1fr) 160px;gap:12px;align-items:end}.filters label{display:block;margin-bottom:6px;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:#64748b;font-weight:900}.filters input,.filters select,.filters button{height:48px;border-radius:15px}.filters input,.filters select{width:100%;border:1px solid rgba(148,163,184,.28);padding:0 13px;background:#fff}.filters button{border:0;background:linear-gradient(135deg,#f59e0b 0%,#fb923c 100%);font-weight:950;color:#111827}.rank-table{width:100%;border-collapse:separate;border-spacing:0 10px}.rank-table th{background:#1e293b;color:#e2e8f0;text-transform:uppercase;letter-spacing:.08em;font-size:12px;padding:13px 12px}.rank-table th:first-child{border-radius:14px 0 0 14px}.rank-table th:last-child{border-radius:0 14px 14px 0}.rank-table td{background:#fff;padding:14px 12px;border-top:1px solid rgba(148,163,184,.16);border-bottom:1px solid rgba(148,163,184,.16);vertical-align:middle}.rank-table td:first-child{border-left:1px solid rgba(148,163,184,.16);border-radius:16px 0 0 16px}.rank-table td:last-child{border-right:1px solid rgba(148,163,184,.16);border-radius:0 16px 16px 0}.place{display:inline-flex;align-items:center;justify-content:center;width:42px;height:42px;border-radius:14px;background:#eff6ff;color:#1d4ed8;font-size:20px;font-weight:950}.place.top{background:#fff7ed;color:#b45309}.unit{font-size:22px;font-weight:950}.muted{color:#64748b;font-size:12px}.score{font-size:24px;font-weight:950}.bar{height:10px;background:#e2e8f0;border-radius:999px;overflow:hidden;margin-top:8px}.bar span{display:block;height:100%;background:linear-gradient(90deg,#22c55e,#16a34a)}.bar.warn span{background:linear-gradient(90deg,#f59e0b,#ef4444)}.pill{display:inline-flex;padding:7px 10px;border-radius:999px;background:#f8fafc;border:1px solid rgba(148,163,184,.16);font-size:12px;font-weight:800;color:#475569}.pill.bad{background:#fef2f2;color:#991b1b}.pill.good{background:#ecfdf5;color:#166534}.empty{padding:38px;text-align:center;color:#64748b}.section-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:6px}.section-title{font-size:24px;font-weight:950}
+        @media (max-width:1100px){.topbar{grid-template-columns:1fr}.actions{justify-content:flex-start}.podium-wrap,.base-row{grid-template-columns:1fr;max-width:460px}.podium-card.first{order:-1}.base-row{display:none}.metrics-strip,.filters{grid-template-columns:1fr 1fr}.metric+.metric{border-left:0;border-top:1px dashed rgba(100,116,139,.32)}}
+        @media (max-width:700px){.screen{padding:18px 14px}.brand{grid-template-columns:1fr}.medal-icon{width:86px;height:86px}.title{font-size:34px}.score-card{grid-template-columns:1fr}.actions{display:grid}.metrics-strip,.filters{grid-template-columns:1fr}.rank-table{display:block;overflow:auto}.filters-panel,.table-panel{width:calc(100% - 24px)}}
     </style>
 </head>
 <body>
-<div class="rank-shell">
-    <section class="rank-hero">
+{% with primero=ranking.0 segundo=ranking.1 tercero=ranking.2 %}
+<main class="screen" id="podio">
+    <section class="topbar">
+        <div class="brand">
+            <div class="medal-icon" aria-hidden="true"></div>
+            <div>
+                <div class="kicker">Ranking operativo por unidad</div>
+                <div class="title">Ranking de unidades</div>
+                <div class="subtitle">Desempeno general</div>
+                <div class="period"><span class="calendar" aria-hidden="true"></span><span>Periodo: {{ inicio|date:"d/m/Y" }} - {{ fin|date:"d/m/Y" }}</span></div>
+            </div>
+        </div>
         <div>
-            <div class="kicker">Ranking operativo por unidad</div>
-            <div class="title">Ranking de unidades</div>
-            <div class="chips">
-                <span>{{ etiqueta }}</span>
-                <span>{{ inicio|date:"Y-m-d" }} a {{ fin|date:"Y-m-d" }}</span>
-                <span>Basado en vueltas, marcacion y puntualidad</span>
+            <div class="score-card">
+                <div class="trend">+</div>
+                <div>
+                    <div class="score-label">Puntaje promedio general</div>
+                    <div class="score-number">{{ resumen.promedio_puntaje }}</div>
+                    <small>Puntos</small>
+                </div>
+            </div>
+            <div class="actions" style="margin-top:14px">
+                <span class="refresh-pill">Actualiza cada <span id="refresh-count">60</span>s</span>
+                <a class="btn btn-ghost" href="{% url 'panel_despachador' %}">Volver al panel</a>
+                <a class="btn btn-green" href="#tabla-unidades">Ver todas las unidades</a>
             </div>
         </div>
-        <div class="hero-card">
-            <div class="kicker">Promedio general</div>
-            <div class="hero-value">{{ resumen.promedio_puntaje }} pts</div>
-            <div class="hero-grid">
-                <div class="hero-mini"><span>Vueltas</span><b>{{ resumen.vueltas_validas }}</b></div>
-                <div class="hero-mini"><span>Anuladas</span><b>{{ resumen.anuladas }}</b></div>
-            </div>
+    </section>
+
+    {% if primero %}
+    <section>
+        <div class="podium-wrap">
+            {% if segundo %}
+            <article class="podium-card second">
+                <div class="rank-badge">2&deg;</div>
+                <div class="avatar"></div>
+                <div class="podium-unit">Unidad {{ segundo.codigo }}</div>
+                <div class="podium-line"></div>
+                <div class="podium-score-label">Puntaje total</div>
+                <div class="podium-score">{{ segundo.puntaje }}</div>
+                <div class="podium-data"><div class="mini"><b>{{ segundo.vueltas_validas }}</b><span>Vueltas</span></div><div class="mini"><b>{{ segundo.marcacion }}%</b><span>Marcacion</span></div><div class="mini"><b>{{ segundo.puntualidad }}%</b><span>Puntualidad</span></div></div>
+            </article>
+            {% endif %}
+            <article class="podium-card first">
+                <div class="rank-badge">1&deg;</div>
+                <div class="avatar"></div>
+                <div class="podium-unit">Unidad {{ primero.codigo }}</div>
+                <div class="podium-line"></div>
+                <div class="podium-score-label">Puntaje total</div>
+                <div class="podium-score">{{ primero.puntaje }}</div>
+                <div class="podium-data"><div class="mini"><b>{{ primero.vueltas_validas }}</b><span>Vueltas</span></div><div class="mini"><b>{{ primero.marcacion }}%</b><span>Marcacion</span></div><div class="mini"><b>{{ primero.puntualidad }}%</b><span>Puntualidad</span></div></div>
+            </article>
+            {% if tercero %}
+            <article class="podium-card third">
+                <div class="rank-badge">3&deg;</div>
+                <div class="avatar"></div>
+                <div class="podium-unit">Unidad {{ tercero.codigo }}</div>
+                <div class="podium-line"></div>
+                <div class="podium-score-label">Puntaje total</div>
+                <div class="podium-score">{{ tercero.puntaje }}</div>
+                <div class="podium-data"><div class="mini"><b>{{ tercero.vueltas_validas }}</b><span>Vueltas</span></div><div class="mini"><b>{{ tercero.marcacion }}%</b><span>Marcacion</span></div><div class="mini"><b>{{ tercero.puntualidad }}%</b><span>Puntualidad</span></div></div>
+            </article>
+            {% endif %}
         </div>
+        <div class="base-row"><div class="base second"></div><div class="base first"></div><div class="base third"></div></div>
     </section>
+    {% else %}
+    <section class="podium-wrap"><div class="podium-card first"><div class="podium-unit">Sin datos para mostrar</div><div class="podium-score-label">Selecciona otro periodo o fecha</div></div></section>
+    {% endif %}
 
-    <section class="panel">
-        <form class="filters" method="get">
-            <div>
-                <label for="periodo">Periodo</label>
-                <select id="periodo" name="periodo">
-                    <option value="diario" {% if periodo == 'diario' %}selected{% endif %}>Diario</option>
-                    <option value="mensual" {% if periodo == 'mensual' %}selected{% endif %}>Mensual</option>
-                    <option value="anual" {% if periodo == 'anual' %}selected{% endif %}>Anual</option>
-                </select>
-            </div>
-            <div>
-                <label for="fecha">Fecha</label>
-                <input id="fecha" type="date" name="fecha" value="{{ fecha|date:'Y-m-d' }}">
-            </div>
-            <div>
-                <label for="mes">Mes</label>
-                <select id="mes" name="mes">
-                    {% for numero,nombre in meses %}
-                        <option value="{{ numero }}" {% if numero == mes %}selected{% endif %}>{{ nombre }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div>
-                <label for="anio">Anio</label>
-                <select id="anio" name="anio">
-                    {% for item in anios %}
-                        <option value="{{ item }}" {% if item == anio %}selected{% endif %}>{{ item }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <a class="back-btn" href="{% url 'panel_despachador' %}">Volver al panel principal</a>
-            <button type="submit">Aplicar ranking</button>
-        </form>
+    <section class="metrics-strip">
+        <div class="metric"><div class="metric-icon">R</div><div><div class="metric-title">Vueltas</div><div class="metric-value">{{ resumen.vueltas_validas }}</div><div class="progress"><i style="width:100%"></i></div></div></div>
+        <div class="metric"><div class="metric-icon">M</div><div><div class="metric-title">Marcacion</div><div class="metric-value">{{ resumen.promedio_marcacion }}<span>%</span></div><div class="progress"><i style="width:{{ resumen.promedio_marcacion }}%"></i></div></div></div>
+        <div class="metric"><div class="metric-icon">A</div><div><div class="metric-title">Anuladas</div><div class="metric-value">{{ resumen.anuladas }}</div><div class="progress"><i style="width:20%"></i></div></div></div>
     </section>
+</main>
+{% endwith %}
 
-    <section class="summary">
-        <div class="summary-card"><div class="summary-label">Unidades</div><div class="summary-value">{{ resumen.unidades }}</div><div class="summary-sub">Registradas</div></div>
-        <div class="summary-card"><div class="summary-label">Con movimiento</div><div class="summary-value">{{ resumen.unidades_con_movimiento }}</div><div class="summary-sub">En el periodo</div></div>
-        <div class="summary-card"><div class="summary-label">Vueltas validas</div><div class="summary-value">{{ resumen.vueltas_validas }}</div><div class="summary-sub">Sin anuladas</div></div>
-        <div class="summary-card"><div class="summary-label">Marcacion</div><div class="summary-value">{{ resumen.promedio_marcacion }}%</div><div class="summary-sub">Promedio unidades activas</div></div>
-        <div class="summary-card"><div class="summary-label">Anuladas</div><div class="summary-value">{{ resumen.anuladas }}</div><div class="summary-sub">No cuentan como vuelta</div></div>
-    </section>
+<section class="filters-panel" id="filtros">
+    <form class="filters" method="get">
+        <div>
+            <label for="periodo">Periodo</label>
+            <select id="periodo" name="periodo">
+                <option value="diario" {% if periodo == 'diario' %}selected{% endif %}>Diario</option>
+                <option value="mensual" {% if periodo == 'mensual' %}selected{% endif %}>Mensual</option>
+                <option value="anual" {% if periodo == 'anual' %}selected{% endif %}>Anual</option>
+            </select>
+        </div>
+        <div><label for="fecha">Fecha</label><input id="fecha" type="date" name="fecha" value="{{ fecha|date:'Y-m-d' }}"></div>
+        <div><label for="mes">Mes</label><select id="mes" name="mes">{% for numero,nombre in meses %}<option value="{{ numero }}" {% if numero == mes %}selected{% endif %}>{{ nombre }}</option>{% endfor %}</select></div>
+        <div><label for="anio">Anio</label><select id="anio" name="anio">{% for item in anios %}<option value="{{ item }}" {% if item == anio %}selected{% endif %}>{{ item }}</option>{% endfor %}</select></div>
+        <a class="btn btn-dark" href="{% url 'panel_despachador' %}">Volver al panel principal</a>
+        <button type="submit">Aplicar ranking</button>
+    </form>
+</section>
 
-    <section class="panel">
-        <table class="rank-table">
-            <thead>
+<section class="table-panel" id="tabla-unidades">
+    <div class="section-head">
+        <div class="section-title">Todas las unidades</div>
+        <a class="btn btn-ghost" href="#podio">Volver al podio</a>
+    </div>
+    <table class="rank-table">
+        <thead><tr><th>Puesto</th><th>Unidad</th><th>Puntaje</th><th>Vueltas</th><th>Dias trabajados</th><th>Marcacion</th><th>Puntualidad</th><th>Alertas</th></tr></thead>
+        <tbody>
+            {% for item in ranking %}
                 <tr>
-                    <th>Puesto</th>
-                    <th>Unidad</th>
-                    <th>Puntaje</th>
-                    <th>Vueltas</th>
-                    <th>Dias trabajados</th>
-                    <th>Marcacion</th>
-                    <th>Puntualidad</th>
-                    <th>Alertas</th>
+                    <td><span class="place {% if item.puesto <= 3 %}top{% endif %}">{{ item.puesto }}</span></td>
+                    <td><div class="unit">Unidad {{ item.codigo }}</div><div class="muted">{{ item.placa }}</div></td>
+                    <td><div class="score">{{ item.puntaje }}</div><div class="muted">puntos</div></td>
+                    <td><span class="pill good">{{ item.vueltas_validas }} validas</span></td>
+                    <td><strong>{{ item.dias_trabajados }}</strong><div class="muted">dia(s) trabajados</div></td>
+                    <td><strong>{{ item.marcacion }}%</strong><div class="bar {% if item.marcacion < 90 %}warn{% endif %}"><span style="width:{{ item.marcacion }}%"></span></div><div class="muted">{{ item.puntos_marcados }}/{{ item.puntos_total }} puntos</div></td>
+                    <td><strong>{{ item.puntualidad }}%</strong><div class="muted">A tiempo {{ item.a_tiempo }} | Tarde {{ item.tarde }} | Adel. {{ item.adelantado }}</div></td>
+                    <td>{% if item.anuladas %}<span class="pill bad">{{ item.anuladas }} anulada(s)</span>{% endif %} {% if item.sin_hora %}<span class="pill">{{ item.sin_hora }} sin hora</span>{% endif %} {% if item.minutos_parada %}<span class="pill bad">{{ item.minutos_parada }} min parada</span>{% endif %} {% if not item.anuladas and not item.sin_hora and not item.minutos_parada %}<span class="pill good">Sin alertas</span>{% endif %}</td>
                 </tr>
-            </thead>
-            <tbody>
-                {% for item in ranking %}
-                    <tr>
-                        <td><span class="place {% if item.puesto <= 3 %}top{% endif %}">{{ item.puesto }}</span></td>
-                        <td>
-                            <div class="unit">Unidad {{ item.codigo }}</div>
-                            <div class="muted">{{ item.placa }}</div>
-                        </td>
-                        <td><div class="score">{{ item.puntaje }}</div><div class="muted">puntos</div></td>
-                        <td><span class="pill good">{{ item.vueltas_validas }} validas</span></td>
-                        <td>
-                            <strong>{{ item.dias_trabajados }}</strong>
-                            <div class="muted">dia(s) trabajados</div>
-                        </td>
-                        <td>
-                            <strong>{{ item.marcacion }}%</strong>
-                            <div class="bar {% if item.marcacion < 90 %}warn{% endif %}"><span style="width:{{ item.marcacion }}%"></span></div>
-                            <div class="muted">{{ item.puntos_marcados }}/{{ item.puntos_total }} puntos</div>
-                        </td>
-                        <td>
-                            <strong>{{ item.puntualidad }}%</strong>
-                            <div class="muted">A tiempo {{ item.a_tiempo }} | Tarde {{ item.tarde }} | Adel. {{ item.adelantado }}</div>
-                        </td>
-                        <td>
-                            {% if item.anuladas %}<span class="pill bad">{{ item.anuladas }} anulada(s)</span>{% endif %}
-                            {% if item.sin_hora %}<span class="pill">{{ item.sin_hora }} sin hora</span>{% endif %}
-                            {% if item.minutos_parada %}<span class="pill bad">{{ item.minutos_parada }} min parada</span>{% endif %}
-                            {% if not item.anuladas and not item.sin_hora and not item.minutos_parada %}<span class="pill good">Sin alertas</span>{% endif %}
-                        </td>
-                    </tr>
-                {% empty %}
-                    <tr><td colspan="8"><div class="empty">No hay unidades para mostrar.</div></td></tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </section>
-</div>
+            {% empty %}
+                <tr><td colspan="8"><div class="empty">No hay unidades para mostrar.</div></td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</section>
+<script>
+(function(){
+    var remaining = 60;
+    var label = document.getElementById('refresh-count');
+    setInterval(function(){
+        remaining -= 1;
+        if (label) label.textContent = remaining;
+        if (remaining <= 0) window.location.reload();
+    }, 1000);
+})();
+</script>
 </body>
 </html>
