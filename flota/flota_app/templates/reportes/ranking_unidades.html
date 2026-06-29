@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Ranking de unidades</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        :root{--bg:#eef3f9;--ink:#0f172a;--muted:#64748b;--card:#fff;--line:rgba(148,163,184,.22);--shadow:0 18px 38px rgba(15,23,42,.08);--navy:#142033;--navy2:#26364f;--accent:#f59e0b;--green:#16a34a;--red:#dc2626;--blue:#2563eb}
+        *{box-sizing:border-box}
+        body{margin:0;font-family:"Segoe UI",Tahoma,Geneva,Verdana,sans-serif;background:radial-gradient(circle at top left,rgba(245,158,11,.10),transparent 30%),radial-gradient(circle at top right,rgba(37,99,235,.08),transparent 30%),linear-gradient(180deg,#eef3f9 0%,#f8fafc 100%);color:var(--ink)}
+        .rank-shell{max-width:1240px;margin:0 auto;padding:22px 24px;display:grid;gap:16px}
+        .rank-hero{background:linear-gradient(135deg,var(--navy) 0%,var(--navy2) 100%);color:#fff;border-radius:24px;padding:24px 28px;box-shadow:var(--shadow);display:grid;grid-template-columns:minmax(0,1.25fr) minmax(300px,.65fr);gap:18px;align-items:center}
+        .kicker{font-size:12px;letter-spacing:.13em;text-transform:uppercase;color:#cbd5e1;font-weight:800}.title{font-size:38px;font-weight:900;line-height:1;margin-top:8px}.chips{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}.chips span{padding:8px 13px;border-radius:999px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.10);color:#dbeafe}
+        .hero-card{background:rgba(255,255,255,.09);border:1px solid rgba(255,255,255,.12);border-radius:20px;padding:16px}.hero-value{font-size:34px;font-weight:900;margin-top:6px}.hero-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:12px}.hero-mini{background:rgba(12,18,31,.22);border-radius:16px;padding:12px}.hero-mini b{display:block;font-size:24px;margin-top:5px}
+        .panel{background:#fff;border:1px solid var(--line);border-radius:22px;box-shadow:var(--shadow);padding:18px}.filters{display:grid;grid-template-columns:150px 150px 150px 150px minmax(180px,1fr) 160px;gap:12px;align-items:end}.filters label{display:block;margin-bottom:6px;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:800}.filters input,.filters select,.filters button,.back-btn{height:48px;border-radius:15px}.filters input,.filters select{width:100%;border:1px solid rgba(148,163,184,.28);padding:0 13px;background:#fff}.filters button{border:0;background:linear-gradient(135deg,#f59e0b 0%,#fb923c 100%);font-weight:900;color:#111827}.back-btn{display:inline-flex;align-items:center;justify-content:center;text-decoration:none;background:#111827;color:#fff;font-weight:900;padding:0 16px;white-space:nowrap}
+        .summary{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px}.summary-card{background:#fff;border:1px solid var(--line);border-radius:18px;padding:15px;box-shadow:0 10px 24px rgba(15,23,42,.06)}.summary-label{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#64748b;font-weight:900}.summary-value{font-size:28px;font-weight:900;margin-top:7px}.summary-sub{font-size:12px;color:#64748b;margin-top:5px}
+        .rank-table{width:100%;border-collapse:separate;border-spacing:0 10px}.rank-table th{background:#1e293b;color:#e2e8f0;text-transform:uppercase;letter-spacing:.08em;font-size:12px;padding:13px 12px}.rank-table th:first-child{border-radius:14px 0 0 14px}.rank-table th:last-child{border-radius:0 14px 14px 0}.rank-table td{background:#fff;padding:14px 12px;border-top:1px solid rgba(148,163,184,.16);border-bottom:1px solid rgba(148,163,184,.16);vertical-align:middle}.rank-table td:first-child{border-left:1px solid rgba(148,163,184,.16);border-radius:16px 0 0 16px}.rank-table td:last-child{border-right:1px solid rgba(148,163,184,.16);border-radius:0 16px 16px 0}.place{display:inline-flex;align-items:center;justify-content:center;width:42px;height:42px;border-radius:14px;background:#eff6ff;color:#1d4ed8;font-size:20px;font-weight:900}.place.top{background:#fff7ed;color:#b45309}.unit{font-size:22px;font-weight:900}.muted{color:#64748b;font-size:12px}.score{font-size:24px;font-weight:900}.bar{height:10px;background:#e2e8f0;border-radius:999px;overflow:hidden;margin-top:8px}.bar span{display:block;height:100%;background:linear-gradient(90deg,#22c55e,#16a34a)}.bar.warn span{background:linear-gradient(90deg,#f59e0b,#ef4444)}.pill{display:inline-flex;padding:7px 10px;border-radius:999px;background:#f8fafc;border:1px solid rgba(148,163,184,.16);font-size:12px;font-weight:800;color:#475569}.pill.bad{background:#fef2f2;color:#991b1b}.pill.good{background:#ecfdf5;color:#166534}.empty{padding:38px;text-align:center;color:#64748b}
+        @media (max-width:1000px){.rank-hero,.filters,.summary{grid-template-columns:1fr 1fr}.title{font-size:32px}.rank-table{font-size:13px}}
+        @media (max-width:700px){.rank-shell{padding:14px}.rank-hero,.filters,.summary,.hero-grid{grid-template-columns:1fr}.rank-table{display:block;overflow:auto}.title{font-size:28px}}
+    </style>
+</head>
+<body>
+<div class="rank-shell">
+    <section class="rank-hero">
+        <div>
+            <div class="kicker">Ranking operativo por unidad</div>
+            <div class="title">Ranking de unidades</div>
+            <div class="chips">
+                <span>{{ etiqueta }}</span>
+                <span>{{ inicio|date:"Y-m-d" }} a {{ fin|date:"Y-m-d" }}</span>
+                <span>Basado en salidas, marcacion, puntualidad y paradas</span>
+            </div>
+        </div>
+        <div class="hero-card">
+            <div class="kicker">Promedio general</div>
+            <div class="hero-value">{{ resumen.promedio_puntaje }} pts</div>
+            <div class="hero-grid">
+                <div class="hero-mini"><span>Vueltas</span><b>{{ resumen.vueltas_validas }}</b></div>
+                <div class="hero-mini"><span>Anuladas</span><b>{{ resumen.anuladas }}</b></div>
+            </div>
+        </div>
+    </section>
+
+    <section class="panel">
+        <form class="filters" method="get">
+            <div>
+                <label for="periodo">Periodo</label>
+                <select id="periodo" name="periodo">
+                    <option value="diario" {% if periodo == 'diario' %}selected{% endif %}>Diario</option>
+                    <option value="mensual" {% if periodo == 'mensual' %}selected{% endif %}>Mensual</option>
+                    <option value="anual" {% if periodo == 'anual' %}selected{% endif %}>Anual</option>
+                </select>
+            </div>
+            <div>
+                <label for="fecha">Fecha</label>
+                <input id="fecha" type="date" name="fecha" value="{{ fecha|date:'Y-m-d' }}">
+            </div>
+            <div>
+                <label for="mes">Mes</label>
+                <select id="mes" name="mes">
+                    {% for numero,nombre in meses %}
+                        <option value="{{ numero }}" {% if numero == mes %}selected{% endif %}>{{ nombre }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label for="anio">Anio</label>
+                <select id="anio" name="anio">
+                    {% for item in anios %}
+                        <option value="{{ item }}" {% if item == anio %}selected{% endif %}>{{ item }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <a class="back-btn" href="{% url 'panel_despachador' %}">Volver al panel principal</a>
+            <button type="submit">Aplicar ranking</button>
+        </form>
+    </section>
+
+    <section class="summary">
+        <div class="summary-card"><div class="summary-label">Unidades</div><div class="summary-value">{{ resumen.unidades }}</div><div class="summary-sub">Registradas</div></div>
+        <div class="summary-card"><div class="summary-label">Con movimiento</div><div class="summary-value">{{ resumen.unidades_con_movimiento }}</div><div class="summary-sub">En el periodo</div></div>
+        <div class="summary-card"><div class="summary-label">Vueltas validas</div><div class="summary-value">{{ resumen.vueltas_validas }}</div><div class="summary-sub">Sin anuladas</div></div>
+        <div class="summary-card"><div class="summary-label">Marcacion</div><div class="summary-value">{{ resumen.promedio_marcacion }}%</div><div class="summary-sub">Promedio unidades activas</div></div>
+        <div class="summary-card"><div class="summary-label">Anuladas</div><div class="summary-value">{{ resumen.anuladas }}</div><div class="summary-sub">Penalizan puntaje</div></div>
+    </section>
+
+    <section class="panel">
+        <table class="rank-table">
+            <thead>
+                <tr>
+                    <th>Puesto</th>
+                    <th>Unidad</th>
+                    <th>Puntaje</th>
+                    <th>Vueltas</th>
+                    <th>Marcacion</th>
+                    <th>Puntualidad</th>
+                    <th>Alertas</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in ranking %}
+                    <tr>
+                        <td><span class="place {% if item.puesto <= 3 %}top{% endif %}">{{ item.puesto }}</span></td>
+                        <td>
+                            <div class="unit">Unidad {{ item.codigo }}</div>
+                            <div class="muted">{{ item.placa }}</div>
+                        </td>
+                        <td><div class="score">{{ item.puntaje }}</div><div class="muted">puntos</div></td>
+                        <td><span class="pill good">{{ item.vueltas_validas }} validas</span></td>
+                        <td>
+                            <strong>{{ item.marcacion }}%</strong>
+                            <div class="bar {% if item.marcacion < 90 %}warn{% endif %}"><span style="width:{{ item.marcacion }}%"></span></div>
+                            <div class="muted">{{ item.puntos_marcados }}/{{ item.puntos_total }} puntos</div>
+                        </td>
+                        <td>
+                            <strong>{{ item.puntualidad }}%</strong>
+                            <div class="muted">A tiempo {{ item.a_tiempo }} | Tarde {{ item.tarde }} | Adel. {{ item.adelantado }}</div>
+                        </td>
+                        <td>
+                            {% if item.anuladas %}<span class="pill bad">{{ item.anuladas }} anulada(s)</span>{% endif %}
+                            {% if item.sin_hora %}<span class="pill">{{ item.sin_hora }} sin hora</span>{% endif %}
+                            {% if item.minutos_parada %}<span class="pill bad">{{ item.minutos_parada }} min parada</span>{% endif %}
+                            {% if not item.anuladas and not item.sin_hora and not item.minutos_parada %}<span class="pill good">Sin alertas</span>{% endif %}
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr><td colspan="7"><div class="empty">No hay unidades para mostrar.</div></td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </section>
+</div>
+</body>
+</html>

@@ -39,7 +39,7 @@ from .despacho_views import (
     ver_qr_unidad,
     desbloquear_hora,
 )
-from .reportes_views import reporte_salidas_diarias
+from .reportes_views import ranking_unidades, reporte_salidas_diarias
 
 __all__ = [
     "LoginSistemaView",
@@ -77,7 +77,10 @@ __all__ = [
     "quitar_de_cola",
     "recorrido_vehiculo",
     "reporte_control",
+    "ranking_unidades",
     "reporte_salidas_diarias",
     "ver_qr_unidad",
     "desbloquear_hora",
 ]
+
+

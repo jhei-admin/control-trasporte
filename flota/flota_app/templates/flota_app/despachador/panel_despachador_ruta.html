@@ -938,6 +938,7 @@ width:100%;
     <a href="{% url 'historial_salidas' %}{% if ruta_actual_id %}?ruta={{ ruta_actual_id }}{% endif %}" class="btn btn-dark">Historial</a>
     <a href="{% url 'despachador_mapa' %}" class="btn btn-outline-primary">Mapa en tiempo real</a>
     <a href="{% url 'panel_frecuencia' %}{% if ruta_actual_id %}?ruta={{ ruta_actual_id }}{% endif %}" class="btn btn-outline-success">Frecuencia</a>
+    <a href="{% url 'ranking_unidades' %}?periodo=diario&fecha={{ fecha_operativa_iso }}" class="btn btn-outline-dark">Ranking</a>
     {% if reporte_vehiculo_id %}
       <a id="reportesDiaLink" href="{% url 'reporte_salidas_diarias' reporte_vehiculo_id %}?fecha={{ fecha_operativa_iso }}" class="btn btn-warning">Salidas del dia</a>
     {% else %}
@@ -1547,3 +1548,4 @@ setInterval(monitorearGpsUnidades, GPS_ALERT_POLL_MS)
 iniciarAutoRefreshPanel()
 </script>
 {% endblock %}
+

@@ -64,7 +64,7 @@ from .view_modules.despacho_views import (
     ver_qr_unidad,
     desbloquear_hora,
 )
-from .view_modules.reportes_views import reporte_salidas_diarias
+from .view_modules.reportes_views import ranking_unidades, reporte_salidas_diarias
 
 urlpatterns = [
 
@@ -539,6 +539,12 @@ urlpatterns = [
     # =========================
     # 🟡 REPORTES
     # =========================
+    path(
+        "reportes/ranking/",
+        ranking_unidades,
+        name="ranking_unidades"
+    ),
+
     path(
         "reportes/salidas/<int:vehiculo_id>/",
         reporte_salidas_diarias,
