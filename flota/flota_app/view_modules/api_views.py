@@ -1782,46 +1782,23 @@ def api_app_gerencia_salidas_dia(request):
 
     ahora = timezone.now()
     SesionStaffApp.objects.filter(pk=sesion.pk).update(ultimo_acceso=ahora)
-    contexto = _construir_panel_despachador_contexto(
+    salidas, stats = _serializar_salidas_historicas_app(
         empresa=sesion.empresa,
         fecha_operativa=fecha_operativa,
         ruta_id=request.GET.get("ruta", ""),
-        ahora=ahora,
     )
-    payload = _serializar_panel_despachador(contexto)
 
-    if not payload.get("salidas"):
-        salidas_historicas, stats_historicas = _serializar_salidas_historicas_app(
-            empresa=sesion.empresa,
-            fecha_operativa=fecha_operativa,
-            ruta_id=request.GET.get("ruta", ""),
-        )
-        if salidas_historicas:
-            payload["salidas"] = salidas_historicas
-            payload["stats"] = stats_historicas
-
-    for item in payload["salidas"]:
-        try:
-            salida = next(
-                salida_obj
-                for salida_obj in contexto["salidas"]
-                if salida_obj.id == item["id"]
-            )
-        except StopIteration:
-            continue
-        item["vehiculo_id"] = salida.vehiculo_id
-        item["placa"] = salida.vehiculo.placa
-
-    vueltas_por_unidad = {}
-    for item in payload["salidas"]:
-        vehiculo_id = item.get("vehiculo_id")
-        if not vehiculo_id:
-            continue
-        vuelta = vueltas_por_unidad.get(vehiculo_id, 0) + 1
-        vueltas_por_unidad[vehiculo_id] = vuelta
-        item.setdefault("vuelta", vuelta)
-
-    return JsonResponse(payload)
+    return JsonResponse({
+        "ok": True,
+        "stats": stats,
+        "ruta_actual_id": request.GET.get("ruta", ""),
+        "ruta_actual_nombre": "",
+        "fecha_operativa_iso": fecha_operativa.isoformat(),
+        "hora_actual_hhmm": timezone.localtime(ahora).strftime("%H:%M"),
+        "reporte_vehiculo_id": None,
+        "reporte_url": None,
+        "salidas": salidas,
+    })
 
 
 @require_GET
