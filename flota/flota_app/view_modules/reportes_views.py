@@ -3,13 +3,34 @@ from collections import defaultdict
 from datetime import date, datetime, time
 
 from django.contrib.auth.decorators import login_required
+from django.core.cache import cache
 from django.db.models import Count
-from django.shortcuts import get_object_or_404, render
+from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 
 from ..decorators import empresa_required
 from ..models import MarcacionPunto, Parada, PuntoControl, RegistroSalida, Vehiculo
 
+
+RANKING_CACHE_VERSION = 2
+RANKING_CACHE_TIMEOUTS = {
+    "diario": 15 * 60,
+    "mensual": 60 * 60,
+    "anual": 60 * 60,
+}
+
+
+def _ranking_cache_timeout(periodo, fin):
+    if fin < timezone.localdate():
+        return 24 * 60 * 60
+    return RANKING_CACHE_TIMEOUTS.get(periodo, 60 * 60)
+
+
+def _ranking_cache_key(empresa_id, periodo, inicio, fin):
+    return (
+        f"ranking_unidades:v{RANKING_CACHE_VERSION}:"
+        f"{empresa_id}:{periodo}:{inicio.isoformat()}:{fin.isoformat()}"
+    )
 
 
 def _clave_orden_vehiculo(vehiculo):
@@ -387,7 +408,36 @@ def reporte_salidas_diarias(request, vehiculo_id):
 def ranking_unidades(request):
     empresa = request.empresa
     periodo, anio, mes, fecha, inicio, fin, etiqueta = _periodo_ranking(request)
-    ranking, resumen = _resumen_salidas_periodo(empresa, inicio, fin)
+    cache_key = _ranking_cache_key(empresa.id, periodo, inicio, fin)
+    cache_timeout = _ranking_cache_timeout(periodo, fin)
+    forzar_actualizacion = request.GET.get("actualizar") == "1"
+    datos_cacheados = None if forzar_actualizacion else cache.get(cache_key)
+
+    if datos_cacheados is None:
+        ranking, resumen = _resumen_salidas_periodo(empresa, inicio, fin)
+        actualizado_en = timezone.localtime()
+        cache.set(
+            cache_key,
+            {
+                "ranking": ranking,
+                "resumen": resumen,
+                "actualizado_en": actualizado_en,
+            },
+            cache_timeout,
+        )
+        if forzar_actualizacion:
+            query_params = request.GET.copy()
+            query_params.pop("actualizar", None)
+            query_string = query_params.urlencode()
+            destino = f"{request.path}?{query_string}" if query_string else request.path
+            return redirect(destino)
+        servido_desde_cache = False
+    else:
+        ranking = datos_cacheados["ranking"]
+        resumen = datos_cacheados["resumen"]
+        actualizado_en = datos_cacheados["actualizado_en"]
+        servido_desde_cache = True
+
     anios = list(range(timezone.localdate().year, timezone.localdate().year - 6, -1))
     meses = [
         (1, "Enero"), (2, "Febrero"), (3, "Marzo"), (4, "Abril"),
@@ -410,6 +460,9 @@ def ranking_unidades(request):
             "fin": fin,
             "ranking": ranking,
             "resumen": resumen,
+            "actualizado_en": actualizado_en,
+            "cache_minutos": max(1, int(cache_timeout / 60)),
+            "servido_desde_cache": servido_desde_cache,
         },
     )
 
