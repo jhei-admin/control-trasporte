@@ -127,6 +127,7 @@ def _resumen_salidas_periodo(empresa, inicio, fin):
             "adelantado": 0,
             "omitido": 0,
             "minutos_parada": minutos_parada_por_vehiculo.get(vehiculo.id, 0),
+            "dias_trabajados_set": set(),
         }
         for vehiculo in vehiculos
     }
@@ -156,6 +157,7 @@ def _resumen_salidas_periodo(empresa, inicio, fin):
             continue
 
         item["vueltas_validas"] += 1
+        item["dias_trabajados_set"].add(salida.fecha)
         item["puntos_total"] += total_puntos
         item["puntos_marcados"] += puntos_marcados
         estados = estados_por_salida.get(salida.id, {})
@@ -164,6 +166,9 @@ def _resumen_salidas_periodo(empresa, inicio, fin):
         item["adelantado"] += estados.get("adelantado", 0)
         item["omitido"] += estados.get("omitido", 0)
 
+    max_vueltas_validas = max((item["vueltas_validas"] for item in acumulado.values()), default=0)
+    max_dias_trabajados = max((len(item["dias_trabajados_set"]) for item in acumulado.values()), default=0)
+
     ranking = []
     for item in acumulado.values():
         puntos_total = item["puntos_total"]
@@ -171,17 +176,21 @@ def _resumen_salidas_periodo(empresa, inicio, fin):
         marcacion = int((puntos_marcados / puntos_total) * 100) if puntos_total else 0
         evaluadas = item["a_tiempo"] + item["tarde"] + item["adelantado"] + item["omitido"]
         puntualidad = int((item["a_tiempo"] / evaluadas) * 100) if evaluadas else 0
+        dias_trabajados = len(item["dias_trabajados_set"])
         actividad = item["vueltas_validas"] + item["anuladas"] + item["sin_hora"]
-        vueltas_score = min(100, item["vueltas_validas"] * 8)
+        vueltas_score = int((item["vueltas_validas"] / max_vueltas_validas) * 100) if max_vueltas_validas else 0
+        dias_score = int((dias_trabajados / max_dias_trabajados) * 100) if max_dias_trabajados else 0
+        constancia = int((vueltas_score * 0.75) + (dias_score * 0.25)) if actividad else 0
         descuento_anuladas = min(25, item["anuladas"] * 5)
         descuento_paradas = min(20, item["minutos_parada"] // 5)
         puntaje = 0
         if actividad > 0:
             puntaje = round(
-                (marcacion * 0.45)
-                + (puntualidad * 0.25)
-                + (vueltas_score * 0.20)
-                + 10
+                (vueltas_score * 0.40)
+                + (marcacion * 0.30)
+                + (puntualidad * 0.15)
+                + (dias_score * 0.10)
+                + 5
                 - descuento_anuladas
                 - descuento_paradas,
                 1,
@@ -193,8 +202,11 @@ def _resumen_salidas_periodo(empresa, inicio, fin):
                 "puntualidad": puntualidad,
                 "puntaje": puntaje,
                 "actividad": actividad,
+                "constancia": constancia,
+                "dias_trabajados": dias_trabajados,
             }
         )
+        item.pop("dias_trabajados_set", None)
         ranking.append(item)
 
     ranking.sort(key=lambda row: (-row["puntaje"], -row["vueltas_validas"], _clave_orden_vehiculo(row["vehiculo"])))

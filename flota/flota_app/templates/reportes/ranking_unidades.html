@@ -92,6 +92,7 @@
                     <th>Unidad</th>
                     <th>Puntaje</th>
                     <th>Vueltas</th>
+                    <th>Constancia</th>
                     <th>Marcacion</th>
                     <th>Puntualidad</th>
                     <th>Alertas</th>
@@ -107,6 +108,10 @@
                         </td>
                         <td><div class="score">{{ item.puntaje }}</div><div class="muted">puntos</div></td>
                         <td><span class="pill good">{{ item.vueltas_validas }} validas</span></td>
+                        <td>
+                            <strong>{{ item.constancia }}%</strong>
+                            <div class="muted">{{ item.dias_trabajados }} dia(s)</div>
+                        </td>
                         <td>
                             <strong>{{ item.marcacion }}%</strong>
                             <div class="bar {% if item.marcacion < 90 %}warn{% endif %}"><span style="width:{{ item.marcacion }}%"></span></div>
@@ -124,7 +129,7 @@
                         </td>
                     </tr>
                 {% empty %}
-                    <tr><td colspan="7"><div class="empty">No hay unidades para mostrar.</div></td></tr>
+                    <tr><td colspan="8"><div class="empty">No hay unidades para mostrar.</div></td></tr>
                 {% endfor %}
             </tbody>
         </table>
