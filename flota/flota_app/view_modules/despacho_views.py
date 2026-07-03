@@ -1013,6 +1013,20 @@ def marcar_paso(request, salida_id, punto_id):
     )
     marcacion.marcar()
 
+    ultimo = (
+        PuntoControl.objects.filter(
+            ruta=salida.ruta,
+            activo=True,
+            requiere_marcacion=True,
+        )
+        .order_by("-orden")
+        .first()
+    )
+    if ultimo and punto.id == ultimo.id:
+        salida.finalizar_salida()
+        messages.success(request, "Ultimo punto marcado. Ruta finalizada.")
+        return redirect("detalle_salida", salida_id=salida.id)
+
     messages.success(request, f"Punto {punto.nombre} marcado ({marcacion.estado}).")
     return redirect("control_ruta", salida_id=salida.id)
 

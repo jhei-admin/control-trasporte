@@ -1124,6 +1124,15 @@ def _resolver_marcacion_por_ubicacion(salida, lat, lng, ahora, *, en_retorno=Fal
 
     punto_esperado = pendientes[0]
 
+    ultimo_punto = (
+        PuntoControl.objects
+        .filter(ruta=salida.ruta, activo=True, requiere_marcacion=True)
+        .order_by("-orden")
+        .first()
+    )
+    if ultimo_punto and coincidencia.punto_id == ultimo_punto.id and pendientes_previas:
+        return punto_esperado, [], coincidencia
+
     # En rutas con contexto de retorno solo deben bloquearse los puntos
     # realmente pertenecientes a la fase RET. Los puntos de ida pueden
     # coexistir con ordenes altos y no deben frenarse por compartir corredor.
@@ -1386,6 +1395,8 @@ def api_gps_conductor(request):
     marcacion.marcar(hora=ahora)
     registrar_punto_evento_confirmado(sesion, punto, ahora)
     es_ultimo_punto = salida.siguiente_marcacion() is None
+    if es_ultimo_punto:
+        salida.finalizar_salida()
 
     return JsonResponse({
         "accion": "audio" if (marcacion.audio_flag or es_ultimo_punto) else "visual",
@@ -1413,6 +1424,7 @@ def api_gps_conductor(request):
                 if marcacion.hora_marcada else None
             ),
         },
+        "control_ruta": _serializar_control_ruta(salida),
         "cola_contexto": _construir_cola_contexto_payload(sesion, ahora=ahora),
     })
 
@@ -2388,6 +2400,14 @@ def _construir_cola_contexto_payload(sesion, ahora=None):
     gps_max_delay = timedelta(seconds=60)
     velocidad_promedio = 25
     puntos_ruta = _serializar_puntos_ruta(salida_actual.ruta)
+    ultimo_orden_marcable = max(
+        (
+            punto["orden"]
+            for punto in puntos_ruta
+            if punto.get("requiere_marcacion")
+        ),
+        default=0,
+    )
 
     try:
         ub_actual = UbicacionVehiculo.objects.get(vehiculo=salida_actual.vehiculo)
@@ -2472,6 +2492,15 @@ def _construir_cola_contexto_payload(sesion, ahora=None):
                 max(ultimo_orden, orden_evento),
                 fase_objetivo=fase_objetivo,
             )
+            if (
+                punto_evento_actual
+                and ultimo_orden_marcable
+                and punto_evento_actual["orden"] == ultimo_orden_marcable
+                and salida.marcaciones_pendientes()
+                    .filter(punto__orden__lt=punto_evento_actual["orden"])
+                    .exists()
+            ):
+                punto_evento_actual = None
             if punto_evento_actual and punto_evento_actual["orden"] > referencia_orden:
                 referencia_orden = punto_evento_actual["orden"]
                 referencia_codigo = punto_evento_actual["codigo"]
