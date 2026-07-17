@@ -3842,11 +3842,13 @@ def api_panel_frecuencia(request):
         actual = unidades_panel[index]
         anterior = unidades_panel[index - 1]
         if actual["salida_tiempo"] and anterior["salida_tiempo"]:
-            diff = (actual["salida_tiempo"] - anterior["salida_tiempo"]).total_seconds() / 60
+            actual_minuto = timezone.localtime(actual["salida_tiempo"]).replace(second=0, microsecond=0)
+            anterior_minuto = timezone.localtime(anterior["salida_tiempo"]).replace(second=0, microsecond=0)
+            diff = (actual_minuto - anterior_minuto).total_seconds() / 60
             actual["frecuencia"] = int(diff)
-            if diff > intervalo * 1.5:
+            if actual["frecuencia"] > intervalo * 1.5:
                 actual["hueco"] = True
-            if diff < intervalo * 0.5:
+            if actual["frecuencia"] < intervalo * 0.5:
                 actual["pegado"] = True
 
     if unidades_panel:
