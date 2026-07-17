@@ -30,13 +30,13 @@
 <tr>
 
 <th>Unidad</th>
-<th>Hora</th>
+<th>Hora salida</th>
 
 {% for p in puntos %}
 <th>{{ p.codigo }}</th>
 {% endfor %}
 
-<th>Freq</th>
+<th>Frec salida</th>
 <th>Estado</th>
 
 </tr>
@@ -181,7 +181,7 @@ async function actualizarFrecuencia(){
             let freq=""
 
             if(index === 0){
-                freq="Inicio"
+                freq="Primera"
             }else{
                 freq = fila.frecuencia ? fila.frecuencia + " min" : "-"
             }
