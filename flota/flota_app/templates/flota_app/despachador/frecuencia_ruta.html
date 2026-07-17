@@ -4,14 +4,13 @@
 
 <h2>CONTROL DE FRECUENCIA</h2>
 
-<!-- Botón de regresar al panel -->
 <div style="margin-bottom: 15px;">
     <a href="{% url 'panel_despachador' %}" class="btn btn-secondary">
-        ← Volver al Panel
+        &larr; Volver al Panel
     </a>
 </div>
 
-<div style="margin-bottom: 15px; max-width: 320px;">
+<div style="margin-bottom: 15px; display:flex; gap:10px; max-width: 520px;">
     <select id="rutaFrecuencia" class="form-select">
         <option value="">Seleccionar ruta</option>
         {% for ruta in rutas %}
@@ -20,6 +19,7 @@
         </option>
         {% endfor %}
     </select>
+    <input id="fechaFrecuencia" class="form-control" type="date">
 </div>
 
 <div style="overflow-x:auto">
@@ -30,12 +30,14 @@
 <tr>
 
 <th>Unidad</th>
+<th>Hora</th>
 
 {% for p in puntos %}
 <th>{{ p.codigo }}</th>
 {% endfor %}
 
 <th>Freq</th>
+<th>Estado</th>
 
 </tr>
 </thead>
@@ -43,7 +45,7 @@
 <tbody id="bodyFrecuencia">
 
 <tr>
-<td colspan="{{ puntos|length|add:2 }}" class="text-muted">
+<td colspan="{{ puntos|length|add:4 }}" class="text-muted">
 Cargando datos...
 </td>
 </tr>
@@ -61,9 +63,25 @@ const POLL_INTERVAL_MS = 8000
 let frecuenciaTimer = null
 let frecuenciaCargando = false
 const rutaSelect = document.getElementById("rutaFrecuencia")
+const fechaInput = document.getElementById("fechaFrecuencia")
+
+function fechaLocalISO(){
+    const ahora = new Date()
+    const offsetMs = ahora.getTimezoneOffset() * 60000
+    return new Date(ahora.getTime() - offsetMs).toISOString().slice(0, 10)
+}
+
+if(fechaInput && !fechaInput.value){
+    const params = new URLSearchParams(window.location.search)
+    fechaInput.value = params.get("fecha") || fechaLocalISO()
+}
 
 function obtenerRutaActual(){
     return rutaSelect ? rutaSelect.value : ""
+}
+
+function obtenerFechaActual(){
+    return fechaInput ? fechaInput.value : ""
 }
 
 async function actualizarFrecuencia(){
@@ -75,19 +93,25 @@ async function actualizarFrecuencia(){
 
     try{
         const ruta = obtenerRutaActual()
+        const fecha = obtenerFechaActual()
         const body = document.getElementById("bodyFrecuencia")
 
         if(!ruta){
             body.innerHTML = `
             <tr>
-                <td colspan="20" class="text-muted">
+                <td colspan="22" class="text-muted">
                 Seleccione una ruta para ver la frecuencia
                 </td>
             </tr>`
             return
         }
 
-        const res = await fetch(`/sistema/api/frecuencia/?ruta=${encodeURIComponent(ruta)}`, {
+        const params = new URLSearchParams({ruta})
+        if(fecha){
+            params.set("fecha", fecha)
+        }
+
+        const res = await fetch(`/sistema/api/frecuencia/?${params.toString()}`, {
             cache: "no-store"
         })
 
@@ -103,8 +127,8 @@ async function actualizarFrecuencia(){
 
             body.innerHTML = `
             <tr>
-                <td colspan="20" class="text-muted">
-                No hay unidades activas
+                <td colspan="22" class="text-muted">
+                No hay salidas registradas
                 </td>
             </tr>`
             return
@@ -122,9 +146,14 @@ async function actualizarFrecuencia(){
                 claseFila="table-danger"
             }
 
+            if(fila.finalizada){
+                claseFila="table-secondary"
+            }
+
             let tr = `<tr class="${claseFila}">`
 
             tr += `<td class="fw-bold">${fila.unidad}</td>`
+            tr += `<td>${fila.hora || "-"}</td>`
 
             fila.controles.forEach(v=>{
 
@@ -152,12 +181,20 @@ async function actualizarFrecuencia(){
             let freq=""
 
             if(index === 0){
-                freq="Líder"
+                freq="Inicio"
             }else{
                 freq = fila.frecuencia ? fila.frecuencia + " min" : "-"
             }
 
             tr += `<td><b>${freq}</b></td>`
+
+            let estado = "-"
+            if(fila.estado === "finalizada") estado = "Finalizada"
+            if(fila.estado === "en_ruta") estado = "En ruta"
+            if(fila.estado === "en_cola") estado = "En cola"
+            if(fila.estado === "cerrada") estado = "Cerrada"
+
+            tr += `<td><b>${estado}</b></td>`
 
             tr += "</tr>"
 
@@ -201,6 +238,21 @@ if(rutaSelect){
             url.searchParams.set("ruta", rutaSelect.value)
         }else{
             url.searchParams.delete("ruta")
+        }
+
+        window.history.replaceState({}, "", url)
+        actualizarFrecuencia()
+    })
+}
+
+if(fechaInput){
+    fechaInput.addEventListener("change", ()=>{
+        const url = new URL(window.location.href)
+
+        if(fechaInput.value){
+            url.searchParams.set("fecha", fechaInput.value)
+        }else{
+            url.searchParams.delete("fecha")
         }
 
         window.history.replaceState({}, "", url)

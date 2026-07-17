@@ -3732,6 +3732,12 @@ def api_panel_frecuencia(request):
     hoy = timezone.localdate()
     empresa = request.empresa
     ruta_id = request.GET.get("ruta", "").strip()
+    fecha_param = request.GET.get("fecha", "").strip()
+    try:
+        fecha_operativa = _parse_fecha_panel(fecha_param) if fecha_param else hoy
+    except ValueError:
+        fecha_operativa = hoy
+
     ruta = None
     if ruta_id:
         ruta = PuntoControl.objects.for_empresa(empresa).filter(ruta_id=ruta_id).values_list("ruta_id", flat=True).first()
@@ -3755,7 +3761,7 @@ def api_panel_frecuencia(request):
 
     salidas_qs = (
         RegistroSalida.objects.for_empresa(empresa)
-        .filter(activo=True, fecha=hoy, ruta_id=puntos[0].ruta_id)
+        .filter(fecha=fecha_operativa, ruta_id=puntos[0].ruta_id)
         .select_related("vehiculo", "ruta")
         .annotate(
             ultimo_punto_orden=Max(
@@ -3767,6 +3773,15 @@ def api_panel_frecuencia(request):
     )
 
     salidas = list(salidas_qs)
+    salidas.sort(
+        key=lambda salida: (
+            salida.hora_real_salida
+            or salida.hora_salida
+            or salida.ultimo_tiempo
+            or salida.creado_en
+        )
+    )
+
     marcaciones_por_salida = {}
     if salidas:
         for marcacion in (
@@ -3787,31 +3802,47 @@ def api_panel_frecuencia(request):
 
     unidades_panel = []
     for salida in salidas:
-        if salida.ultimo_punto_orden == max_orden:
-            continue
-
         marcaciones = marcaciones_por_salida.get(salida.id, {})
         controles = []
         for punto in puntos:
             controles.append(marcaciones.get(punto.id))
 
+        salida_tiempo = (
+            salida.hora_real_salida
+            or salida.hora_salida
+            or salida.ultimo_tiempo
+            or salida.creado_en
+        )
+        finalizada = salida.ultimo_punto_orden == max_orden
+        if finalizada:
+            estado = "finalizada"
+        elif salida.activo:
+            estado = "en_ruta"
+        elif salida.en_cola:
+            estado = "en_cola"
+        else:
+            estado = "cerrada"
+
         unidades_panel.append({
             "unidad": salida.vehiculo.codigo,
             "salida_id": salida.id,
+            "hora": timezone.localtime(salida_tiempo).strftime("%H:%M") if salida_tiempo else "",
             "avance": salida.ultimo_punto_orden or 0,
             "ultimo_tiempo": salida.ultimo_tiempo,
+            "salida_tiempo": salida_tiempo,
+            "estado": estado,
+            "finalizada": finalizada,
             "controles": controles,
             "frecuencia": None,
             "hueco": False,
             "pegado": False,
         })
 
-    unidades_panel.sort(key=lambda unidad: unidad["avance"], reverse=True)
     for index in range(1, len(unidades_panel)):
         actual = unidades_panel[index]
         anterior = unidades_panel[index - 1]
-        if actual["ultimo_tiempo"] and anterior["ultimo_tiempo"]:
-            diff = (actual["ultimo_tiempo"] - anterior["ultimo_tiempo"]).total_seconds() / 60
+        if actual["salida_tiempo"] and anterior["salida_tiempo"]:
+            diff = (actual["salida_tiempo"] - anterior["salida_tiempo"]).total_seconds() / 60
             actual["frecuencia"] = int(diff)
             if diff > intervalo * 1.5:
                 actual["hueco"] = True
@@ -3825,6 +3856,7 @@ def api_panel_frecuencia(request):
 
     return JsonResponse({
         "puntos": [punto.codigo for punto in puntos],
+        "fecha": fecha_operativa.isoformat(),
         "data": unidades_panel,
     })
 
