@@ -318,20 +318,10 @@ def _calcular_detalle_salida(salida):
             hora_programada = None
 
         estado = marcacion.estado or "pendiente"
-        diferencia = None
+        diferencia = marcacion.diferencia_minutos
 
         if marcacion.hora_marcada and not hora_programada:
             estado = "sin_hora"
-        elif marcacion.estado == "omitido":
-            diferencia = marcacion.diferencia_minutos
-        elif marcacion.hora_marcada and hora_programada:
-            diferencia = int((marcacion.hora_marcada - hora_programada).total_seconds() / 60)
-            if diferencia < 0:
-                estado = "adelantado"
-            elif diferencia == 0:
-                estado = "a_tiempo"
-            else:
-                estado = "tarde"
 
         if marcacion.hora_marcada:
             completados += 1
@@ -467,17 +457,8 @@ def _construir_historial_salidas_contexto(empresa, desde="", hasta="", ruta_id="
         )
 
         hora_marcada = primera_marcacion.hora_marcada if primera_marcacion else None
-        estado = "pendiente"
-        diferencia = None
-
-        if hora_programada and hora_marcada:
-            diferencia = int((hora_marcada - hora_programada).total_seconds() / 60)
-            if diferencia < 0:
-                estado = "adelantado"
-            elif diferencia == 0:
-                estado = "a_tiempo"
-            else:
-                estado = "tarde"
+        estado = primera_marcacion.estado if primera_marcacion else "pendiente"
+        diferencia = primera_marcacion.diferencia_minutos if primera_marcacion else None
 
         estados[estado] += 1
         historial.append(
