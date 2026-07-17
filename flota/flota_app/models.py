@@ -607,6 +607,13 @@ class MarcacionPunto(models.Model):
         if not self.hora_marcada or not self.hora_programada:
             return
 
+        if (
+            str(getattr(self.punto, "codigo", "") or "").strip().upper() == "COLE"
+            and getattr(self.punto, "orden", None) == 3
+        ):
+            tolerancia_min = 1
+            tolerancia_seg = 0
+
         diff_seconds = (
             self.hora_marcada - self.hora_programada
         ).total_seconds()
