@@ -8,7 +8,7 @@ from django.contrib.auth.decorators import login_required, user_passes_test
 from django.core import signing
 from django.core.exceptions import ValidationError
 from django.db import models, transaction
-from django.db.models import Case, Count, IntegerField, Max, Prefetch, Q, When
+from django.db.models import Case, IntegerField, Max, Prefetch, Q, When
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -202,19 +202,17 @@ def _correr_horas_programadas_al_quitar(salida, empresa):
             hora_salida__gt=hora_liberada,
         )
         .exclude(pk=salida.pk)
-        .annotate(
-            marcaciones_realizadas=Count(
-                "marcaciones",
-                filter=Q(marcaciones__hora_marcada__isnull=False),
-            )
-        )
         .order_by("hora_salida", "hora_llegada", "creado_en")
     )
 
     hora_disponible = hora_liberada
     movidas = 0
     for siguiente in siguientes:
-        if siguiente.hora_real_salida or siguiente.marcaciones_realizadas:
+        tiene_marcaciones = MarcacionPunto.objects.filter(
+            registro_salida=siguiente,
+            hora_marcada__isnull=False,
+        ).exists()
+        if siguiente.hora_real_salida or tiene_marcaciones:
             break
 
         hora_anterior = siguiente.hora_salida
