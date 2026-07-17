@@ -8,7 +8,7 @@ from django.contrib.auth.decorators import login_required, user_passes_test
 from django.core import signing
 from django.core.exceptions import ValidationError
 from django.db import models, transaction
-from django.db.models import Case, IntegerField, Max, Prefetch, Q, When
+from django.db.models import Case, Count, IntegerField, Max, Prefetch, Q, When
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -179,6 +179,60 @@ def _programar_salida(salida, empresa, hora_fija_dt, fecha_operativa=None):
     for marcacion in salida.marcaciones.all():
         marcacion.hora_programada = marcacion.calcular_hora_programada()
         marcacion.save(update_fields=["hora_programada"])
+
+
+def _actualizar_horas_programadas_marcaciones(salida):
+    for marcacion in salida.marcaciones.all():
+        marcacion.hora_programada = marcacion.calcular_hora_programada()
+        marcacion.save(update_fields=["hora_programada"])
+
+
+def _correr_horas_programadas_al_quitar(salida, empresa):
+    hora_liberada = salida.hora_salida
+    if not hora_liberada or not salida.ruta_id:
+        return 0
+
+    siguientes = (
+        RegistroSalida.objects.select_for_update()
+        .for_empresa(empresa)
+        .filter(
+            ruta=salida.ruta,
+            fecha=salida.fecha,
+            activo=True,
+            hora_salida__gt=hora_liberada,
+        )
+        .exclude(pk=salida.pk)
+        .annotate(
+            marcaciones_realizadas=Count(
+                "marcaciones",
+                filter=Q(marcaciones__hora_marcada__isnull=False),
+            )
+        )
+        .order_by("hora_salida", "hora_llegada", "creado_en")
+    )
+
+    hora_disponible = hora_liberada
+    movidas = 0
+    for siguiente in siguientes:
+        if siguiente.hora_real_salida or siguiente.marcaciones_realizadas:
+            break
+
+        hora_anterior = siguiente.hora_salida
+        siguiente.hora_fija = hora_disponible
+        siguiente.hora_salida = hora_disponible
+        siguiente.bloqueado = True
+        siguiente.save(update_fields=["hora_fija", "hora_salida", "bloqueado"])
+        _actualizar_horas_programadas_marcaciones(siguiente)
+
+        hora_disponible = hora_anterior
+        movidas += 1
+
+    salida.hora_fija = None
+    salida.hora_salida = None
+    salida.bloqueado = False
+    salida.save(update_fields=["hora_fija", "hora_salida", "bloqueado"])
+    _actualizar_horas_programadas_marcaciones(salida)
+    return movidas
 
 
 def _construir_panel_despachador_contexto(empresa, fecha_operativa, ruta_id="", ahora=None):
@@ -869,31 +923,37 @@ def asignar_hora_fija(request, salida_id):
 @require_POST
 def desbloquear_hora(request, salida_id):
     empresa = request.empresa
-    salida = get_object_or_404(
-        RegistroSalida,
-        id=salida_id,
-        vehiculo__empresa=empresa,
-    )
+    with transaction.atomic():
+        salida = get_object_or_404(
+            RegistroSalida.objects.select_for_update(),
+            id=salida_id,
+            vehiculo__empresa=empresa,
+        )
 
-    marco_sali = MarcacionPunto.objects.filter(
-        registro_salida=salida,
-        punto__codigo="SALI",
-        hora_marcada__isnull=False,
-    ).exists()
+        marco_sali = MarcacionPunto.objects.filter(
+            registro_salida=salida,
+            punto__codigo="SALI",
+            hora_marcada__isnull=False,
+        ).exists()
 
-    if marco_sali:
-        salida.activo = False
-        salida.en_cola = False
-        salida.orden_cola = None
-        salida.save(update_fields=["activo", "en_cola", "orden_cola"])
-        recalcular_cola(empresa=empresa)
-        messages.success(request, "Ruta activa finalizada por despachador.")
-        return redirect_panel_despachador(request, ruta_id=salida.ruta_id)
+        if marco_sali:
+            salida.activo = False
+            salida.en_cola = False
+            salida.orden_cola = None
+            salida.save(update_fields=["activo", "en_cola", "orden_cola"])
+            recalcular_cola(empresa=empresa)
+            messages.success(request, "Ruta activa finalizada por despachador.")
+            return redirect_panel_despachador(request, ruta_id=salida.ruta_id)
 
-    salida.hora_salida = None
-    salida.bloqueado = False
-    salida.save(update_fields=["hora_salida", "bloqueado"])
-    messages.success(request, "Salida cancelada. Unidad nuevamente SIN HORA.")
+        movidas = _correr_horas_programadas_al_quitar(salida, empresa)
+
+    if movidas:
+        messages.success(
+            request,
+            f"Salida cancelada. Se reacomodaron {movidas} hora(s) programada(s) para mantener la frecuencia.",
+        )
+    else:
+        messages.success(request, "Salida cancelada. Unidad nuevamente SIN HORA.")
     return redirect_panel_despachador(request, ruta_id=salida.ruta_id)
 
 
