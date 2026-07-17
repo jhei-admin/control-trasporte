@@ -1096,10 +1096,25 @@ def _asegurar_marcaciones_salida(salida):
 
 
 def _resolver_marcacion_por_ubicacion(salida, lat, lng, ahora, *, en_retorno=False):
+    pendientes_globales = list(salida.marcaciones_pendientes())
+    ultimo_punto = (
+        PuntoControl.objects
+        .filter(ruta=salida.ruta, activo=True, requiere_marcacion=True)
+        .order_by("-orden")
+        .first()
+    )
+    if len(pendientes_globales) == 1 and ultimo_punto:
+        unica_pendiente = pendientes_globales[0]
+        if unica_pendiente.punto_id == ultimo_punto.id:
+            punto = unica_pendiente.punto
+            distancia = distancia_metros(lat, lng, float(punto.latitud), float(punto.longitud))
+            if distancia <= punto.radio_metros:
+                return unica_pendiente, [], None
+
     fase_objetivo = PuntoControl.FASE_RETORNO if en_retorno else PuntoControl.FASE_IDA
     pendientes = [
         marcacion
-        for marcacion in salida.marcaciones_pendientes()
+        for marcacion in pendientes_globales
         if getattr(marcacion.punto, "fase", PuntoControl.FASE_IDA) == fase_objetivo
     ]
     if not pendientes:
@@ -1124,12 +1139,6 @@ def _resolver_marcacion_por_ubicacion(salida, lat, lng, ahora, *, en_retorno=Fal
 
     punto_esperado = pendientes[0]
 
-    ultimo_punto = (
-        PuntoControl.objects
-        .filter(ruta=salida.ruta, activo=True, requiere_marcacion=True)
-        .order_by("-orden")
-        .first()
-    )
     if ultimo_punto and coincidencia.punto_id == ultimo_punto.id and pendientes_previas:
         return punto_esperado, [], coincidencia
 
