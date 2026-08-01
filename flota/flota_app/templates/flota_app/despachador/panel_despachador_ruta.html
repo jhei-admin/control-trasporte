@@ -524,6 +524,10 @@ border:1px solid rgba(148,163,184,.18);
 margin-bottom:18px;
 }
 
+.message-console.is-hidden{
+display:none;
+}
+
 .message-console h3{
 margin:0;
 font-size:20px;
@@ -1007,9 +1011,10 @@ width:100%;
     {% else %}
       <button id="reportesDiaLink" class="btn btn-warning" disabled>Salidas del dia</button>
     {% endif %}
+    <button type="button" id="toggleMessagePanel" class="btn btn-primary" aria-expanded="false" aria-controls="messageConsole">Mensaje</button>
   </section>
 
-  <section class="message-console">
+  <section class="message-console is-hidden" id="messageConsole">
     <div>
       <h3>Comunicados a conductores</h3>
       <p>Envio rapido a todas las unidades de la empresa o a una unidad especifica.</p>
@@ -1202,8 +1207,22 @@ const gpsAlertClear = document.getElementById("gpsAlertClear")
 let gpsAlerts = leerJsonLocal(GPS_ALERTS_STORAGE_KEY, [])
 let gpsStatusByUnit = leerJsonLocal(GPS_STATUS_STORAGE_KEY, {})
 
+const toggleMessagePanel = document.getElementById("toggleMessagePanel")
+const messageConsole = document.getElementById("messageConsole")
+const mensajeTexto = document.getElementById("mensajeTexto")
 const mensajeDestino = document.getElementById("mensajeDestino")
 const mensajeUnidad = document.getElementById("mensajeUnidad")
+if(toggleMessagePanel && messageConsole){
+  toggleMessagePanel.addEventListener("click", () => {
+    const isHidden = messageConsole.classList.toggle("is-hidden")
+    toggleMessagePanel.setAttribute("aria-expanded", String(!isHidden))
+    toggleMessagePanel.textContent = isHidden ? "Mensaje" : "Ocultar mensaje"
+    if(!isHidden && mensajeTexto){
+      mensajeTexto.focus()
+    }
+  })
+}
+
 if(mensajeDestino && mensajeUnidad){
   const actualizarDestinoMensaje = () => {
     const requiereUnidad = mensajeDestino.value === "unidad"
