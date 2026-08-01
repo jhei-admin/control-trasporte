@@ -636,6 +636,16 @@ def enviar_mensaje_panel(request):
         destino = "todos"
 
     hoy = timezone.localdate()
+    mensajes_previos = MensajeGlobal.objects.filter(
+        empresa=empresa,
+        activo=True,
+    )
+    if vehiculo:
+        mensajes_previos = mensajes_previos.filter(vehiculo=vehiculo)
+    else:
+        mensajes_previos = mensajes_previos.filter(vehiculo__isnull=True)
+    mensajes_previos.update(activo=False)
+
     MensajeGlobal.objects.create(
         empresa=empresa,
         vehiculo=vehiculo,
@@ -662,8 +672,16 @@ def quitar_mensaje_panel(request, mensaje_id):
         MensajeGlobal.objects.filter(empresa=request.empresa, activo=True),
         pk=mensaje_id,
     )
-    mensaje.activo = False
-    mensaje.save(update_fields=["activo"])
+    mensajes_a_retirar = MensajeGlobal.objects.filter(
+        empresa=request.empresa,
+        activo=True,
+        updated_at__lte=mensaje.updated_at,
+    )
+    if mensaje.vehiculo_id:
+        mensajes_a_retirar = mensajes_a_retirar.filter(vehiculo=mensaje.vehiculo)
+    else:
+        mensajes_a_retirar = mensajes_a_retirar.filter(vehiculo__isnull=True)
+    mensajes_a_retirar.update(activo=False)
     messages.success(request, "Comunicado retirado de la app del conductor.")
     return redirect_panel_despachador(request)
 

@@ -2976,6 +2976,16 @@ class PanelDespachadorApiTests(BaseFlotaTestCase):
         self.assertEqual(mensaje.repeticiones_audio, 4)
 
     def test_panel_envia_mensaje_a_unidad_especifica(self):
+        hoy = timezone.localdate()
+        previo = MensajeGlobal.objects.create(
+            empresa=self.empresa,
+            vehiculo=self.vehiculo_2,
+            texto="Aviso anterior",
+            activo=True,
+            fecha_inicio=hoy,
+            fecha_fin=hoy,
+        )
+
         response = self.client.post(
             reverse("enviar_mensaje_panel"),
             {
@@ -2990,6 +3000,8 @@ class PanelDespachadorApiTests(BaseFlotaTestCase):
         mensaje = MensajeGlobal.objects.get(texto="Unidad 02 llamar a central")
         self.assertEqual(mensaje.empresa, self.empresa)
         self.assertEqual(mensaje.vehiculo, self.vehiculo_2)
+        previo.refresh_from_db()
+        self.assertFalse(previo.activo)
 
     def test_panel_muestra_mensajes_activos(self):
         hoy = timezone.localdate()
@@ -3012,6 +3024,13 @@ class PanelDespachadorApiTests(BaseFlotaTestCase):
 
     def test_panel_quita_mensaje_activo(self):
         hoy = timezone.localdate()
+        anterior = MensajeGlobal.objects.create(
+            empresa=self.empresa,
+            texto="Aviso anterior",
+            activo=True,
+            fecha_inicio=hoy,
+            fecha_fin=hoy,
+        )
         mensaje = MensajeGlobal.objects.create(
             empresa=self.empresa,
             texto="Retirar aviso",
@@ -3024,7 +3043,36 @@ class PanelDespachadorApiTests(BaseFlotaTestCase):
 
         self.assertEqual(response.status_code, 302)
         mensaje.refresh_from_db()
+        anterior.refresh_from_db()
         self.assertFalse(mensaje.activo)
+        self.assertFalse(anterior.activo)
+
+    def test_panel_quita_mensaje_antiguo_no_retira_uno_mas_nuevo(self):
+        hoy = timezone.localdate()
+        antiguo = MensajeGlobal.objects.create(
+            empresa=self.empresa,
+            vehiculo=self.vehiculo_1,
+            texto="Aviso antiguo",
+            activo=True,
+            fecha_inicio=hoy,
+            fecha_fin=hoy,
+        )
+        nuevo = MensajeGlobal.objects.create(
+            empresa=self.empresa,
+            vehiculo=self.vehiculo_1,
+            texto="Aviso nuevo",
+            activo=True,
+            fecha_inicio=hoy,
+            fecha_fin=hoy,
+        )
+
+        response = self.client.post(reverse("quitar_mensaje_panel", args=[antiguo.id]))
+
+        self.assertEqual(response.status_code, 302)
+        antiguo.refresh_from_db()
+        nuevo.refresh_from_db()
+        self.assertFalse(antiguo.activo)
+        self.assertTrue(nuevo.activo)
 
 
 class DispatcherLiveApisTests(BaseFlotaTestCase):
