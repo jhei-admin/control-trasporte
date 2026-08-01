@@ -110,6 +110,13 @@ class Vehiculo(models.Model):
         help_text="Mensaje visible en la APK cuando el servicio esta suspendido."
     )
 
+    soporte_suspension = models.CharField(
+        max_length=120,
+        blank=True,
+        default="Soporte: 970 183 281",
+        help_text="Linea de soporte visible en la APK cuando el servicio esta suspendido."
+    )
+
     fecha_alta = models.DateField(auto_now_add=True)
     fecha_baja = models.DateField(null=True, blank=True)
 

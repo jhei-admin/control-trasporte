@@ -311,6 +311,29 @@ class ApiSecurityAndIsolationTests(BaseFlotaTestCase):
         self.assertEqual(data["comunicado_id"], mensaje.id)
         self.assertEqual(data["comunicado_repeticiones"], 3)
 
+    def test_api_app_estado_envia_soporte_suspension_editable(self):
+        self.vehiculo_1.servicio_suspendido = True
+        self.vehiculo_1.mensaje_suspension = "Comuniquese con caja."
+        self.vehiculo_1.soporte_suspension = "WhatsApp caja: 999 888 777"
+        self.vehiculo_1.save(
+            update_fields=[
+                "servicio_suspendido",
+                "mensaje_suspension",
+                "soporte_suspension",
+            ]
+        )
+
+        response = self.client.post(
+            reverse("api_app_estado"),
+            HTTP_AUTHORIZATION=f"Bearer {self.sesion.token}",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["estado"], "SUSPENDIDO_PAGO")
+        self.assertEqual(data["mensaje"], "Comuniquese con caja.")
+        self.assertEqual(data["soporte_suspension"], "WhatsApp caja: 999 888 777")
+
     def test_mapa_muestra_unidades_offline_de_la_empresa(self):
         UbicacionVehiculo.objects.create(
             vehiculo=self.vehiculo_1,

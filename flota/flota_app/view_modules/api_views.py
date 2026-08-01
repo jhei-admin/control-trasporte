@@ -2780,6 +2780,11 @@ def _mensaje_servicio_suspendido(vehiculo):
     return mensaje or "Servicio suspendido. Comuníquese con administración."
 
 
+def _soporte_servicio_suspendido(vehiculo):
+    soporte = str(getattr(vehiculo, "soporte_suspension", "") or "").strip()
+    return soporte or "Soporte: 970 183 281"
+
+
 def _payload_servicio_suspendido(vehiculo, estado_gps="SUSPENDIDO"):
     return {
         "autorizado": False,
@@ -2790,6 +2795,7 @@ def _payload_servicio_suspendido(vehiculo, estado_gps="SUSPENDIDO"):
         "minutos": None,
         "unidad": vehiculo.codigo,
         "mensaje": _mensaje_servicio_suspendido(vehiculo),
+        "soporte_suspension": _soporte_servicio_suspendido(vehiculo),
     }
 
 
