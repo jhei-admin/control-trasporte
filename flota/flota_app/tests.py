@@ -311,6 +311,28 @@ class ApiSecurityAndIsolationTests(BaseFlotaTestCase):
         self.assertEqual(data["comunicado_id"], mensaje.id)
         self.assertEqual(data["comunicado_repeticiones"], 3)
 
+    def test_api_app_estado_muestra_mensaje_para_todas_las_unidades(self):
+        hoy = timezone.localdate()
+        mensaje = MensajeGlobal.objects.create(
+            empresa=self.empresa,
+            texto="Atencion, ruta con desvio por obras",
+            repeticiones_audio=2,
+            activo=True,
+            fecha_inicio=hoy,
+            fecha_fin=hoy,
+        )
+
+        response = self.client.post(
+            reverse("api_app_estado"),
+            HTTP_AUTHORIZATION=f"Bearer {self.sesion.token}",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["comunicado"], "Atencion, ruta con desvio por obras")
+        self.assertEqual(data["comunicado_id"], mensaje.id)
+        self.assertEqual(data["comunicado_repeticiones"], 2)
+
     def test_api_app_estado_envia_soporte_suspension_editable(self):
         self.vehiculo_1.servicio_suspendido = True
         self.vehiculo_1.mensaje_suspension = "Comuniquese con caja."
