@@ -4121,6 +4121,84 @@ class MarcacionToleranciaTests(BaseFlotaTestCase):
         self.assertEqual(marcacion.estado, "adelantado")
         self.assertEqual(marcacion.diferencia_minutos, -1)
 
+    def test_cole_mantiene_a_tiempo_en_limite_de_tolerancia(self):
+        punto_cole = PuntoControl.objects.create(
+            ruta=self.ruta_a,
+            codigo="COLE",
+            nombre="Colegio",
+            latitud=-16.402000,
+            longitud=-71.502000,
+            radio_metros=60,
+            orden=3,
+            offset_minutos=0,
+            requiere_marcacion=True,
+            activo=True,
+        )
+        programada = timezone.now().replace(microsecond=0)
+        marcacion = MarcacionPunto(
+            registro_salida=self.salida,
+            punto=punto_cole,
+            hora_programada=programada,
+            hora_marcada=programada + timedelta(minutes=1),
+        )
+
+        marcacion.evaluar_estado()
+
+        self.assertEqual(marcacion.estado, "a_tiempo")
+        self.assertEqual(marcacion.diferencia_minutos, 0)
+
+    def test_cole_marca_tarde_un_minuto_despues_de_tolerancia(self):
+        punto_cole = PuntoControl.objects.create(
+            ruta=self.ruta_a,
+            codigo="COLE",
+            nombre="Colegio",
+            latitud=-16.403000,
+            longitud=-71.503000,
+            radio_metros=60,
+            orden=3,
+            offset_minutos=0,
+            requiere_marcacion=True,
+            activo=True,
+        )
+        programada = timezone.now().replace(microsecond=0)
+        marcacion = MarcacionPunto(
+            registro_salida=self.salida,
+            punto=punto_cole,
+            hora_programada=programada,
+            hora_marcada=programada + timedelta(minutes=1, seconds=10),
+        )
+
+        marcacion.evaluar_estado()
+
+        self.assertEqual(marcacion.estado, "tarde")
+        self.assertEqual(marcacion.diferencia_minutos, 1)
+
+    def test_cole_marca_adelantado_un_minuto_antes_de_tolerancia(self):
+        punto_cole = PuntoControl.objects.create(
+            ruta=self.ruta_a,
+            codigo="COLE",
+            nombre="Colegio",
+            latitud=-16.404000,
+            longitud=-71.504000,
+            radio_metros=60,
+            orden=3,
+            offset_minutos=0,
+            requiere_marcacion=True,
+            activo=True,
+        )
+        programada = timezone.now().replace(microsecond=0)
+        marcacion = MarcacionPunto(
+            registro_salida=self.salida,
+            punto=punto_cole,
+            hora_programada=programada,
+            hora_marcada=programada - timedelta(minutes=1, seconds=10),
+        )
+
+        marcacion.evaluar_estado()
+
+        self.assertEqual(marcacion.estado, "adelantado")
+        self.assertEqual(marcacion.diferencia_minutos, -1)
+
 
 class AuditoriaPreproduccionTests(TestCase):
     @override_settings(

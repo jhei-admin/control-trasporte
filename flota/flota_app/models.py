@@ -623,9 +623,15 @@ class MarcacionPunto(models.Model):
         if abs(diff_seconds) <= tolerancia_total_seg:
             diff = 0
         elif diff_seconds < 0:
-            diff = math.floor(diff_seconds / 60)
+            diff = -max(
+                1,
+                math.floor((abs(diff_seconds) - tolerancia_total_seg) / 60) + 1,
+            )
         elif diff_seconds > 0:
-            diff = math.ceil(diff_seconds / 60)
+            diff = max(
+                1,
+                math.floor((diff_seconds - tolerancia_total_seg) / 60) + 1,
+            )
         else:
             diff = 0
 
