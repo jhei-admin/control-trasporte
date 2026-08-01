@@ -597,6 +597,12 @@ def enviar_mensaje_panel(request):
         dias = 1
     dias = min(max(dias, 1), 7)
 
+    try:
+        repeticiones_audio = int(request.POST.get("repeticiones_audio", "1"))
+    except (TypeError, ValueError):
+        repeticiones_audio = 1
+    repeticiones_audio = min(max(repeticiones_audio, 1), 5)
+
     if not texto:
         messages.error(request, "Ingrese el mensaje para la app del conductor.")
         return redirect_panel_despachador(request)
@@ -625,6 +631,7 @@ def enviar_mensaje_panel(request):
         activo=True,
         fecha_inicio=hoy,
         fecha_fin=hoy + timedelta(days=dias - 1),
+        repeticiones_audio=repeticiones_audio,
     )
 
     if vehiculo:

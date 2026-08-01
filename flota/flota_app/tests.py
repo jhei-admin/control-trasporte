@@ -292,6 +292,7 @@ class ApiSecurityAndIsolationTests(BaseFlotaTestCase):
             empresa=self.empresa,
             vehiculo=self.vehiculo_1,
             texto="Pasar por oficina",
+            repeticiones_audio=3,
             activo=True,
             fecha_inicio=hoy,
             fecha_fin=hoy,
@@ -308,6 +309,7 @@ class ApiSecurityAndIsolationTests(BaseFlotaTestCase):
         self.assertEqual(data["mensaje"], "Espere orden de salida")
         self.assertEqual(data["comunicado"], "Pasar por oficina")
         self.assertEqual(data["comunicado_id"], mensaje.id)
+        self.assertEqual(data["comunicado_repeticiones"], 3)
 
     def test_mapa_muestra_unidades_offline_de_la_empresa(self):
         UbicacionVehiculo.objects.create(
@@ -2936,6 +2938,7 @@ class PanelDespachadorApiTests(BaseFlotaTestCase):
                 "destino": "todos",
                 "texto": "Circular con luces encendidas",
                 "dias": "2",
+                "repeticiones_audio": "4",
                 "current_ruta_id": self.ruta_a.id,
                 "current_fecha": hoy.isoformat(),
             },
@@ -2947,6 +2950,7 @@ class PanelDespachadorApiTests(BaseFlotaTestCase):
         self.assertIsNone(mensaje.vehiculo)
         self.assertEqual(mensaje.fecha_inicio, hoy)
         self.assertEqual(mensaje.fecha_fin, hoy + timedelta(days=1))
+        self.assertEqual(mensaje.repeticiones_audio, 4)
 
     def test_panel_envia_mensaje_a_unidad_especifica(self):
         response = self.client.post(

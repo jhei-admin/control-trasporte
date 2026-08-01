@@ -932,6 +932,7 @@ class MensajeGlobalAdmin(admin.ModelAdmin):
         "empresa",
         "vehiculo",
         "texto",
+        "repeticiones_audio",
         "activo",
         "fecha_inicio",
         "fecha_fin",

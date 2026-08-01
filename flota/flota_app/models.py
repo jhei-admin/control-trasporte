@@ -1180,6 +1180,11 @@ class MensajeGlobal(models.Model):
         help_text="Mensaje mostrado en la app"
     )
 
+    repeticiones_audio = models.PositiveSmallIntegerField(
+        default=1,
+        help_text="Cantidad de veces que la app lee el comunicado por audio.",
+    )
+
     activo = models.BooleanField(default=True)
 
     fecha_inicio = models.DateField()
