@@ -12,7 +12,7 @@ from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.core import signing
 from django.db import IntegrityError
-from django.db.models import Max, Q, Sum
+from django.db.models import Case, IntegerField, Max, Q, Sum, When
 from django.http import FileResponse, Http404, HttpResponseRedirect, JsonResponse
 from django.shortcuts import get_object_or_404, render
 from django.urls import reverse
@@ -750,6 +750,37 @@ def _serializar_mensaje(item):
             else item.creado_en.isoformat()
         ),
     }
+
+
+def _mensaje_activo_para_vehiculo(vehiculo, hoy=None):
+    hoy = hoy or timezone.localdate()
+    return (
+        MensajeGlobal.objects.filter(
+            activo=True,
+            fecha_inicio__lte=hoy,
+            fecha_fin__gte=hoy,
+        )
+        .filter(
+            Q(vehiculo=vehiculo)
+            | Q(vehiculo__isnull=True, empresa=vehiculo.empresa)
+            | Q(vehiculo__isnull=True, empresa__isnull=True)
+        )
+        .annotate(
+            prioridad=Case(
+                When(vehiculo=vehiculo, then=0),
+                When(vehiculo__isnull=True, empresa=vehiculo.empresa, then=1),
+                default=2,
+                output_field=IntegerField(),
+            )
+        )
+        .select_related("empresa", "vehiculo")
+        .order_by("prioridad", "-updated_at", "-id")
+        .first()
+    )
+
+
+def _texto_estado_app(texto_respaldo, mensaje_activo):
+    return mensaje_activo.texto if mensaje_activo else texto_respaldo
 
 
 def actualizar_heartbeat(sesion, ahora):
@@ -2674,17 +2705,7 @@ def api_heartbeat(request):
 
     hoy = timezone.localdate()
 
-    mensaje = (
-        MensajeGlobal.objects.filter(
-            activo=True,
-            fecha_inicio__lte=hoy,
-            fecha_fin__gte=hoy,
-        )
-        .filter(Q(empresa=sesion.vehiculo.empresa) | Q(empresa__isnull=True))
-        .order_by("-updated_at", "-id")
-        .only("id", "texto", "updated_at", "creado_en")
-        .first()
-    )
+    mensaje = _mensaje_activo_para_vehiculo(sesion.vehiculo, hoy)
 
     respuesta = {
         "ok": True,
@@ -3088,6 +3109,7 @@ def api_app_estado(request):
         return JsonResponse(_payload_servicio_suspendido(sesion.vehiculo, estado_gps))
 
     hoy = timezone.localdate()
+    mensaje_activo = _mensaje_activo_para_vehiculo(sesion.vehiculo, hoy)
     salida = (
         RegistroSalida.objects.for_empresa(sesion.vehiculo.empresa)
         .filter(vehiculo=sesion.vehiculo, fecha=hoy, activo=True)
@@ -3105,7 +3127,7 @@ def api_app_estado(request):
             "estado_gps": estado_gps,
             "bloqueado": False,
             "hora_salida": None,
-            "mensaje": "Espere orden de salida",
+            "mensaje": _texto_estado_app("Espere orden de salida", mensaje_activo),
         })
 
     if not salida.hora_salida:
@@ -3115,7 +3137,7 @@ def api_app_estado(request):
             "estado_gps": estado_gps,
             "bloqueado": False,
             "hora_salida": None,
-            "mensaje": "Esperando asignacion de hora",
+            "mensaje": _texto_estado_app("Esperando asignacion de hora", mensaje_activo),
         })
 
     tz = timezone.get_current_timezone()
@@ -3129,7 +3151,7 @@ def api_app_estado(request):
             "estado_gps": estado_gps,
             "bloqueado": False,
             "hora_salida": hora_salida.strftime("%H:%M"),
-            "mensaje": "Salida programada para otro dia",
+            "mensaje": _texto_estado_app("Salida programada para otro dia", mensaje_activo),
         })
 
     segundos = (hora_salida - ahora).total_seconds()
@@ -3143,7 +3165,7 @@ def api_app_estado(request):
                 "estado_gps": estado_gps,
                 "bloqueado": False,
                 "hora_salida": hora_salida.strftime("%H:%M"),
-                "mensaje": "Salida activa",
+                "mensaje": _texto_estado_app("Salida activa", mensaje_activo),
             })
 
         return JsonResponse({
@@ -3153,7 +3175,7 @@ def api_app_estado(request):
             "bloqueado": False,
             "hora_salida": hora_salida.strftime("%H:%M"),
             "minutos": minutos,
-            "mensaje": "Unidad en cola",
+            "mensaje": _texto_estado_app("Unidad en cola", mensaje_activo),
         })
 
     if salida.hora_real_salida:
@@ -3167,7 +3189,7 @@ def api_app_estado(request):
             "estado_gps": estado_gps,
             "bloqueado": False,
             "hora_salida": hora_salida.strftime("%H:%M"),
-            "mensaje": "Salida activa",
+            "mensaje": _texto_estado_app("Salida activa", mensaje_activo),
         })
 
     return JsonResponse({
@@ -3176,7 +3198,7 @@ def api_app_estado(request):
         "estado_gps": estado_gps,
         "bloqueado": False,
         "hora_salida": hora_salida.strftime("%H:%M"),
-        "mensaje": "Unidad en cola",
+        "mensaje": _texto_estado_app("Unidad en cola", mensaje_activo),
     })
 
 
@@ -3534,8 +3556,16 @@ def api_app_mensajes(request):
             | Q(vehiculo__isnull=True, empresa=sesion.vehiculo.empresa)
             | Q(vehiculo__isnull=True, empresa__isnull=True)
         )
+        .annotate(
+            prioridad=Case(
+                When(vehiculo=sesion.vehiculo, then=0),
+                When(vehiculo__isnull=True, empresa=sesion.vehiculo.empresa, then=1),
+                default=2,
+                output_field=IntegerField(),
+            )
+        )
         .select_related("empresa", "vehiculo")
-        .order_by("-updated_at", "-id")
+        .order_by("prioridad", "-updated_at", "-id")
     )
 
     mensajes = [_serializar_mensaje(item) for item in mensajes_qs]

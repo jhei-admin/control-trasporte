@@ -515,6 +515,69 @@ padding:10px 14px;
 font-weight:700;
 }
 
+.message-console{
+background:#fff;
+border-radius:20px;
+padding:18px;
+box-shadow:0 12px 28px rgba(15,23,42,.08);
+border:1px solid rgba(148,163,184,.18);
+margin-bottom:18px;
+}
+
+.message-console h3{
+margin:0;
+font-size:20px;
+}
+
+.message-console p{
+margin:6px 0 0;
+color:#64748b;
+font-size:13px;
+}
+
+.message-form{
+display:grid;
+grid-template-columns:minmax(150px,180px) minmax(150px,200px) minmax(240px,1fr) minmax(110px,140px) auto;
+gap:12px;
+align-items:end;
+margin-top:14px;
+}
+
+.message-form label{
+display:block;
+font-size:12px;
+font-weight:800;
+letter-spacing:.06em;
+text-transform:uppercase;
+color:#475569;
+margin-bottom:6px;
+}
+
+.message-form input,
+.message-form select{
+height:44px;
+border-radius:12px;
+}
+
+.message-form button{
+height:44px;
+border-radius:12px;
+font-weight:800;
+white-space:nowrap;
+}
+
+@media (max-width: 980px){
+  .message-form{
+    grid-template-columns:1fr 1fr;
+  }
+}
+
+@media (max-width: 640px){
+  .message-form{
+    grid-template-columns:1fr;
+  }
+}
+
 .table-shell{
 background:#fff;
 border-radius:20px;
@@ -946,6 +1009,52 @@ width:100%;
     {% endif %}
   </section>
 
+  <section class="message-console">
+    <div>
+      <h3>Comunicados a conductores</h3>
+      <p>Envio rapido a todas las unidades de la empresa o a una unidad especifica.</p>
+    </div>
+    <form method="post" action="{% url 'enviar_mensaje_panel' %}" class="message-form" id="driverMessageForm" autocomplete="off">
+      {% csrf_token %}
+      <input type="hidden" name="current_ruta_id" value="{{ ruta_actual_id }}">
+      <input type="hidden" name="current_fecha" value="{{ fecha_operativa_iso }}">
+
+      <div>
+        <label for="mensajeDestino">Destino</label>
+        <select id="mensajeDestino" name="destino" class="form-select">
+          <option value="todos">Todas</option>
+          <option value="unidad">Unidad</option>
+        </select>
+      </div>
+
+      <div>
+        <label for="mensajeUnidad">Unidad</label>
+        <select id="mensajeUnidad" name="vehiculo_id" class="form-select" disabled>
+          <option value="">Seleccione</option>
+          {% for vehiculo in vehiculos_mensaje %}
+            <option value="{{ vehiculo.id }}">{{ vehiculo.codigo }}{% if vehiculo.placa %} - {{ vehiculo.placa }}{% endif %}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div>
+        <label for="mensajeTexto">Mensaje</label>
+        <input id="mensajeTexto" name="texto" class="form-control" maxlength="240" placeholder="Ej: Atencion, ruta con desvio por obras" required>
+      </div>
+
+      <div>
+        <label for="mensajeDias">Vigencia</label>
+        <select id="mensajeDias" name="dias" class="form-select">
+          <option value="1">Hoy</option>
+          <option value="2">2 dias</option>
+          <option value="7">7 dias</option>
+        </select>
+      </div>
+
+      <button type="submit" class="btn btn-primary">Enviar</button>
+    </form>
+  </section>
+
   <section class="table-shell">
     <div class="table-head">
       <div>
@@ -1092,6 +1201,21 @@ const gpsAlertList = document.getElementById("gpsAlertList")
 const gpsAlertClear = document.getElementById("gpsAlertClear")
 let gpsAlerts = leerJsonLocal(GPS_ALERTS_STORAGE_KEY, [])
 let gpsStatusByUnit = leerJsonLocal(GPS_STATUS_STORAGE_KEY, {})
+
+const mensajeDestino = document.getElementById("mensajeDestino")
+const mensajeUnidad = document.getElementById("mensajeUnidad")
+if(mensajeDestino && mensajeUnidad){
+  const actualizarDestinoMensaje = () => {
+    const requiereUnidad = mensajeDestino.value === "unidad"
+    mensajeUnidad.disabled = !requiereUnidad
+    mensajeUnidad.required = requiereUnidad
+    if(!requiereUnidad){
+      mensajeUnidad.value = ""
+    }
+  }
+  mensajeDestino.addEventListener("change", actualizarDestinoMensaje)
+  actualizarDestinoMensaje()
+}
 
 function obtenerCsrfToken(){
   const csrfInput = document.querySelector('#quickDispatchForm input[name="csrfmiddlewaretoken"]')

@@ -21,6 +21,7 @@ from ..decorators import empresa_required
 from ..models import (
     ConfiguracionDespacho,
     MarcacionPunto,
+    MensajeGlobal,
     PuntoControl,
     RegistroSalida,
     Ruta,
@@ -37,6 +38,7 @@ __all__ = [
     "control_ruta",
     "despachador_mapa",
     "detalle_salida",
+    "enviar_mensaje_panel",
     "es_despachador",
     "exportar_excel",
     "historial_salidas",
@@ -321,6 +323,11 @@ def _construir_panel_despachador_contexto(empresa, fecha_operativa, ruta_id="", 
         .order_by("codigo")
         .values_list("codigo", flat=True)
     )
+    vehiculos_mensaje = list(
+        Vehiculo.objects.for_empresa(empresa)
+        .filter(activo=True)
+        .order_by("codigo")
+    )
     if salidas:
         reporte_vehiculo_id = salidas[0].vehiculo_id
     else:
@@ -345,6 +352,7 @@ def _construir_panel_despachador_contexto(empresa, fecha_operativa, ruta_id="", 
         "fecha_operativa_iso": fecha_operativa.isoformat(),
         "fecha_es_futura": es_fecha_futura,
         "codigos_unidad": codigos_unidad,
+        "vehiculos_mensaje": vehiculos_mensaje,
         "finalizadas_por_inactividad": finalizadas_por_inactividad,
     }
 
@@ -571,6 +579,59 @@ def panel_despachador(request):
         "flota_app/despachador/panel_despachador_ruta.html",
         context,
     )
+
+
+@login_required
+@user_passes_test(es_despachador)
+@empresa_required
+@require_POST
+def enviar_mensaje_panel(request):
+    empresa = request.empresa
+    destino = request.POST.get("destino", "todos").strip()
+    texto = " ".join(request.POST.get("texto", "").split())
+    vehiculo_id = request.POST.get("vehiculo_id", "").strip()
+
+    try:
+        dias = int(request.POST.get("dias", "1"))
+    except (TypeError, ValueError):
+        dias = 1
+    dias = min(max(dias, 1), 7)
+
+    if not texto:
+        messages.error(request, "Ingrese el mensaje para la app del conductor.")
+        return redirect_panel_despachador(request)
+
+    if len(texto) > 240:
+        messages.error(request, "El mensaje no debe superar 240 caracteres.")
+        return redirect_panel_despachador(request)
+
+    vehiculo = None
+    if destino == "unidad":
+        if not vehiculo_id:
+            messages.error(request, "Seleccione la unidad destino.")
+            return redirect_panel_despachador(request)
+        vehiculo = get_object_or_404(
+            Vehiculo.objects.for_empresa(empresa).filter(activo=True),
+            pk=vehiculo_id,
+        )
+    else:
+        destino = "todos"
+
+    hoy = timezone.localdate()
+    MensajeGlobal.objects.create(
+        empresa=empresa,
+        vehiculo=vehiculo,
+        texto=texto,
+        activo=True,
+        fecha_inicio=hoy,
+        fecha_fin=hoy + timedelta(days=dias - 1),
+    )
+
+    if vehiculo:
+        messages.success(request, f"Mensaje enviado a la unidad {vehiculo.codigo}.")
+    else:
+        messages.success(request, "Mensaje enviado a todas las unidades activas.")
+    return redirect_panel_despachador(request)
 
 
 @login_required

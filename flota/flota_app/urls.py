@@ -52,6 +52,7 @@ from .view_modules.despacho_views import (
     control_ruta,
     despachador_mapa,
     detalle_salida,
+    enviar_mensaje_panel,
     historial_salidas,
     historial_vehiculo,
     marcar_paso,
@@ -441,6 +442,12 @@ urlpatterns = [
         "despachador/buscar-unidad/",
         buscar_unidad_panel,
         name="buscar_unidad_panel"
+    ),
+
+    path(
+        "despachador/mensajes/enviar/",
+        enviar_mensaje_panel,
+        name="enviar_mensaje_panel"
     ),
 
     # =========================

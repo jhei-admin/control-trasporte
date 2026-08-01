@@ -260,6 +260,53 @@ class ApiSecurityAndIsolationTests(BaseFlotaTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["mensaje"]["texto"], "Mensaje empresa uno")
 
+    def test_heartbeat_prioriza_mensaje_directo_de_unidad(self):
+        hoy = timezone.localdate()
+        MensajeGlobal.objects.create(
+            empresa=self.empresa,
+            texto="Mensaje para todos",
+            activo=True,
+            fecha_inicio=hoy,
+            fecha_fin=hoy,
+        )
+        MensajeGlobal.objects.create(
+            empresa=self.empresa,
+            vehiculo=self.vehiculo_1,
+            texto="Mensaje unidad 01",
+            activo=True,
+            fecha_inicio=hoy,
+            fecha_fin=hoy,
+        )
+
+        response = self.client.post(
+            reverse("api_heartbeat"),
+            HTTP_AUTHORIZATION=f"Bearer {self.sesion.token}",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["mensaje"]["texto"], "Mensaje unidad 01")
+
+    def test_api_app_estado_muestra_mensaje_activo_sin_cambiar_estado(self):
+        hoy = timezone.localdate()
+        MensajeGlobal.objects.create(
+            empresa=self.empresa,
+            vehiculo=self.vehiculo_1,
+            texto="Pasar por oficina",
+            activo=True,
+            fecha_inicio=hoy,
+            fecha_fin=hoy,
+        )
+
+        response = self.client.post(
+            reverse("api_app_estado"),
+            HTTP_AUTHORIZATION=f"Bearer {self.sesion.token}",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["estado"], "SIN_SALIDA")
+        self.assertEqual(data["mensaje"], "Pasar por oficina")
+
     def test_mapa_muestra_unidades_offline_de_la_empresa(self):
         UbicacionVehiculo.objects.create(
             vehiculo=self.vehiculo_1,
@@ -2877,6 +2924,43 @@ class PanelDespachadorApiTests(BaseFlotaTestCase):
 
         self.assertEqual(response.status_code, 400)
         self.assertFalse(response.json()["ok"])
+
+    def test_panel_envia_mensaje_a_todas_las_unidades_de_la_empresa(self):
+        hoy = timezone.localdate()
+
+        response = self.client.post(
+            reverse("enviar_mensaje_panel"),
+            {
+                "destino": "todos",
+                "texto": "Circular con luces encendidas",
+                "dias": "2",
+                "current_ruta_id": self.ruta_a.id,
+                "current_fecha": hoy.isoformat(),
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        mensaje = MensajeGlobal.objects.get(texto="Circular con luces encendidas")
+        self.assertEqual(mensaje.empresa, self.empresa)
+        self.assertIsNone(mensaje.vehiculo)
+        self.assertEqual(mensaje.fecha_inicio, hoy)
+        self.assertEqual(mensaje.fecha_fin, hoy + timedelta(days=1))
+
+    def test_panel_envia_mensaje_a_unidad_especifica(self):
+        response = self.client.post(
+            reverse("enviar_mensaje_panel"),
+            {
+                "destino": "unidad",
+                "vehiculo_id": self.vehiculo_2.id,
+                "texto": "Unidad 02 llamar a central",
+                "dias": "1",
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        mensaje = MensajeGlobal.objects.get(texto="Unidad 02 llamar a central")
+        self.assertEqual(mensaje.empresa, self.empresa)
+        self.assertEqual(mensaje.vehiculo, self.vehiculo_2)
 
 
 class DispatcherLiveApisTests(BaseFlotaTestCase):
