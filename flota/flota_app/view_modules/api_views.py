@@ -787,6 +787,10 @@ def _texto_comunicado_app(mensaje_activo):
     return mensaje_activo.texto if mensaje_activo else None
 
 
+def _id_comunicado_app(mensaje_activo):
+    return mensaje_activo.id if mensaje_activo else None
+
+
 def actualizar_heartbeat(sesion, ahora):
     sesion.last_heartbeat = ahora
     SesionUnidad.objects.filter(pk=sesion.pk).update(last_heartbeat=ahora)
@@ -3133,6 +3137,7 @@ def api_app_estado(request):
             "hora_salida": None,
             "mensaje": "Espere orden de salida",
             "comunicado": _texto_comunicado_app(mensaje_activo),
+            "comunicado_id": _id_comunicado_app(mensaje_activo),
         })
 
     if not salida.hora_salida:
@@ -3144,6 +3149,7 @@ def api_app_estado(request):
             "hora_salida": None,
             "mensaje": "Esperando asignacion de hora",
             "comunicado": _texto_comunicado_app(mensaje_activo),
+            "comunicado_id": _id_comunicado_app(mensaje_activo),
         })
 
     tz = timezone.get_current_timezone()
@@ -3159,6 +3165,7 @@ def api_app_estado(request):
             "hora_salida": hora_salida.strftime("%H:%M"),
             "mensaje": "Salida programada para otro dia",
             "comunicado": _texto_comunicado_app(mensaje_activo),
+            "comunicado_id": _id_comunicado_app(mensaje_activo),
         })
 
     segundos = (hora_salida - ahora).total_seconds()
@@ -3174,6 +3181,7 @@ def api_app_estado(request):
                 "hora_salida": hora_salida.strftime("%H:%M"),
                 "mensaje": "Salida activa",
                 "comunicado": _texto_comunicado_app(mensaje_activo),
+                "comunicado_id": _id_comunicado_app(mensaje_activo),
             })
 
         return JsonResponse({
@@ -3185,6 +3193,7 @@ def api_app_estado(request):
             "minutos": minutos,
             "mensaje": "Unidad en cola",
             "comunicado": _texto_comunicado_app(mensaje_activo),
+            "comunicado_id": _id_comunicado_app(mensaje_activo),
         })
 
     if salida.hora_real_salida:
@@ -3200,6 +3209,7 @@ def api_app_estado(request):
             "hora_salida": hora_salida.strftime("%H:%M"),
             "mensaje": "Salida activa",
             "comunicado": _texto_comunicado_app(mensaje_activo),
+            "comunicado_id": _id_comunicado_app(mensaje_activo),
         })
 
     return JsonResponse({
@@ -3210,6 +3220,7 @@ def api_app_estado(request):
         "hora_salida": hora_salida.strftime("%H:%M"),
         "mensaje": "Unidad en cola",
         "comunicado": _texto_comunicado_app(mensaje_activo),
+        "comunicado_id": _id_comunicado_app(mensaje_activo),
     })
 
 

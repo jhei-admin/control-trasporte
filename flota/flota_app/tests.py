@@ -288,7 +288,7 @@ class ApiSecurityAndIsolationTests(BaseFlotaTestCase):
 
     def test_api_app_estado_muestra_mensaje_activo_sin_cambiar_estado(self):
         hoy = timezone.localdate()
-        MensajeGlobal.objects.create(
+        mensaje = MensajeGlobal.objects.create(
             empresa=self.empresa,
             vehiculo=self.vehiculo_1,
             texto="Pasar por oficina",
@@ -307,6 +307,7 @@ class ApiSecurityAndIsolationTests(BaseFlotaTestCase):
         self.assertEqual(data["estado"], "SIN_SALIDA")
         self.assertEqual(data["mensaje"], "Espere orden de salida")
         self.assertEqual(data["comunicado"], "Pasar por oficina")
+        self.assertEqual(data["comunicado_id"], mensaje.id)
 
     def test_mapa_muestra_unidades_offline_de_la_empresa(self):
         UbicacionVehiculo.objects.create(
