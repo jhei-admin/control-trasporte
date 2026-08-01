@@ -48,6 +48,7 @@ __all__ = [
     "marcar_siguiente_punto_auto",
     "panel_despachador",
     "panel_frecuencia",
+    "quitar_mensaje_panel",
     "poner_en_cola",
     "quitar_de_cola",
     "recorrido_vehiculo",
@@ -328,6 +329,16 @@ def _construir_panel_despachador_contexto(empresa, fecha_operativa, ruta_id="", 
         .filter(activo=True)
         .order_by("codigo")
     )
+    mensajes_activos = list(
+        MensajeGlobal.objects.filter(
+            empresa=empresa,
+            activo=True,
+            fecha_inicio__lte=hoy,
+            fecha_fin__gte=hoy,
+        )
+        .select_related("vehiculo")
+        .order_by("-updated_at", "-id")[:12]
+    )
     if salidas:
         reporte_vehiculo_id = salidas[0].vehiculo_id
     else:
@@ -353,6 +364,7 @@ def _construir_panel_despachador_contexto(empresa, fecha_operativa, ruta_id="", 
         "fecha_es_futura": es_fecha_futura,
         "codigos_unidad": codigos_unidad,
         "vehiculos_mensaje": vehiculos_mensaje,
+        "mensajes_activos": mensajes_activos,
         "finalizadas_por_inactividad": finalizadas_por_inactividad,
     }
 
@@ -638,6 +650,21 @@ def enviar_mensaje_panel(request):
         messages.success(request, f"Mensaje enviado a la unidad {vehiculo.codigo}.")
     else:
         messages.success(request, "Mensaje enviado a todas las unidades activas.")
+    return redirect_panel_despachador(request)
+
+
+@login_required
+@user_passes_test(es_despachador)
+@empresa_required
+@require_POST
+def quitar_mensaje_panel(request, mensaje_id):
+    mensaje = get_object_or_404(
+        MensajeGlobal.objects.filter(empresa=request.empresa, activo=True),
+        pk=mensaje_id,
+    )
+    mensaje.activo = False
+    mensaje.save(update_fields=["activo"])
+    messages.success(request, "Comunicado retirado de la app del conductor.")
     return redirect_panel_despachador(request)
 
 

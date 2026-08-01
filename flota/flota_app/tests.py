@@ -2991,6 +2991,41 @@ class PanelDespachadorApiTests(BaseFlotaTestCase):
         self.assertEqual(mensaje.empresa, self.empresa)
         self.assertEqual(mensaje.vehiculo, self.vehiculo_2)
 
+    def test_panel_muestra_mensajes_activos(self):
+        hoy = timezone.localdate()
+        MensajeGlobal.objects.create(
+            empresa=self.empresa,
+            vehiculo=self.vehiculo_1,
+            texto="Pasar por grifo",
+            activo=True,
+            fecha_inicio=hoy,
+            fecha_fin=hoy,
+            repeticiones_audio=2,
+        )
+
+        response = self.client.get(reverse("panel_despachador"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Pasar por grifo")
+        self.assertContains(response, "Unidad 01")
+        self.assertContains(response, "2x audio")
+
+    def test_panel_quita_mensaje_activo(self):
+        hoy = timezone.localdate()
+        mensaje = MensajeGlobal.objects.create(
+            empresa=self.empresa,
+            texto="Retirar aviso",
+            activo=True,
+            fecha_inicio=hoy,
+            fecha_fin=hoy,
+        )
+
+        response = self.client.post(reverse("quitar_mensaje_panel", args=[mensaje.id]))
+
+        self.assertEqual(response.status_code, 302)
+        mensaje.refresh_from_db()
+        self.assertFalse(mensaje.activo)
+
 
 class DispatcherLiveApisTests(BaseFlotaTestCase):
     def setUp(self):

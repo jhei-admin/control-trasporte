@@ -59,6 +59,7 @@ from .view_modules.despacho_views import (
     marcar_siguiente_punto,
     panel_despachador,
     panel_frecuencia,
+    quitar_mensaje_panel,
     poner_en_cola,
     quitar_de_cola,
     recorrido_vehiculo,
@@ -448,6 +449,12 @@ urlpatterns = [
         "despachador/mensajes/enviar/",
         enviar_mensaje_panel,
         name="enviar_mensaje_panel"
+    ),
+
+    path(
+        "despachador/mensajes/<int:mensaje_id>/quitar/",
+        quitar_mensaje_panel,
+        name="quitar_mensaje_panel"
     ),
 
     # =========================
