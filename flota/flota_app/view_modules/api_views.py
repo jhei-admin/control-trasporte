@@ -783,6 +783,10 @@ def _texto_estado_app(texto_respaldo, mensaje_activo):
     return mensaje_activo.texto if mensaje_activo else texto_respaldo
 
 
+def _texto_comunicado_app(mensaje_activo):
+    return mensaje_activo.texto if mensaje_activo else None
+
+
 def actualizar_heartbeat(sesion, ahora):
     sesion.last_heartbeat = ahora
     SesionUnidad.objects.filter(pk=sesion.pk).update(last_heartbeat=ahora)
@@ -3127,7 +3131,8 @@ def api_app_estado(request):
             "estado_gps": estado_gps,
             "bloqueado": False,
             "hora_salida": None,
-            "mensaje": _texto_estado_app("Espere orden de salida", mensaje_activo),
+            "mensaje": "Espere orden de salida",
+            "comunicado": _texto_comunicado_app(mensaje_activo),
         })
 
     if not salida.hora_salida:
@@ -3137,7 +3142,8 @@ def api_app_estado(request):
             "estado_gps": estado_gps,
             "bloqueado": False,
             "hora_salida": None,
-            "mensaje": _texto_estado_app("Esperando asignacion de hora", mensaje_activo),
+            "mensaje": "Esperando asignacion de hora",
+            "comunicado": _texto_comunicado_app(mensaje_activo),
         })
 
     tz = timezone.get_current_timezone()
@@ -3151,7 +3157,8 @@ def api_app_estado(request):
             "estado_gps": estado_gps,
             "bloqueado": False,
             "hora_salida": hora_salida.strftime("%H:%M"),
-            "mensaje": _texto_estado_app("Salida programada para otro dia", mensaje_activo),
+            "mensaje": "Salida programada para otro dia",
+            "comunicado": _texto_comunicado_app(mensaje_activo),
         })
 
     segundos = (hora_salida - ahora).total_seconds()
@@ -3165,7 +3172,8 @@ def api_app_estado(request):
                 "estado_gps": estado_gps,
                 "bloqueado": False,
                 "hora_salida": hora_salida.strftime("%H:%M"),
-                "mensaje": _texto_estado_app("Salida activa", mensaje_activo),
+                "mensaje": "Salida activa",
+                "comunicado": _texto_comunicado_app(mensaje_activo),
             })
 
         return JsonResponse({
@@ -3175,7 +3183,8 @@ def api_app_estado(request):
             "bloqueado": False,
             "hora_salida": hora_salida.strftime("%H:%M"),
             "minutos": minutos,
-            "mensaje": _texto_estado_app("Unidad en cola", mensaje_activo),
+            "mensaje": "Unidad en cola",
+            "comunicado": _texto_comunicado_app(mensaje_activo),
         })
 
     if salida.hora_real_salida:
@@ -3189,7 +3198,8 @@ def api_app_estado(request):
             "estado_gps": estado_gps,
             "bloqueado": False,
             "hora_salida": hora_salida.strftime("%H:%M"),
-            "mensaje": _texto_estado_app("Salida activa", mensaje_activo),
+            "mensaje": "Salida activa",
+            "comunicado": _texto_comunicado_app(mensaje_activo),
         })
 
     return JsonResponse({
@@ -3198,7 +3208,8 @@ def api_app_estado(request):
         "estado_gps": estado_gps,
         "bloqueado": False,
         "hora_salida": hora_salida.strftime("%H:%M"),
-        "mensaje": _texto_estado_app("Unidad en cola", mensaje_activo),
+        "mensaje": "Unidad en cola",
+        "comunicado": _texto_comunicado_app(mensaje_activo),
     })
 
 

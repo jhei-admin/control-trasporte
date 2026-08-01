@@ -305,7 +305,8 @@ class ApiSecurityAndIsolationTests(BaseFlotaTestCase):
         self.assertEqual(response.status_code, 200)
         data = response.json()
         self.assertEqual(data["estado"], "SIN_SALIDA")
-        self.assertEqual(data["mensaje"], "Pasar por oficina")
+        self.assertEqual(data["mensaje"], "Espere orden de salida")
+        self.assertEqual(data["comunicado"], "Pasar por oficina")
 
     def test_mapa_muestra_unidades_offline_de_la_empresa(self):
         UbicacionVehiculo.objects.create(
