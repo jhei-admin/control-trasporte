@@ -17,6 +17,7 @@ from .models import (
     GPSRegistro,
     UbicacionVehiculo,
     MensajeGlobal,
+    EndpointUsageHourly,
     Empresa,   # 👈 NUEVO
     PerfilUsuario,
 )
@@ -353,6 +354,36 @@ class GPSRegistroAdmin(admin.ModelAdmin):
     ordering = ("-timestamp",)
 
     readonly_fields = ("timestamp",)
+
+
+@admin.register(EndpointUsageHourly)
+class EndpointUsageHourlyAdmin(admin.ModelAdmin):
+    list_display = (
+        "bucket_start",
+        "method",
+        "path",
+        "status_code",
+        "request_count",
+        "bytes_sent",
+        "mb_enviados",
+        "latest_seen",
+    )
+    list_filter = ("method", "status_code", "bucket_start")
+    search_fields = ("path",)
+    ordering = ("-bucket_start", "-bytes_sent")
+    readonly_fields = (
+        "bucket_start",
+        "method",
+        "path",
+        "status_code",
+        "request_count",
+        "bytes_sent",
+        "latest_seen",
+    )
+
+    @admin.display(description="MB")
+    def mb_enviados(self, obj):
+        return obj.megabytes
 
 
 # =================================================

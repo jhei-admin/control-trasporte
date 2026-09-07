@@ -1219,6 +1219,39 @@ class MensajeGlobal(models.Model):
             scope = self.empresa.nombre if self.empresa else "GLOBAL"
         return f"{scope}: {self.texto[:50]} ({self.fecha_inicio} -> {self.fecha_fin})"
 
+
+class EndpointUsageHourly(models.Model):
+    bucket_start = models.DateTimeField(db_index=True)
+    method = models.CharField(max_length=10, db_index=True)
+    path = models.CharField(max_length=255, db_index=True)
+    status_code = models.PositiveSmallIntegerField(db_index=True)
+    request_count = models.PositiveIntegerField(default=0)
+    bytes_sent = models.BigIntegerField(default=0)
+    latest_seen = models.DateTimeField(default=timezone.now, db_index=True)
+
+    class Meta:
+        verbose_name = "Uso de endpoint por hora"
+        verbose_name_plural = "Uso de endpoints por hora"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["bucket_start", "method", "path", "status_code"],
+                name="unique_endpoint_usage_hourly",
+            )
+        ]
+        indexes = [
+            models.Index(fields=["bucket_start", "-bytes_sent"]),
+            models.Index(fields=["path", "bucket_start"]),
+            models.Index(fields=["method", "path", "bucket_start"]),
+        ]
+        ordering = ["-bucket_start", "-bytes_sent", "-request_count"]
+
+    @property
+    def megabytes(self):
+        return round((self.bytes_sent or 0) / 1024 / 1024, 2)
+
+    def __str__(self):
+        return f"{self.bucket_start:%Y-%m-%d %H:00} {self.method} {self.path}"
+
 # =========================
 # PERFIL USUARIO EMPRESA
 # =========================

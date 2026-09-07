@@ -147,6 +147,8 @@ MIDDLEWARE = [
     "django.contrib.messages.middleware.MessageMiddleware",
 
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+
+    "flota_app.middleware.endpoint_usage.EndpointUsageMiddleware",
 ]
 
 
@@ -353,6 +355,9 @@ MAINTENANCE_ACTION_KEY = os.getenv("MAINTENANCE_ACTION_KEY", "")
 ALLOW_LEGACY_QR = env_bool("ALLOW_LEGACY_QR", False)
 INACTIVE_SESSION_RETENTION_DAYS = int(os.getenv("INACTIVE_SESSION_RETENTION_DAYS", "7"))
 MENSAJES_RETENTION_DAYS = int(os.getenv("MENSAJES_RETENTION_DAYS", "30"))
+ENDPOINT_USAGE_RETENTION_DAYS = int(os.getenv("ENDPOINT_USAGE_RETENTION_DAYS", "45"))
+ENDPOINT_USAGE_FLUSH_SECONDS = int(os.getenv("ENDPOINT_USAGE_FLUSH_SECONDS", "60"))
+ENDPOINT_USAGE_FLUSH_COUNT = int(os.getenv("ENDPOINT_USAGE_FLUSH_COUNT", "100"))
 
 
 # =================================================

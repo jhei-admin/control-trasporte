@@ -4,7 +4,14 @@ from django.conf import settings
 from django.core.management.base import BaseCommand
 from django.utils import timezone
 
-from flota_app.models import GPSRegistro, MensajeGlobal, Parada, RegistroSalida, SesionUnidad
+from flota_app.models import (
+    EndpointUsageHourly,
+    GPSRegistro,
+    MensajeGlobal,
+    Parada,
+    RegistroSalida,
+    SesionUnidad,
+)
 
 
 class Command(BaseCommand):
@@ -51,6 +58,12 @@ class Command(BaseCommand):
             default=settings.MENSAJES_RETENTION_DAYS,
             help="Dias de retencion para mensajes vencidos",
         )
+        parser.add_argument(
+            "--endpoint-usage-days",
+            type=int,
+            default=settings.ENDPOINT_USAGE_RETENTION_DAYS,
+            help="Dias de retencion para metricas de uso de endpoints",
+        )
 
     def handle(self, *args, **options):
         ahora = timezone.now()
@@ -60,6 +73,7 @@ class Command(BaseCommand):
         batch_size = max(options["batch_size"], 100)
         inactive_session_days = max(options["inactive_session_days"], 1)
         mensajes_days = max(options["mensajes_days"], 1)
+        endpoint_usage_days = max(options["endpoint_usage_days"], 1)
         dry_run = options["dry_run"]
 
         self.stdout.write("Iniciando limpieza de historicos...")
@@ -107,6 +121,17 @@ class Command(BaseCommand):
         if not dry_run:
             mensajes_antiguos.delete()
 
+        limite_endpoint_usage = ahora - timedelta(days=endpoint_usage_days)
+        endpoint_usage_antiguo = EndpointUsageHourly.objects.filter(
+            bucket_start__lt=limite_endpoint_usage,
+        )
+        total_endpoint_usage = endpoint_usage_antiguo.count()
+        self.stdout.write(
+            f"Eliminando {total_endpoint_usage} metricas de endpoints antiguas"
+        )
+        if not dry_run:
+            endpoint_usage_antiguo.delete()
+
         limite_gps = ahora - timedelta(days=gps_days)
         total_gps = GPSRegistro.objects.filter(timestamp__lt=limite_gps).count()
         self.stdout.write(
@@ -135,6 +160,7 @@ class Command(BaseCommand):
             f"Paradas: {total_paradas}, "
             f"Sesiones: {total_sesiones}, "
             f"Mensajes: {total_mensajes}, "
+            f"Endpoints: {total_endpoint_usage}, "
             f"GPS: {total_gps if dry_run else gps_eliminados}"
         )
         if dry_run:
