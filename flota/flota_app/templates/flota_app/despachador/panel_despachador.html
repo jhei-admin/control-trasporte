@@ -450,6 +450,7 @@ fila.style.display=unidad.includes(filtro)?"":"none"
 /* ALERTAS GPS */
 
 const GPS_ALERT_POLL_MS=12000
+const GPS_ALERTAS_URL="{% url 'api_despachador_alertas_gps' %}"
 const GPS_ALERTS_STORAGE_KEY="panelDespachadorGpsAlerts"
 const GPS_STATUS_STORAGE_KEY="panelDespachadorGpsStatus"
 
@@ -585,8 +586,12 @@ navigator.vibrate(160)
 }
 
 async function monitorearGpsUnidades(){
+if(document.hidden){
+return
+}
+
 try{
-const respuesta=await fetch("/sistema/api/despachador/mapa/",{cache:"no-store"})
+const respuesta=await fetch(GPS_ALERTAS_URL,{cache:"no-store",credentials:"same-origin"})
 if(!respuesta.ok) return
 
 const unidades=await respuesta.json()

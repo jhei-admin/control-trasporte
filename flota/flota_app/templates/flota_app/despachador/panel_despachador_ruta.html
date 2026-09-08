@@ -1281,7 +1281,7 @@ const PANEL_AUTO_REFRESH_MS = 15000
 let panelRefreshTimer = null
 const dispatcherPanel = document.getElementById("dispatcherPanel")
 const panelRefreshUrl = dispatcherPanel?.dataset.refreshUrl || ""
-const gpsMapaUrl = "{% url 'api_despachador_mapa' %}"
+const gpsAlertasUrl = "{% url 'api_despachador_alertas_gps' %}"
 const GPS_ALERT_POLL_MS = 12000
 const GPS_ALERTS_STORAGE_KEY = "panelDespachadorRutaGpsAlerts"
 const GPS_STATUS_STORAGE_KEY = "panelDespachadorRutaGpsStatus"
@@ -1681,12 +1681,12 @@ function registrarAlertaGps(unidad){
 }
 
 async function monitorearGpsUnidades(){
-  if(!gpsMapaUrl){
+  if(!gpsAlertasUrl || document.hidden){
     return
   }
 
   try{
-    const response = await fetch(gpsMapaUrl, {
+    const response = await fetch(gpsAlertasUrl, {
       cache: "no-store",
       credentials: "same-origin"
     })

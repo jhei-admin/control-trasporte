@@ -414,6 +414,40 @@ class ApiSecurityAndIsolationTests(BaseFlotaTestCase):
         self.assertEqual(response.json()[0]["vehiculo"], self.vehiculo_1.codigo)
         self.assertEqual(response.json()[0]["estado_gps"], "OFFLINE")
 
+    def test_api_despachador_alertas_gps_devuelve_payload_liviano(self):
+        UbicacionVehiculo.objects.create(
+            vehiculo=self.vehiculo_1,
+            latitud=-16.4,
+            longitud=-71.5,
+            velocidad=20,
+            precision=10,
+        )
+        RegistroSalida.objects.create(
+            vehiculo=self.vehiculo_1,
+            ruta=self.ruta_a,
+            fecha=timezone.localdate(),
+            activo=True,
+            en_cola=True,
+            orden_cola=1,
+        )
+
+        user = User.objects.create_user(username="desp_alertas_gps", password="x")
+        user.perfil.empresa = self.empresa
+        user.perfil.save(update_fields=["empresa"])
+        self.client.force_login(user)
+
+        response = self.client.get(reverse("api_despachador_alertas_gps"))
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(len(data), 1)
+        self.assertEqual(data[0]["vehiculo"], self.vehiculo_1.codigo)
+        self.assertEqual(data[0]["estado"], "ACTIVO")
+        self.assertEqual(data[0]["estado_gps"], "ONLINE")
+        self.assertNotIn("velocidad", data[0])
+        self.assertNotIn("precision", data[0])
+        self.assertNotIn("rumbo", data[0])
+
     def test_api_app_control_marcar_rechaza_punto_fuera_de_secuencia(self):
         salida = RegistroSalida.objects.create(
             vehiculo=self.vehiculo_1,

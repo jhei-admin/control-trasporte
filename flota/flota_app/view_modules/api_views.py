@@ -76,6 +76,7 @@ __all__ = [
     "api_app_estado",
     "api_app_referencia_tiempo",
     "api_buscar_vehiculo_por_codigo",
+    "api_despachador_alertas_gps",
     "api_despachador_mapa",
     "api_escanear_qr",
     "api_gps",
@@ -823,6 +824,16 @@ def _resolver_empresa_staff(user):
     return getattr(perfil, "empresa", None)
 
 
+def _estado_gps_desde_actualizacion(actualizado_en, ahora=None):
+    ahora = ahora or timezone.now()
+    delta = ahora - actualizado_en
+    if delta <= timedelta(seconds=30):
+        return "ONLINE"
+    if delta <= timedelta(seconds=120):
+        return "LENTO"
+    return "OFFLINE"
+
+
 def _serializar_unidades_mapa_gerencial(empresa):
     ahora = timezone.now()
     hoy = timezone.localdate()
@@ -858,13 +869,7 @@ def _serializar_unidades_mapa_gerencial(empresa):
     data = []
     for ubicacion in ubicaciones:
         actualizado_en = ubicacion["updated_at"]
-        delta = ahora - actualizado_en
-        if delta <= timedelta(seconds=30):
-            estado_gps = "ONLINE"
-        elif delta <= timedelta(seconds=120):
-            estado_gps = "LENTO"
-        else:
-            estado_gps = "OFFLINE"
+        estado_gps = _estado_gps_desde_actualizacion(actualizado_en, ahora)
 
         data.append({
             "vehiculo_id": ubicacion["vehiculo_id"],
@@ -880,6 +885,51 @@ def _serializar_unidades_mapa_gerencial(empresa):
             "rumbo": ubicacion["rumbo"] or 0,
             "estado": "ACTIVO" if ubicacion["vehiculo_id"] in salidas_activas else "INACTIVO",
             "estado_gps": estado_gps,
+            "actualizado_en": actualizado_en.isoformat(),
+        })
+
+    return data
+
+
+def _serializar_alertas_gps_panel(empresa):
+    ahora = timezone.now()
+    hoy = timezone.localdate()
+
+    salidas_activas_qs = (
+        RegistroSalida.objects.for_empresa(empresa)
+        .filter(fecha=hoy, activo=True)
+        .values("vehiculo_id", "ruta__nombre")
+    )
+    salidas_activas = {
+        salida["vehiculo_id"]: salida["ruta__nombre"] or ""
+        for salida in salidas_activas_qs
+    }
+
+    ubicaciones = (
+        UbicacionVehiculo.objects.for_empresa(empresa)
+        .filter(vehiculo_id__in=salidas_activas.keys())
+        .values(
+            "vehiculo_id",
+            "vehiculo__codigo",
+            "vehiculo__placa",
+            "latitud",
+            "longitud",
+            "updated_at",
+        )
+    )
+
+    data = []
+    for ubicacion in ubicaciones:
+        actualizado_en = ubicacion["updated_at"]
+        data.append({
+            "vehiculo_id": ubicacion["vehiculo_id"],
+            "vehiculo": str(ubicacion["vehiculo__codigo"]),
+            "placa": (ubicacion["vehiculo__placa"] or "").strip(),
+            "ruta_nombre": salidas_activas.get(ubicacion["vehiculo_id"], ""),
+            "lat": ubicacion["latitud"],
+            "lng": ubicacion["longitud"],
+            "estado": "ACTIVO",
+            "estado_gps": _estado_gps_desde_actualizacion(actualizado_en, ahora),
             "actualizado_en": actualizado_en.isoformat(),
         })
 
@@ -1640,6 +1690,15 @@ def api_gps(request):
 def api_despachador_mapa(request):
     empresa = request.empresa
     data = _serializar_unidades_mapa_gerencial(empresa)
+    return JsonResponse(data, safe=False)
+
+
+@login_required
+@empresa_required
+@require_GET
+def api_despachador_alertas_gps(request):
+    empresa = request.empresa
+    data = _serializar_alertas_gps_panel(empresa)
     return JsonResponse(data, safe=False)
 
 

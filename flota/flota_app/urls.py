@@ -27,6 +27,7 @@ from .view_modules.api_views import (
     api_app_estado,
     api_app_referencia_tiempo,
     api_buscar_vehiculo_por_codigo,
+    api_despachador_alertas_gps,
     api_despachador_mapa,
     api_escanear_qr,
     api_gps,
@@ -361,6 +362,15 @@ urlpatterns = [
     path(
         "api/despachador/mapa",
         api_despachador_mapa
+    ),
+    path(
+        "api/despachador/alertas-gps/",
+        api_despachador_alertas_gps,
+        name="api_despachador_alertas_gps"
+    ),
+    path(
+        "api/despachador/alertas-gps",
+        api_despachador_alertas_gps
     ),
 
     # =========================
