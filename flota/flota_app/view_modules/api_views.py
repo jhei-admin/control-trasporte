@@ -281,6 +281,8 @@ def api_app_version(request):
         }
     )
 
+COMUNICADO_APP_VIGENCIA_MINUTOS = 3
+
 
 @require_GET
 def api_app_update_apk(request):
@@ -754,11 +756,13 @@ def _serializar_mensaje(item):
 
 def _mensaje_activo_para_vehiculo(vehiculo, hoy=None):
     hoy = hoy or timezone.localdate()
+    creado_desde = timezone.now() - timedelta(minutes=COMUNICADO_APP_VIGENCIA_MINUTOS)
     return (
         MensajeGlobal.objects.filter(
             activo=True,
             fecha_inicio__lte=hoy,
             fecha_fin__gte=hoy,
+            creado_en__gte=creado_desde,
         )
         .filter(
             Q(vehiculo=vehiculo)

@@ -333,6 +333,32 @@ class ApiSecurityAndIsolationTests(BaseFlotaTestCase):
         self.assertEqual(data["comunicado_id"], mensaje.id)
         self.assertEqual(data["comunicado_repeticiones"], 2)
 
+    def test_api_app_estado_no_reproduce_comunicado_vencido_por_tiempo(self):
+        hoy = timezone.localdate()
+        mensaje = MensajeGlobal.objects.create(
+            empresa=self.empresa,
+            vehiculo=self.vehiculo_1,
+            texto="Alerta operativa vencida",
+            repeticiones_audio=3,
+            activo=True,
+            fecha_inicio=hoy,
+            fecha_fin=hoy,
+        )
+        MensajeGlobal.objects.filter(pk=mensaje.pk).update(
+            creado_en=timezone.now() - timedelta(minutes=4)
+        )
+
+        response = self.client.post(
+            reverse("api_app_estado"),
+            HTTP_AUTHORIZATION=f"Bearer {self.sesion.token}",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertIsNone(data["comunicado"])
+        self.assertIsNone(data["comunicado_id"])
+        self.assertEqual(data["comunicado_repeticiones"], 1)
+
     def test_api_app_estado_envia_soporte_suspension_editable(self):
         self.vehiculo_1.servicio_suspendido = True
         self.vehiculo_1.mensaje_suspension = "Comuniquese con caja."
