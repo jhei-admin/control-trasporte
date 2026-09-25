@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 from unittest.mock import patch
 from decimal import Decimal
 
+from django.contrib.admin.sites import AdminSite
 from django.core import signing
 from django.core.management import call_command
 from django.contrib.auth.models import Group, User
@@ -26,6 +27,7 @@ from .models import (
 )
 from .management.commands.auditar_preproduccion import Command
 from .services import recalcular_cola
+from .admin import PuntoControlAdmin, PuntoControlAdminForm
 from .view_modules.api_views import (
     _asegurar_marcaciones_salida,
     _ruta_tiene_contexto_vuelta,
@@ -58,6 +60,99 @@ class BaseFlotaTestCase(TestCase):
             codigo="03",
             placa="ABC-333",
             activo=True,
+        )
+
+
+class PuntoControlAdminTests(BaseFlotaTestCase):
+    def test_insertar_punto_corre_ordenes_de_la_misma_ruta(self):
+        PuntoControl.objects.create(
+            ruta=self.ruta_a,
+            codigo="ENTR",
+            nombre="Entrada",
+            latitud=-16.401,
+            longitud=-71.501,
+            radio_metros=50,
+            orden=4,
+            offset_minutos=0,
+            requiere_marcacion=False,
+        )
+        PuntoControl.objects.create(
+            ruta=self.ruta_a,
+            codigo="APIP",
+            nombre="Entrada Apipa",
+            latitud=-16.402,
+            longitud=-71.502,
+            radio_metros=50,
+            orden=5,
+            offset_minutos=12,
+            requiere_marcacion=True,
+        )
+        PuntoControl.objects.create(
+            ruta=self.ruta_a,
+            codigo="MUNI",
+            nombre="Entrada Municipal",
+            latitud=-16.403,
+            longitud=-71.503,
+            radio_metros=50,
+            orden=6,
+            offset_minutos=16,
+            requiere_marcacion=False,
+        )
+        PuntoControl.objects.create(
+            ruta=self.ruta_b,
+            codigo="OTRA",
+            nombre="Otra ruta",
+            latitud=-16.500,
+            longitud=-71.600,
+            radio_metros=50,
+            orden=5,
+            offset_minutos=0,
+            requiere_marcacion=True,
+        )
+        nuevo = PuntoControl(
+            ruta=self.ruta_a,
+            codigo="NUEV",
+            nombre="Nuevo punto",
+            latitud=-16.404,
+            longitud=-71.504,
+            radio_metros=50,
+            orden=5,
+            offset_minutos=8,
+            requiere_marcacion=True,
+        )
+        form = PuntoControlAdminForm(
+            data={
+                "ruta": self.ruta_a.id,
+                "codigo": "NUEV",
+                "nombre": "Nuevo punto",
+                "latitud": "-16.404000",
+                "longitud": "-71.504000",
+                "radio_metros": "50",
+                "orden": "5",
+                "fase": PuntoControl.FASE_IDA,
+                "offset_minutos": "8",
+                "requiere_marcacion": "on",
+                "confirma_avance": "on",
+                "activo": "on",
+            }
+        )
+
+        self.assertTrue(form.is_valid(), form.errors)
+        admin = PuntoControlAdmin(PuntoControl, AdminSite())
+        admin.save_model(request=None, obj=nuevo, form=None, change=False)
+
+        ordenes_ruta_a = list(
+            PuntoControl.objects.filter(ruta=self.ruta_a)
+            .order_by("orden")
+            .values_list("codigo", "orden")
+        )
+        self.assertEqual(
+            ordenes_ruta_a,
+            [("ENTR", 4), ("NUEV", 5), ("APIP", 6), ("MUNI", 7)],
+        )
+        self.assertEqual(
+            PuntoControl.objects.get(ruta=self.ruta_b, codigo="OTRA").orden,
+            5,
         )
 
 

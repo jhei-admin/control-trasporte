@@ -1,6 +1,11 @@
 from django.conf import settings
+from django import forms
 from django.contrib import admin
+from django.db import transaction
+from django.db.models import F
 from django.db.models import Case, IntegerField, Value, When
+from django.core.exceptions import ValidationError
+from django.forms.models import construct_instance
 from django.utils import timezone
 from django.utils.html import format_html
 from .services import calcular_estado_sesion
@@ -227,8 +232,49 @@ class ConfiguracionDespachoAdmin(admin.ModelAdmin):
 # =================================================
 # PUNTO DE CONTROL
 # =================================================
+class PuntoControlAdminForm(forms.ModelForm):
+    class Meta:
+        model = PuntoControl
+        fields = "__all__"
+
+    def _post_clean(self):
+        opts = self._meta
+        exclude = self._get_validation_exclusions()
+        es_creacion = not self.instance.pk
+
+        try:
+            self.instance = construct_instance(
+                self,
+                self.instance,
+                opts.fields,
+                opts.exclude,
+            )
+        except ValidationError as error:
+            self._update_errors(error)
+
+        try:
+            self.instance.full_clean(
+                exclude=exclude,
+                validate_unique=False,
+                validate_constraints=not es_creacion,
+            )
+        except ValidationError as error:
+            self._update_errors(error)
+
+        if self._validate_unique:
+            self.validate_unique()
+
+    def validate_unique(self):
+        if not self.instance.pk:
+            return
+        super().validate_unique()
+
+
 @admin.register(PuntoControl)
 class PuntoControlAdmin(admin.ModelAdmin):
+    ORDEN_SHIFT_TEMPORAL = 10000
+    form = PuntoControlAdminForm
+
     list_display = (
         "codigo",
         "orden",
@@ -258,6 +304,25 @@ class PuntoControlAdmin(admin.ModelAdmin):
     list_filter = ("ruta", "fase", "requiere_marcacion", "confirma_avance", "activo", "es_contexto_interno")
     search_fields = ("codigo", "nombre")
     ordering = ("ruta", "orden")
+
+    def save_model(self, request, obj, form, change):
+        if change or not obj.ruta_id or obj.orden is None:
+            super().save_model(request, obj, form, change)
+            return
+
+        with transaction.atomic():
+            puntos_a_mover = PuntoControl.objects.select_for_update().filter(
+                ruta=obj.ruta,
+                orden__gte=obj.orden,
+            )
+            if puntos_a_mover.exists():
+                puntos_a_mover.update(orden=F("orden") + self.ORDEN_SHIFT_TEMPORAL)
+                PuntoControl.objects.filter(
+                    ruta=obj.ruta,
+                    orden__gte=obj.orden + self.ORDEN_SHIFT_TEMPORAL,
+                ).update(orden=F("orden") - self.ORDEN_SHIFT_TEMPORAL + 1)
+
+            super().save_model(request, obj, form, change)
 
 
 # =================================================
