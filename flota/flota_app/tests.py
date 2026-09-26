@@ -2441,8 +2441,11 @@ class ApiSecurityAndIsolationTests(BaseFlotaTestCase):
         data_actual = response_actual.json()
         self.assertTrue(data_actual["ok"])
         self.assertEqual(data_actual["actual"]["punto_referencia_codigo"], punto_llam.codigo)
+        self.assertEqual(data_actual["actual"]["punto_audio_referencia_codigo"], punto_llam.nombre)
         self.assertEqual(data_actual["adelante"], [])
         self.assertEqual(data_actual["atras"][0]["unidad"], self.vehiculo_2.codigo)
+        self.assertEqual(data_actual["atras"][0]["punto_referencia_codigo"], punto_llam.codigo)
+        self.assertEqual(data_actual["atras"][0]["punto_audio_referencia_codigo"], punto_llam.nombre)
 
         response_vecino = self.client.get(
             reverse("api_app_cola_contexto"),
@@ -2452,8 +2455,10 @@ class ApiSecurityAndIsolationTests(BaseFlotaTestCase):
         data_vecino = response_vecino.json()
         self.assertTrue(data_vecino["ok"])
         self.assertEqual(data_vecino["actual"]["punto_referencia_codigo"], punto_llam.codigo)
+        self.assertEqual(data_vecino["actual"]["punto_audio_referencia_codigo"], punto_llam.nombre)
         self.assertEqual(data_vecino["adelante"][0]["unidad"], self.vehiculo_1.codigo)
         self.assertEqual(data_vecino["adelante"][0]["punto_referencia_codigo"], punto_llam.codigo)
+        self.assertEqual(data_vecino["adelante"][0]["punto_audio_referencia_codigo"], punto_llam.nombre)
 
     def test_registrar_punto_evento_confirmado_conserva_primer_ingreso_al_mismo_punto(self):
         ubicacion = UbicacionVehiculo.objects.create(

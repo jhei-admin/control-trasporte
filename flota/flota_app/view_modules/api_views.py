@@ -2517,6 +2517,10 @@ def _construir_cola_contexto_payload(sesion, ahora=None):
     gps_max_delay = timedelta(seconds=60)
     velocidad_promedio = 25
     puntos_ruta = _serializar_puntos_ruta(salida_actual.ruta)
+    nombres_audio_por_codigo = {
+        _codigo_punto_normalizado(punto): _nombre_audio_punto(punto)
+        for punto in puntos_ruta
+    }
     ultimo_orden_marcable = max(
         (
             punto["orden"]
@@ -2581,6 +2585,12 @@ def _construir_cola_contexto_payload(sesion, ahora=None):
             return None
         return ubicacion
 
+    def nombre_audio_desde_codigo(codigo):
+        codigo_normalizado = str(codigo or "").strip().upper()
+        if not codigo_normalizado:
+            return None
+        return nombres_audio_por_codigo.get(codigo_normalizado) or codigo_normalizado
+
     def calcular_referencia_confirmada(salida):
         ultimo_codigo = ultimo_punto_map.get(salida.id)
         ultimo_orden = ultimo_punto_orden_map.get(salida.id) or 0
@@ -2627,7 +2637,7 @@ def _construir_cola_contexto_payload(sesion, ahora=None):
 
         return {
             "codigo": referencia_codigo,
-            "audio_codigo": referencia_codigo,
+            "audio_codigo": nombre_audio_desde_codigo(referencia_codigo),
             "orden_marcado": ultimo_orden,
             "orden_confirmado": orden_confirmado,
             "orden_referencia": referencia_orden,
