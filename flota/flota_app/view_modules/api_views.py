@@ -440,7 +440,12 @@ def _porcentaje_marcacion_salida(salida):
     if not salida.ruta_id:
         return 0
     try:
-        return int(_calcular_detalle_salida(salida)["resumen"]["porcentaje"])
+        return int(
+            _calcular_detalle_salida(
+                salida,
+                marcaciones=getattr(salida, "marcaciones_panel", None),
+            )["resumen"]["porcentaje"]
+        )
     except Exception:
         return 0
 

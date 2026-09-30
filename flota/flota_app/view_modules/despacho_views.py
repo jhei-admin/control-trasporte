@@ -247,9 +247,15 @@ def _construir_panel_despachador_contexto(empresa, fecha_operativa, ruta_id="", 
     elif len(rutas) == 1:
         ruta_actual = rutas[0]
 
+    marcaciones_panel = Prefetch(
+        "marcaciones",
+        queryset=MarcacionPunto.objects.select_related("punto").order_by("punto__orden"),
+        to_attr="marcaciones_panel",
+    )
     salidas_qs = (
         RegistroSalida.objects.for_empresa(empresa)
         .select_related("vehiculo", "ruta")
+        .prefetch_related(marcaciones_panel)
         .filter(
             ruta__isnull=False,
             activo=True,
@@ -260,17 +266,7 @@ def _construir_panel_despachador_contexto(empresa, fecha_operativa, ruta_id="", 
     if ruta_actual:
         salidas_qs = salidas_qs.filter(ruta=ruta_actual)
 
-    salidas_revision = list(salidas_qs)
-    finalizadas_por_inactividad = 0
-    for salida in salidas_revision:
-        if salida.finalizar_por_inactividad(ahora=ahora):
-            finalizadas_por_inactividad += 1
-
-    if finalizadas_por_inactividad:
-        salidas_qs = salidas_qs.filter(activo=True)
-
-    es_fecha_futura = fecha_operativa > hoy
-    salidas = list(
+    salidas_revision = list(
         salidas_qs.order_by(
             Case(
                 When(hora_salida__isnull=False, then=0),
@@ -281,6 +277,40 @@ def _construir_panel_despachador_contexto(empresa, fecha_operativa, ruta_id="", 
             "hora_llegada",
         )
     )
+
+    # Reutiliza las marcaciones precargadas para no ejecutar una consulta por salida.
+    salidas_finalizadas_ids = []
+    for salida in salidas_revision:
+        if not salida.activo or not salida.hora_salida or not salida.ruta_id:
+            continue
+
+        siguiente = next(
+            (
+                marcacion
+                for marcacion in salida.marcaciones_panel
+                if marcacion.hora_marcada is None
+            ),
+            None,
+        )
+        if (
+            siguiente
+            and siguiente.hora_programada
+            and ahora - siguiente.hora_programada >= timedelta(minutes=150)
+        ):
+            salidas_finalizadas_ids.append(salida.id)
+            salida.activo = False
+            salida.en_cola = False
+            salida.orden_cola = None
+
+    if salidas_finalizadas_ids:
+        RegistroSalida.objects.filter(id__in=salidas_finalizadas_ids).update(
+            activo=False,
+            en_cola=False,
+            orden_cola=None,
+        )
+
+    es_fecha_futura = fecha_operativa > hoy
+    salidas = [salida for salida in salidas_revision if salida.activo]
 
     stats = {
         "activas": len(salidas),
@@ -365,23 +395,24 @@ def _construir_panel_despachador_contexto(empresa, fecha_operativa, ruta_id="", 
         "codigos_unidad": codigos_unidad,
         "vehiculos_mensaje": vehiculos_mensaje,
         "mensajes_activos": mensajes_activos,
-        "finalizadas_por_inactividad": finalizadas_por_inactividad,
+        "finalizadas_por_inactividad": len(salidas_finalizadas_ids),
     }
 
 
-def _calcular_detalle_salida(salida):
-    marcaciones_qs = (
-        MarcacionPunto.objects.filter(registro_salida=salida)
-        .select_related("punto")
-        .order_by("punto__orden")
-    )
+def _calcular_detalle_salida(salida, marcaciones=None):
+    if marcaciones is None:
+        marcaciones = (
+            MarcacionPunto.objects.filter(registro_salida=salida)
+            .select_related("punto")
+            .order_by("punto__orden")
+        )
 
     detalle = []
     completados = 0
     pendiente_count = 0
     sin_hora_base = not bool(salida.hora_salida)
 
-    for marcacion in marcaciones_qs:
+    for marcacion in marcaciones:
         punto = marcacion.punto
 
         if salida.hora_salida:

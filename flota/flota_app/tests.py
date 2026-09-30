@@ -8,8 +8,9 @@ from django.contrib.admin.sites import AdminSite
 from django.core import signing
 from django.core.management import call_command
 from django.contrib.auth.models import Group, User
-from django.db import IntegrityError
+from django.db import IntegrityError, connection
 from django.test import Client, TestCase, override_settings
+from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 from django.utils import timezone
 
@@ -31,9 +32,11 @@ from .admin import PuntoControlAdmin, PuntoControlAdminForm
 from .view_modules.api_views import (
     _asegurar_marcaciones_salida,
     _ruta_tiene_contexto_vuelta,
+    _serializar_panel_despachador,
     registrar_punto_evento_confirmado,
     resetear_contexto_inicio_ruta,
 )
+from .view_modules.despacho_views import _construir_panel_despachador_contexto
 
 
 class BaseFlotaTestCase(TestCase):
@@ -3124,6 +3127,64 @@ class PanelDespachadorApiTests(BaseFlotaTestCase):
             reverse("reporte_salidas_diarias", args=[self.vehiculo_1.id]),
             data["reporte_url"],
         )
+
+    def test_contexto_panel_precarga_marcaciones_para_todas_las_salidas(self):
+        punto_1 = PuntoControl.objects.create(
+            ruta=self.ruta_a,
+            codigo="P1",
+            nombre="Punto 1",
+            latitud=-16.40,
+            longitud=-71.50,
+            radio_metros=50,
+            orden=1,
+            requiere_marcacion=True,
+        )
+        punto_2 = PuntoControl.objects.create(
+            ruta=self.ruta_a,
+            codigo="P2",
+            nombre="Punto 2",
+            latitud=-16.41,
+            longitud=-71.51,
+            radio_metros=50,
+            orden=2,
+            requiere_marcacion=True,
+        )
+        ahora = timezone.now()
+        salidas = []
+        for vehiculo in (self.vehiculo_1, self.vehiculo_2):
+            salida = RegistroSalida.objects.create(
+                vehiculo=vehiculo,
+                ruta=self.ruta_a,
+                fecha=timezone.localdate(),
+                hora_llegada=ahora,
+                hora_salida=ahora + timedelta(minutes=10),
+                activo=True,
+                en_cola=False,
+            )
+            MarcacionPunto.objects.create(
+                registro_salida=salida,
+                punto=punto_1,
+                hora_marcada=ahora,
+            )
+            MarcacionPunto.objects.create(registro_salida=salida, punto=punto_2)
+            salidas.append(salida)
+
+        with CaptureQueriesContext(connection) as queries:
+            contexto = _construir_panel_despachador_contexto(
+                empresa=self.empresa,
+                fecha_operativa=timezone.localdate(),
+                ruta_id=self.ruta_a.id,
+                ahora=ahora,
+            )
+            data = _serializar_panel_despachador(contexto)
+
+        self.assertEqual(len(contexto["salidas"]), 2)
+        self.assertEqual([salida["porcentaje"] for salida in data["salidas"]], [50, 50])
+        for salida in contexto["salidas"]:
+            self.assertEqual(len(salida.marcaciones_panel), 2)
+            self.assertEqual(salida.marcaciones_panel[0].punto_id, punto_1.id)
+            self.assertEqual(salida.marcaciones_panel[1].punto_id, punto_2.id)
+        self.assertLessEqual(len(queries), 6)
 
     def test_api_panel_despachador_rechaza_fecha_invalida(self):
         response = self.client.get(
