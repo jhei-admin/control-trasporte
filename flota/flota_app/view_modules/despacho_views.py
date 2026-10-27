@@ -490,6 +490,24 @@ def _construir_prioridad_operativa_contexto(empresa, fecha_operativa, ruta_id):
         .filter(fecha=fecha_operativa, activo=True)
         .values_list("vehiculo_id", flat=True)
     )
+    # Cada unidad solo puede aportar su ultima vuelta del dia. Asi una vuelta
+    # de primera hora no permanece sugerida cuando la unidad ya esta en la
+    # segunda, tercera o cuarta vuelta.
+    ultima_salida_por_vehiculo = {}
+    for salida_reciente in (
+        RegistroSalida.objects.for_empresa(empresa)
+        .filter(
+            ruta=ruta,
+            fecha=fecha_operativa,
+            hora_salida__isnull=False,
+        )
+        .order_by("vehiculo_id", "-hora_salida", "-id")
+        .only("id", "vehiculo_id", "activo")
+    ):
+        ultima_salida_por_vehiculo.setdefault(
+            salida_reciente.vehiculo_id,
+            salida_reciente.id,
+        )
     salidas = (
         RegistroSalida.objects.for_empresa(empresa)
         .filter(
@@ -516,7 +534,10 @@ def _construir_prioridad_operativa_contexto(empresa, fecha_operativa, ruta_id):
     prioridades = []
     excluidas = []
     for salida in salidas:
-        if salida.vehiculo_id in vehiculos_con_salida_activa:
+        if (
+            salida.vehiculo_id in vehiculos_con_salida_activa
+            or ultima_salida_por_vehiculo.get(salida.vehiculo_id) != salida.id
+        ):
             continue
 
         marcaciones = list(getattr(salida, "marcaciones_prioridad", []))

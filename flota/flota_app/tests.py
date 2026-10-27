@@ -3338,6 +3338,56 @@ class PanelDespachadorApiTests(BaseFlotaTestCase):
         )
         self.assertEqual(contexto["prioridades"], [])
 
+    def test_prioridad_solo_muestra_la_ultima_vuelta_de_cada_unidad(self):
+        punto = PuntoControl.objects.create(
+            ruta=self.ruta_a,
+            codigo="FIN",
+            nombre="Final",
+            latitud=-16.40,
+            longitud=-71.50,
+            radio_metros=50,
+            orden=1,
+            requiere_marcacion=True,
+        )
+        fecha = timezone.localdate()
+        base = timezone.now().replace(second=0, microsecond=0)
+        primera_vuelta = RegistroSalida.objects.create(
+            vehiculo=self.vehiculo_1,
+            ruta=self.ruta_a,
+            fecha=fecha,
+            hora_llegada=base,
+            hora_salida=base,
+            activo=False,
+            en_cola=False,
+        )
+        ultima_vuelta = RegistroSalida.objects.create(
+            vehiculo=self.vehiculo_1,
+            ruta=self.ruta_a,
+            fecha=fecha,
+            hora_llegada=base + timedelta(hours=2),
+            hora_salida=base + timedelta(hours=2),
+            activo=False,
+            en_cola=False,
+        )
+        for salida, demora in ((primera_vuelta, 0), (ultima_vuelta, 4)):
+            marcacion = MarcacionPunto.objects.create(
+                registro_salida=salida,
+                punto=punto,
+                hora_marcada=salida.hora_salida + timedelta(minutes=10),
+            )
+            MarcacionPunto.objects.filter(pk=marcacion.pk).update(
+                diferencia_minutos=demora,
+            )
+
+        contexto = _construir_prioridad_operativa_contexto(
+            empresa=self.empresa,
+            fecha_operativa=fecha,
+            ruta_id=self.ruta_a.id,
+        )
+        self.assertEqual(len(contexto["prioridades"]), 1)
+        self.assertEqual(contexto["prioridades"][0]["salida_id"], ultima_vuelta.id)
+        self.assertEqual(contexto["prioridades"][0]["minutos_tarde"], 4)
+
     def test_panel_envia_mensaje_a_todas_las_unidades_de_la_empresa(self):
         hoy = timezone.localdate()
 
