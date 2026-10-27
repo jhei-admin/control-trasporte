@@ -707,6 +707,35 @@ class MarcacionPunto(models.Model):
     def __str__(self):
         return f"{self.registro_salida} - {self.punto.codigo}"
 
+
+# =========================
+# PRIORIDAD OPERATIVA
+# =========================
+class PrioridadSalidaExcluida(models.Model):
+    """Exclusion manual de una vuelta dentro de la recomendacion de prioridad."""
+
+    salida = models.OneToOneField(
+        RegistroSalida,
+        on_delete=models.CASCADE,
+        related_name="exclusion_prioridad",
+    )
+    excluida_por = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="prioridades_excluidas",
+    )
+    creada_en = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Prioridad excluida"
+        verbose_name_plural = "Prioridades excluidas"
+        ordering = ["-creada_en"]
+
+    def __str__(self):
+        return f"Prioridad excluida: {self.salida}"
+
 # =========================
 # SESIÓN DE UNIDAD
 # =========================

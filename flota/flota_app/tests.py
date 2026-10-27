@@ -20,6 +20,7 @@ from .models import (
     MarcacionPunto,
     MensajeGlobal,
     PuntoControl,
+    PrioridadSalidaExcluida,
     RegistroSalida,
     Ruta,
     SesionUnidad,
@@ -36,7 +37,10 @@ from .view_modules.api_views import (
     registrar_punto_evento_confirmado,
     resetear_contexto_inicio_ruta,
 )
-from .view_modules.despacho_views import _construir_panel_despachador_contexto
+from .view_modules.despacho_views import (
+    _construir_panel_despachador_contexto,
+    _construir_prioridad_operativa_contexto,
+)
 
 
 class BaseFlotaTestCase(TestCase):
@@ -3194,6 +3198,145 @@ class PanelDespachadorApiTests(BaseFlotaTestCase):
 
         self.assertEqual(response.status_code, 400)
         self.assertFalse(response.json()["ok"])
+
+    def test_prioridad_usa_minutos_acumulados_y_permite_excluir_restaurar(self):
+        punto_1 = PuntoControl.objects.create(
+            ruta=self.ruta_a,
+            codigo="P1",
+            nombre="Punto 1",
+            latitud=-16.40,
+            longitud=-71.50,
+            radio_metros=50,
+            orden=1,
+            requiere_marcacion=True,
+        )
+        punto_2 = PuntoControl.objects.create(
+            ruta=self.ruta_a,
+            codigo="P2",
+            nombre="Punto 2",
+            latitud=-16.41,
+            longitud=-71.51,
+            radio_metros=50,
+            orden=2,
+            requiere_marcacion=True,
+        )
+        fecha = timezone.localdate()
+        base = timezone.now().replace(second=0, microsecond=0)
+
+        salida_mejor = RegistroSalida.objects.create(
+            vehiculo=self.vehiculo_1,
+            ruta=self.ruta_a,
+            fecha=fecha,
+            hora_llegada=base,
+            hora_salida=base,
+            activo=False,
+            en_cola=False,
+        )
+        salida_mayor_demora = RegistroSalida.objects.create(
+            vehiculo=self.vehiculo_2,
+            ruta=self.ruta_a,
+            fecha=fecha,
+            hora_llegada=base,
+            hora_salida=base + timedelta(minutes=5),
+            activo=False,
+            en_cola=False,
+        )
+
+        for salida, demoras, minutos_finales in (
+            (salida_mejor, (2, 3), 20),
+            (salida_mayor_demora, (4, 6), 25),
+        ):
+            for punto, demora, minuto_final in (
+                (punto_1, demoras[0], minutos_finales - 1),
+                (punto_2, demoras[1], minutos_finales),
+            ):
+                marcacion = MarcacionPunto.objects.create(
+                    registro_salida=salida,
+                    punto=punto,
+                    hora_marcada=base + timedelta(minutes=minuto_final),
+                )
+                MarcacionPunto.objects.filter(pk=marcacion.pk).update(
+                    diferencia_minutos=demora,
+                )
+
+        contexto = _construir_prioridad_operativa_contexto(
+            empresa=self.empresa,
+            fecha_operativa=fecha,
+            ruta_id=self.ruta_a.id,
+        )
+        self.assertEqual(
+            [item["unidad"] for item in contexto["prioridades"]],
+            [self.vehiculo_1.codigo, self.vehiculo_2.codigo],
+        )
+        self.assertEqual(
+            [item["minutos_tarde"] for item in contexto["prioridades"]],
+            [5, 10],
+        )
+
+        response = self.client.post(
+            reverse("api_despachador_prioridad_excluir", args=[salida_mejor.id]),
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(PrioridadSalidaExcluida.objects.filter(salida=salida_mejor).exists())
+
+        response = self.client.get(
+            reverse("api_despachador_prioridad"),
+            {"ruta": self.ruta_a.id, "fecha": fecha.isoformat()},
+        )
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual([item["unidad"] for item in data["prioridades"]], [self.vehiculo_2.codigo])
+        self.assertEqual([item["unidad"] for item in data["excluidas"]], [self.vehiculo_1.codigo])
+
+        response = self.client.post(
+            reverse("api_despachador_prioridad_restaurar", args=[salida_mejor.id]),
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(PrioridadSalidaExcluida.objects.filter(salida=salida_mejor).exists())
+
+    def test_prioridad_oculta_vuelta_si_la_unidad_ya_tiene_nueva_salida_activa(self):
+        punto = PuntoControl.objects.create(
+            ruta=self.ruta_a,
+            codigo="FIN",
+            nombre="Final",
+            latitud=-16.40,
+            longitud=-71.50,
+            radio_metros=50,
+            orden=1,
+            requiere_marcacion=True,
+        )
+        fecha = timezone.localdate()
+        base = timezone.now().replace(second=0, microsecond=0)
+        vuelta_anterior = RegistroSalida.objects.create(
+            vehiculo=self.vehiculo_1,
+            ruta=self.ruta_a,
+            fecha=fecha,
+            hora_llegada=base,
+            hora_salida=base,
+            activo=False,
+            en_cola=False,
+        )
+        MarcacionPunto.objects.create(
+            registro_salida=vuelta_anterior,
+            punto=punto,
+            hora_marcada=base + timedelta(minutes=10),
+        )
+        RegistroSalida.objects.create(
+            vehiculo=self.vehiculo_1,
+            ruta=self.ruta_a,
+            fecha=fecha,
+            hora_llegada=base + timedelta(minutes=11),
+            hora_salida=base + timedelta(minutes=15),
+            activo=True,
+            en_cola=False,
+        )
+
+        contexto = _construir_prioridad_operativa_contexto(
+            empresa=self.empresa,
+            fecha_operativa=fecha,
+            ruta_id=self.ruta_a.id,
+        )
+        self.assertEqual(contexto["prioridades"], [])
 
     def test_panel_envia_mensaje_a_todas_las_unidades_de_la_empresa(self):
         hoy = timezone.localdate()

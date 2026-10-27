@@ -515,6 +515,140 @@ padding:10px 14px;
 font-weight:700;
 }
 
+.priority-widget{
+position:relative;
+}
+
+.priority-panel{
+position:absolute;
+left:0;
+top:50px;
+width:540px;
+max-width:calc(100vw - 32px);
+background:#fff;
+color:#0f172a;
+border:1px solid #dbe4f0;
+border-radius:14px;
+box-shadow:0 22px 55px rgba(15,23,42,.24);
+z-index:75;
+overflow:hidden;
+}
+
+.priority-panel.d-none{
+display:none;
+}
+
+.priority-head{
+display:flex;
+align-items:flex-start;
+justify-content:space-between;
+gap:14px;
+padding:14px 16px;
+background:#172033;
+color:#fff;
+}
+
+.priority-title{
+font-size:16px;
+font-weight:900;
+}
+
+.priority-subtitle{
+margin-top:3px;
+font-size:12px;
+color:#cbd5e1;
+}
+
+.priority-close{
+border:0;
+border-radius:8px;
+padding:5px 8px;
+background:rgba(255,255,255,.13);
+color:#fff;
+font-size:12px;
+font-weight:800;
+}
+
+.priority-list{
+max-height:430px;
+overflow:auto;
+padding:10px;
+}
+
+.priority-empty{
+padding:20px 14px;
+text-align:center;
+color:#64748b;
+font-size:13px;
+}
+
+.priority-item{
+display:grid;
+grid-template-columns:auto minmax(0,1fr) auto;
+gap:10px;
+align-items:center;
+padding:11px;
+margin-bottom:8px;
+border:1px solid #e2e8f0;
+border-radius:11px;
+background:#f8fafc;
+}
+
+.priority-rank{
+display:inline-flex;
+align-items:center;
+justify-content:center;
+width:31px;
+height:31px;
+border-radius:50%;
+background:#dbeafe;
+color:#1d4ed8;
+font-size:14px;
+font-weight:900;
+}
+
+.priority-unit{
+font-size:15px;
+font-weight:900;
+}
+
+.priority-meta{
+margin-top:3px;
+font-size:12px;
+color:#475569;
+}
+
+.priority-late{
+font-weight:900;
+color:#b91c1c;
+}
+
+.priority-actions{
+display:flex;
+gap:6px;
+flex-wrap:wrap;
+justify-content:flex-end;
+}
+
+.priority-actions .btn{
+padding:6px 9px;
+font-size:12px;
+}
+
+.priority-excluded-title{
+margin:15px 2px 8px;
+font-size:12px;
+font-weight:900;
+letter-spacing:.04em;
+text-transform:uppercase;
+color:#64748b;
+}
+
+.priority-excluded .priority-item{
+opacity:.76;
+background:#f8fafc;
+}
+
 .message-console{
 background:#fff;
 border-radius:20px;
@@ -909,6 +1043,20 @@ justify-content:stretch;
 .quick-submit{
 width:100%;
 }
+
+.priority-panel{
+left:auto;
+right:0;
+}
+
+.priority-item{
+grid-template-columns:auto minmax(0,1fr);
+}
+
+.priority-actions{
+grid-column:1 / -1;
+justify-content:flex-start;
+}
 }
 </style>
 
@@ -1053,6 +1201,21 @@ width:100%;
     <a href="{% url 'despachador_mapa' %}" class="btn btn-outline-primary">Mapa en tiempo real</a>
     <a href="{% url 'panel_frecuencia' %}{% if ruta_actual_id %}?ruta={{ ruta_actual_id }}{% endif %}" class="btn btn-outline-success">Frecuencia</a>
     <a href="{% url 'ranking_unidades' %}?periodo=diario&fecha={{ fecha_operativa_iso }}" class="btn btn-outline-dark">Ranking</a>
+    <div class="priority-widget">
+      <button type="button" id="priorityBtn" class="btn btn-outline-dark" aria-expanded="false" aria-controls="priorityPanel">Prioridad</button>
+      <div id="priorityPanel" class="priority-panel d-none" role="dialog" aria-label="Prioridad sugerida para salida">
+        <div class="priority-head">
+          <div>
+            <div class="priority-title">Prioridad sugerida</div>
+            <div class="priority-subtitle">Ordenada por menor demora acumulada en la vuelta finalizada.</div>
+          </div>
+          <button type="button" id="priorityClose" class="priority-close">Cerrar</button>
+        </div>
+        <div id="priorityList" class="priority-list">
+          <div class="priority-empty">Cargando recomendacion...</div>
+        </div>
+      </div>
+    </div>
     {% if reporte_vehiculo_id %}
       <a id="reportesDiaLink" href="{% url 'reporte_salidas_diarias' reporte_vehiculo_id %}?fecha={{ fecha_operativa_iso }}" class="btn btn-warning">Salidas del dia</a>
     {% else %}
@@ -1290,6 +1453,13 @@ const gpsAlertBadge = document.getElementById("gpsAlertBadge")
 const gpsAlertPanel = document.getElementById("gpsAlertPanel")
 const gpsAlertList = document.getElementById("gpsAlertList")
 const gpsAlertClear = document.getElementById("gpsAlertClear")
+const priorityUrl = "{% url 'api_despachador_prioridad' %}"
+const priorityExcludePattern = "{% url 'api_despachador_prioridad_excluir' 0 %}"
+const priorityRestorePattern = "{% url 'api_despachador_prioridad_restaurar' 0 %}"
+const priorityBtn = document.getElementById("priorityBtn")
+const priorityPanel = document.getElementById("priorityPanel")
+const priorityClose = document.getElementById("priorityClose")
+const priorityList = document.getElementById("priorityList")
 let gpsAlerts = leerJsonLocal(GPS_ALERTS_STORAGE_KEY, [])
 let gpsStatusByUnit = leerJsonLocal(GPS_STATUS_STORAGE_KEY, {})
 
@@ -1356,6 +1526,116 @@ function obtenerFiltrosPanel(){
     ruta: document.getElementById("filtroRuta")?.value || "",
     fecha: document.getElementById("fechaVisible")?.value || dispatcherPanel?.dataset.fecha || "",
   }
+}
+
+function construirUrlPrioridad(pattern, salidaId){
+  return pattern.replace("/0/", `/${encodeURIComponent(salidaId)}/`)
+}
+
+function renderizarPrioridad(data){
+  if(!priorityList){
+    return
+  }
+
+  const prioridades = Array.isArray(data.prioridades) ? data.prioridades : []
+  const excluidas = Array.isArray(data.excluidas) ? data.excluidas : []
+  let contenido = ""
+
+  if(prioridades.length){
+    contenido += prioridades.map(item => `
+      <div class="priority-item">
+        <span class="priority-rank">${escapeHtml(item.posicion)}</span>
+        <div>
+          <div class="priority-unit">Unidad ${escapeHtml(item.unidad)}</div>
+          <div class="priority-meta">Finalizo ${escapeHtml(item.hora_final)} · <span class="priority-late">${escapeHtml(item.minutos_tarde)} min acumulados</span></div>
+        </div>
+        <div class="priority-actions">
+          <button type="button" class="btn btn-primary btn-sm" data-priority-use="${escapeHtml(item.unidad)}">Usar</button>
+          <button type="button" class="btn btn-outline-secondary btn-sm" data-priority-exclude="${escapeHtml(item.salida_id)}">Quitar</button>
+        </div>
+      </div>
+    `).join("")
+  }else{
+    contenido += `<div class="priority-empty">${escapeHtml(data.mensaje || "No hay vueltas finalizadas disponibles para recomendar.")}</div>`
+  }
+
+  if(excluidas.length){
+    contenido += '<div class="priority-excluded-title">Unidades excluidas</div><div class="priority-excluded">'
+    contenido += excluidas.map(item => `
+      <div class="priority-item">
+        <span class="priority-rank">—</span>
+        <div>
+          <div class="priority-unit">Unidad ${escapeHtml(item.unidad)}</div>
+          <div class="priority-meta">${escapeHtml(item.minutos_tarde)} min acumulados · retirada manualmente</div>
+        </div>
+        <div class="priority-actions">
+          <button type="button" class="btn btn-outline-primary btn-sm" data-priority-restore="${escapeHtml(item.salida_id)}">Restaurar</button>
+        </div>
+      </div>
+    `).join("")
+    contenido += "</div>"
+  }
+
+  priorityList.innerHTML = contenido
+}
+
+async function cargarPrioridad(mostrarCarga = false){
+  if(!priorityUrl || !priorityList){
+    return
+  }
+
+  const filtros = obtenerFiltrosPanel()
+  if(!filtros.ruta){
+    priorityList.innerHTML = '<div class="priority-empty">Seleccione una ruta para ver la prioridad sugerida.</div>'
+    return
+  }
+
+  if(mostrarCarga){
+    priorityList.innerHTML = '<div class="priority-empty">Cargando recomendacion...</div>'
+  }
+
+  const query = new URLSearchParams({ruta: filtros.ruta, fecha: filtros.fecha})
+  try{
+    const response = await fetch(`${priorityUrl}?${query.toString()}`, {
+      cache: "no-store",
+      credentials: "same-origin",
+      headers: {"X-Requested-With": "XMLHttpRequest"}
+    })
+    if(!response.ok){
+      throw new Error("No se pudo cargar la prioridad.")
+    }
+    const data = await response.json()
+    if(!data.ok){
+      throw new Error(data.error || "No se pudo cargar la prioridad.")
+    }
+    renderizarPrioridad(data)
+  }catch(error){
+    priorityList.innerHTML = '<div class="priority-empty">No se pudo actualizar la recomendacion. Intente nuevamente.</div>'
+    console.warn("No se pudo cargar la prioridad sugerida.", error)
+  }
+}
+
+async function cambiarExclusionPrioridad(salidaId, accion){
+  const pattern = accion === "restaurar" ? priorityRestorePattern : priorityExcludePattern
+  const url = construirUrlPrioridad(pattern, salidaId)
+  const csrfToken = obtenerCsrfToken()
+  const formData = new URLSearchParams({csrfmiddlewaretoken: csrfToken})
+
+  const response = await fetch(url, {
+    method: "POST",
+    credentials: "same-origin",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+      "X-CSRFToken": csrfToken,
+      "X-Requested-With": "XMLHttpRequest"
+    },
+    body: formData.toString()
+  })
+  const data = await response.json().catch(() => ({}))
+  if(!response.ok || !data.ok){
+    throw new Error(data.error || "No se pudo actualizar la prioridad.")
+  }
+  await cargarPrioridad()
 }
 
 function aplicarFiltroUnidad(){
@@ -1542,6 +1822,9 @@ async function refrescarPanelSiCorresponde(){
     renderizarSalidasPanel(data)
     actualizarResumenPanel(data)
     aplicarFiltroUnidad()
+    if(priorityPanel && !priorityPanel.classList.contains("d-none")){
+      cargarPrioridad()
+    }
   }catch(error){
     console.warn("No se pudo refrescar el panel en segundo plano.", error)
   }
@@ -1754,6 +2037,68 @@ document.addEventListener("visibilitychange", function(){
 if(gpsAlertBtn && gpsAlertPanel){
   gpsAlertBtn.addEventListener("click", function(){
     gpsAlertPanel.classList.toggle("d-none")
+    if(priorityPanel){
+      priorityPanel.classList.add("d-none")
+      priorityBtn?.setAttribute("aria-expanded", "false")
+    }
+  })
+}
+
+if(priorityBtn && priorityPanel){
+  priorityBtn.addEventListener("click", function(){
+    const visible = priorityPanel.classList.toggle("d-none") === false
+    priorityBtn.setAttribute("aria-expanded", String(visible))
+    if(visible){
+      gpsAlertPanel?.classList.add("d-none")
+      cargarPrioridad(true)
+    }
+  })
+}
+
+if(priorityClose && priorityPanel){
+  priorityClose.addEventListener("click", function(){
+    priorityPanel.classList.add("d-none")
+    priorityBtn?.setAttribute("aria-expanded", "false")
+  })
+}
+
+if(priorityList){
+  priorityList.addEventListener("click", async function(event){
+    const usar = event.target.closest("[data-priority-use]")
+    if(usar){
+      const codigoRapido = document.getElementById("codigoRapido")
+      if(codigoRapido){
+        codigoRapido.value = usar.dataset.priorityUse || ""
+        codigoRapido.dispatchEvent(new Event("input", {bubbles:true}))
+        codigoRapido.focus()
+      }
+      priorityPanel?.classList.add("d-none")
+      priorityBtn?.setAttribute("aria-expanded", "false")
+      return
+    }
+
+    const excluir = event.target.closest("[data-priority-exclude]")
+    const restaurar = event.target.closest("[data-priority-restore]")
+    const boton = excluir || restaurar
+    if(!boton){
+      return
+    }
+
+    const accion = restaurar ? "restaurar" : "excluir"
+    const mensaje = accion === "excluir"
+      ? "¿Quitar esta vuelta de la prioridad sugerida? No se eliminara ningun registro."
+      : "¿Restaurar esta vuelta en la prioridad sugerida?"
+    if(!window.confirm(mensaje)){
+      return
+    }
+
+    boton.disabled = true
+    try{
+      await cambiarExclusionPrioridad(boton.dataset.priorityExclude || boton.dataset.priorityRestore, accion)
+    }catch(error){
+      window.alert(error.message || "No se pudo actualizar la prioridad.")
+      boton.disabled = false
+    }
   })
 }
 
@@ -1768,6 +2113,10 @@ if(gpsAlertClear){
 document.addEventListener("click", function(event){
   if(gpsAlertPanel && !gpsAlertPanel.classList.contains("d-none") && !event.target.closest(".gps-alert-widget")){
     gpsAlertPanel.classList.add("d-none")
+  }
+  if(priorityPanel && !priorityPanel.classList.contains("d-none") && !event.target.closest(".priority-widget")){
+    priorityPanel.classList.add("d-none")
+    priorityBtn?.setAttribute("aria-expanded", "false")
   }
 })
 

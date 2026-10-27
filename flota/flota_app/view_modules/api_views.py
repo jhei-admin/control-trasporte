@@ -31,6 +31,7 @@ from ..models import (
     MovimientoCaja,
     Parada,
     PuntoControl,
+    PrioridadSalidaExcluida,
     RegistroSalida,
     Ruta,
     SesionStaffApp,
@@ -45,6 +46,7 @@ from .despacho_views import (
     _construir_control_ruta_contexto,
     _construir_historial_salidas_contexto,
     _construir_panel_despachador_contexto,
+    _construir_prioridad_operativa_contexto,
     _parse_fecha_panel,
     es_despachador,
 )
@@ -85,6 +87,9 @@ __all__ = [
     "api_panel_frecuencia",
     "api_paradas_vehiculo",
     "api_panel_despachador",
+    "api_despachador_prioridad",
+    "api_despachador_prioridad_excluir",
+    "api_despachador_prioridad_restaurar",
     "api_reporte_salidas_diarias",
     "api_historial_salidas",
     "api_control_ruta_web",
@@ -3798,6 +3803,81 @@ def api_panel_despachador(request):
         ruta_id=ruta_id,
     )
     return JsonResponse(_serializar_panel_despachador(contexto))
+
+
+def _serializar_prioridad_operativa(contexto):
+    return {
+        "ok": True,
+        "ruta": contexto["ruta"].nombre if contexto["ruta"] else "",
+        "fecha_operativa_iso": contexto["fecha_operativa"].isoformat(),
+        "prioridades": contexto["prioridades"],
+        "excluidas": contexto["excluidas"],
+        "mensaje": contexto["mensaje"],
+    }
+
+
+@login_required
+@empresa_required
+@require_GET
+def api_despachador_prioridad(request):
+    if not es_despachador(request.user):
+        return JsonResponse(
+            {"ok": False, "mensaje": "No tienes permisos para ver esta prioridad."},
+            status=403,
+        )
+
+    try:
+        fecha_operativa = _parse_fecha_panel(request.GET.get("fecha", "").strip())
+    except ValueError as error:
+        return JsonResponse({"ok": False, "mensaje": str(error)}, status=400)
+
+    contexto = _construir_prioridad_operativa_contexto(
+        empresa=request.empresa,
+        fecha_operativa=fecha_operativa,
+        ruta_id=request.GET.get("ruta", "").strip(),
+    )
+    return JsonResponse(_serializar_prioridad_operativa(contexto))
+
+
+def _salida_prioridad_de_empresa(request, salida_id):
+    return get_object_or_404(
+        RegistroSalida.objects.for_empresa(request.empresa),
+        pk=salida_id,
+        activo=False,
+    )
+
+
+@login_required
+@empresa_required
+@require_POST
+def api_despachador_prioridad_excluir(request, salida_id):
+    if not es_despachador(request.user):
+        return JsonResponse(
+            {"ok": False, "mensaje": "No tienes permisos para modificar esta prioridad."},
+            status=403,
+        )
+
+    salida = _salida_prioridad_de_empresa(request, salida_id)
+    PrioridadSalidaExcluida.objects.get_or_create(
+        salida=salida,
+        defaults={"excluida_por": request.user},
+    )
+    return JsonResponse({"ok": True})
+
+
+@login_required
+@empresa_required
+@require_POST
+def api_despachador_prioridad_restaurar(request, salida_id):
+    if not es_despachador(request.user):
+        return JsonResponse(
+            {"ok": False, "mensaje": "No tienes permisos para modificar esta prioridad."},
+            status=403,
+        )
+
+    salida = _salida_prioridad_de_empresa(request, salida_id)
+    PrioridadSalidaExcluida.objects.filter(salida=salida).delete()
+    return JsonResponse({"ok": True})
 
 
 @login_required

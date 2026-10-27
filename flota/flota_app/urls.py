@@ -28,6 +28,9 @@ from .view_modules.api_views import (
     api_app_referencia_tiempo,
     api_buscar_vehiculo_por_codigo,
     api_despachador_alertas_gps,
+    api_despachador_prioridad,
+    api_despachador_prioridad_excluir,
+    api_despachador_prioridad_restaurar,
     api_despachador_mapa,
     api_escanear_qr,
     api_gps,
@@ -593,6 +596,21 @@ urlpatterns = [
     path(
         "api/despachador/panel",
         api_panel_despachador
+    ),
+    path(
+        "api/despachador/prioridad/",
+        api_despachador_prioridad,
+        name="api_despachador_prioridad",
+    ),
+    path(
+        "api/despachador/prioridad/<int:salida_id>/excluir/",
+        api_despachador_prioridad_excluir,
+        name="api_despachador_prioridad_excluir",
+    ),
+    path(
+        "api/despachador/prioridad/<int:salida_id>/restaurar/",
+        api_despachador_prioridad_restaurar,
+        name="api_despachador_prioridad_restaurar",
     ),
     path(
         "api/despachador/historial/",

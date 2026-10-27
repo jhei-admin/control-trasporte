@@ -48,6 +48,7 @@ __all__ = [
     "marcar_siguiente_punto_auto",
     "panel_despachador",
     "panel_frecuencia",
+    "_construir_prioridad_operativa_contexto",
     "quitar_mensaje_panel",
     "poner_en_cola",
     "quitar_de_cola",
@@ -455,6 +456,112 @@ def _calcular_detalle_salida(salida, marcaciones=None):
             "minutos_tarde": minutos_tarde,
             "sin_hora_base": sin_hora_base,
         },
+    }
+
+
+def _construir_prioridad_operativa_contexto(empresa, fecha_operativa, ruta_id):
+    """Construye la recomendacion por vuelta terminada sin alterar el despacho."""
+    ruta = Ruta.objects.for_empresa(empresa).filter(pk=ruta_id).first()
+    if not ruta:
+        return {
+            "ruta": None,
+            "fecha_operativa": fecha_operativa,
+            "prioridades": [],
+            "excluidas": [],
+            "mensaje": "Seleccione una ruta para ver la prioridad sugerida.",
+        }
+
+    puntos_ids = list(
+        PuntoControl.objects.for_empresa(empresa)
+        .filter(ruta=ruta, activo=True, requiere_marcacion=True)
+        .values_list("id", flat=True)
+    )
+    if not puntos_ids:
+        return {
+            "ruta": ruta,
+            "fecha_operativa": fecha_operativa,
+            "prioridades": [],
+            "excluidas": [],
+            "mensaje": "La ruta no tiene puntos de marcacion configurados.",
+        }
+
+    vehiculos_con_salida_activa = set(
+        RegistroSalida.objects.for_empresa(empresa)
+        .filter(fecha=fecha_operativa, activo=True)
+        .values_list("vehiculo_id", flat=True)
+    )
+    salidas = (
+        RegistroSalida.objects.for_empresa(empresa)
+        .filter(
+            ruta=ruta,
+            fecha=fecha_operativa,
+            activo=False,
+            hora_salida__isnull=False,
+            vehiculo__activo=True,
+            vehiculo__servicio_suspendido=False,
+        )
+        .select_related("vehiculo")
+        .prefetch_related(
+            Prefetch(
+                "marcaciones",
+                queryset=MarcacionPunto.objects.filter(punto_id__in=puntos_ids)
+                .select_related("punto")
+                .order_by("hora_marcada", "punto__orden"),
+                to_attr="marcaciones_prioridad",
+            ),
+            "exclusion_prioridad",
+        )
+    )
+
+    prioridades = []
+    excluidas = []
+    for salida in salidas:
+        if salida.vehiculo_id in vehiculos_con_salida_activa:
+            continue
+
+        marcaciones = list(getattr(salida, "marcaciones_prioridad", []))
+        if len(marcaciones) != len(puntos_ids) or any(
+            marcacion.hora_marcada is None for marcacion in marcaciones
+        ):
+            continue
+
+        hora_final = max(marcacion.hora_marcada for marcacion in marcaciones)
+        item = {
+            "salida_id": salida.id,
+            "unidad": salida.vehiculo.codigo,
+            "hora_programada": timezone.localtime(salida.hora_salida).strftime("%H:%M"),
+            "hora_final": timezone.localtime(hora_final).strftime("%H:%M:%S"),
+            "hora_final_orden": hora_final,
+            "minutos_tarde": sum(
+                max(int(marcacion.diferencia_minutos or 0), 0)
+                for marcacion in marcaciones
+            ),
+        }
+        if hasattr(salida, "exclusion_prioridad"):
+            excluidas.append(item)
+        else:
+            prioridades.append(item)
+
+    prioridades.sort(
+        key=lambda item: (
+            item["minutos_tarde"],
+            item["hora_final_orden"],
+            item["unidad"],
+        )
+    )
+    excluidas.sort(key=lambda item: (item["minutos_tarde"], item["hora_final_orden"]))
+    for posicion, item in enumerate(prioridades, start=1):
+        item["posicion"] = posicion
+        item.pop("hora_final_orden")
+    for item in excluidas:
+        item.pop("hora_final_orden")
+
+    return {
+        "ruta": ruta,
+        "fecha_operativa": fecha_operativa,
+        "prioridades": prioridades,
+        "excluidas": excluidas,
+        "mensaje": "" if prioridades else "No hay vueltas finalizadas disponibles para prioridad.",
     }
 
 
