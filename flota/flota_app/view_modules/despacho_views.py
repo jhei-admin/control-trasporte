@@ -30,6 +30,8 @@ from ..models import (
 )
 from ..services import recalcular_cola
 
+VENTANA_PRIORIDAD_MINUTOS = 20
+
 __all__ = [
     "asignar_hora_fija",
     "auditoria_horas",
@@ -461,6 +463,7 @@ def _calcular_detalle_salida(salida, marcaciones=None):
 
 def _construir_prioridad_operativa_contexto(empresa, fecha_operativa, ruta_id):
     """Construye la recomendacion por vuelta terminada sin alterar el despacho."""
+    limite_reciente = timezone.now() - timedelta(minutes=VENTANA_PRIORIDAD_MINUTOS)
     ruta = Ruta.objects.for_empresa(empresa).filter(pk=ruta_id).first()
     if not ruta:
         return {
@@ -547,6 +550,9 @@ def _construir_prioridad_operativa_contexto(empresa, fecha_operativa, ruta_id):
             continue
 
         hora_final = max(marcacion.hora_marcada for marcacion in marcaciones)
+        if hora_final < limite_reciente:
+            continue
+
         item = {
             "salida_id": salida.id,
             "unidad": salida.vehiculo.codigo,
@@ -582,7 +588,11 @@ def _construir_prioridad_operativa_contexto(empresa, fecha_operativa, ruta_id):
         "fecha_operativa": fecha_operativa,
         "prioridades": prioridades,
         "excluidas": excluidas,
-        "mensaje": "" if prioridades else "No hay vueltas finalizadas disponibles para prioridad.",
+        "mensaje": (
+            ""
+            if prioridades
+            else f"No hay vueltas finalizadas en los ultimos {VENTANA_PRIORIDAD_MINUTOS} minutos."
+        ),
     }
 
 

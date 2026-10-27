@@ -3388,6 +3388,42 @@ class PanelDespachadorApiTests(BaseFlotaTestCase):
         self.assertEqual(contexto["prioridades"][0]["salida_id"], ultima_vuelta.id)
         self.assertEqual(contexto["prioridades"][0]["minutos_tarde"], 4)
 
+    def test_prioridad_omite_vueltas_finalizadas_hace_mas_de_veinte_minutos(self):
+        punto = PuntoControl.objects.create(
+            ruta=self.ruta_a,
+            codigo="FIN",
+            nombre="Final",
+            latitud=-16.40,
+            longitud=-71.50,
+            radio_metros=50,
+            orden=1,
+            requiere_marcacion=True,
+        )
+        fecha = timezone.localdate()
+        ahora = timezone.now().replace(second=0, microsecond=0)
+        salida = RegistroSalida.objects.create(
+            vehiculo=self.vehiculo_1,
+            ruta=self.ruta_a,
+            fecha=fecha,
+            hora_llegada=ahora - timedelta(minutes=40),
+            hora_salida=ahora - timedelta(minutes=35),
+            activo=False,
+            en_cola=False,
+        )
+        MarcacionPunto.objects.create(
+            registro_salida=salida,
+            punto=punto,
+            hora_marcada=ahora - timedelta(minutes=21),
+        )
+
+        contexto = _construir_prioridad_operativa_contexto(
+            empresa=self.empresa,
+            fecha_operativa=fecha,
+            ruta_id=self.ruta_a.id,
+        )
+        self.assertEqual(contexto["prioridades"], [])
+        self.assertIn("ultimos 20 minutos", contexto["mensaje"])
+
     def test_panel_envia_mensaje_a_todas_las_unidades_de_la_empresa(self):
         hoy = timezone.localdate()
 
