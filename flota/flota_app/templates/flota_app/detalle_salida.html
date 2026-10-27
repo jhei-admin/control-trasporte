@@ -38,6 +38,9 @@
 .state-sin_hora{background:#fff7ed;color:#9a3412}.state-sin_hora .state-dot{background:#f59e0b}
 .detail-warning{padding:14px 16px;border-radius:16px;background:#fff7ed;border:1px solid rgba(245,158,11,.28);color:#9a3412;font-weight:800}
 .detail-warning.d-none{display:none}
+.detail-late-total{margin-top:18px;display:flex;justify-content:flex-end;align-items:center;gap:14px;padding:16px 18px;border-radius:16px;background:#fef2f2;border:1px solid rgba(239,68,68,.22)}
+.detail-late-total-label{font-size:15px;font-weight:800;color:#991b1b}
+.detail-late-total-value{font-size:25px;font-weight:900;color:#dc2626}
 .empty-box{text-align:center;padding:44px 18px;color:#64748b}
 @media (max-width: 980px){.detail-summary{grid-template-columns:repeat(2,minmax(0,1fr))}.detail-head{flex-direction:column}}
 @media (max-width: 640px){.detail-summary{grid-template-columns:1fr}.detail-title{font-size:28px}}
@@ -112,6 +115,10 @@
         </tbody>
       </table>
     </div>
+    <div class="detail-late-total" aria-live="polite">
+      <span class="detail-late-total-label">Minutos tarde acumulados</span>
+      <strong class="detail-late-total-value" id="detalleMinutosTarde">{{ resumen.minutos_tarde }} min</strong>
+    </div>
   </section>
 </div>
 
@@ -132,6 +139,7 @@ function renderDetalle(data){
   document.getElementById("detalleTotal").textContent = data.resumen.total
   document.getElementById("detallePendientes").textContent = data.resumen.pendientes
   document.getElementById("detallePorcentaje").textContent = `${data.resumen.porcentaje} %`
+  document.getElementById("detalleMinutosTarde").textContent = `${data.resumen.minutos_tarde} min`
   const avisoSinHora = document.getElementById("sinHoraBaseAviso")
   if(avisoSinHora){
     avisoSinHora.classList.toggle("d-none", !data.resumen.sin_hora_base)

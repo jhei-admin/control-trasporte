@@ -620,17 +620,9 @@ def _serializar_control_web(contexto):
 
 
 def _serializar_detalle_web(contexto):
-    minutos_tarde = sum(
-        max(int(item["diferencia"] or 0), 0)
-        for item in contexto["detalle"]
-        if item["diferencia"] is not None
-    )
     return {
         "ok": True,
-        "resumen": {
-            **contexto["resumen"],
-            "minutos_tarde": minutos_tarde,
-        },
+        "resumen": contexto["resumen"],
         "detalle": [
             {
                 "orden": index + 1,

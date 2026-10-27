@@ -3409,9 +3409,8 @@ class DispatcherLiveApisTests(BaseFlotaTestCase):
         MarcacionPunto.objects.create(
             registro_salida=salida,
             punto=punto,
-            hora_marcada=salida.hora_salida,
-            diferencia_minutos=0,
-            estado="a_tiempo",
+            hora_marcada=salida.hora_salida + timedelta(minutes=2),
+            estado="tarde",
         )
 
         control_response = self.client.get(reverse("api_control_ruta_web", args=[salida.id]))
@@ -3421,6 +3420,7 @@ class DispatcherLiveApisTests(BaseFlotaTestCase):
         self.assertEqual(detalle_response.status_code, 200)
         self.assertEqual(control_response.json()["resumen"]["completados"], 1)
         self.assertEqual(detalle_response.json()["resumen"]["completados"], 1)
+        self.assertEqual(detalle_response.json()["resumen"]["minutos_tarde"], 2)
         self.assertEqual(detalle_response.json()["detalle"][0]["codigo"], punto.codigo)
 
     def test_api_detalle_salida_web_respeta_estado_omitido(self):
